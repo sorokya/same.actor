@@ -1,4 +1,4 @@
-app = "same-actor"
+app = "sameactor-2b47"
 kill_signal = "SIGINT"
 kill_timeout = 5
 processes = [ ]
