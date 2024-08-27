@@ -5,6 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
+    "dev-api": "cd api && npm run dev",
 		"build": "vite build",
 		"preview": "vite preview",
 		"lint": "biome check src",
