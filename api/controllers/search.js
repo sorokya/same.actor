@@ -14,6 +14,12 @@ async function search(req, res) {
       .send('Search term must be at least 3 characters in length');
   }
 
+  if (term.length > 100) {
+    return res
+      .status(400)
+      .send('Search term must be less than 100 characters in length');
+  }
+
   const url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(
     term,
   )}&include_adult=false&language=en-US&page=1`;
