@@ -37,25 +37,25 @@ function App() {
       <div className="flex flex-col min-h-screen">
         <div className="w-5/6 m-auto flex-grow">
           <Header />
-          <div className="flex flex-col md:flex-row items-start md:items-center">
-            <div className="w-full md:flex-grow md:mr-2">
-              <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
-            </div>
-            <div className="flex space-x-1 mt-2 md:mt-0 w-full">
-              <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
-                <FaSearch className="inline" />
-                {' '}
-                Find out!
-              </Button>
-              <Button onClick={() => { setTerm(''); setResults(null); setSearchResults([]); clearSelection(); }} variant={"danger"}>
-                <FaTrash className="inline" />
-                {' '}
-                Clear
-              </Button>
-            </div>
+          <div className="w-1/3 m-auto">
+            <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
+          </div>
+          <div className="w-1/3 mx-auto mt-1">
+            <Selected selection={selection} removeSelection={removeSelection} />
+          </div>
+          <div className="w-full text-center mt-2">
+            <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
+              <FaSearch className="inline" />
+              {' '}
+              Find out!
+            </Button>
+            <Button onClick={() => { setTerm(''); setResults(null); setSearchResults([]); clearSelection(); }} variant={"danger"}>
+              <FaTrash className="inline" />
+              {' '}
+              Clear
+            </Button>
           </div>
 
-          <Selected selection={selection} removeSelection={removeSelection} />
           <Dropdown items={searchResults} addSelection={addSelection} />
           <Results selection={selection} results={results} />
         </div>

@@ -13,7 +13,7 @@ export function Button({ children, variant, ...props }) {
   }, [variant]);
 
   const styles = useMemo(() => {
-    let styles = `text-white bg-gradient-to-br hover:bg-gradient-to-bl focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 mb-2 ${colors}`;
+    let styles = `w-52 text-white bg-gradient-to-br hover:bg-gradient-to-bl focus:ring-4 focus:outline-none font-medium rounded-lg text-sm px-5 py-2.5 text-center me-2 mb-2 ${colors}`;
 
     if (disabled) {
       styles += ' opacity-50 cursor-not-allowed';

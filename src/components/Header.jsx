@@ -1,8 +1,7 @@
 export function Header() {
   return (
-    <header className="w-full">
-      <h1 className="ml-1 font-bold text-3xl mt-3">Same Actor?</h1>
-      <h2 className="ml-1 italic">Let's find out!</h2>
+    <header className="w-full text-center">
+      <img src="/sameactor-min.png" alt="logo" className="h-48 mx-auto my-2" />
     </header>
   );
 }
