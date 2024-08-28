@@ -65,7 +65,7 @@ async function findOut(req, res) {
 }
 
 async function getCredits({ id, mediaType }) {
-  const url = `https://api.themoviedb.org/3/${mediaType}/${id}/credits?language=en-US`;
+  const url = `https://api.themoviedb.org/3/${mediaType}/${id}/${mediaType === 'tv' ? 'aggregate_' : ''}credits?language=en-US`;
   const options = {
     method: 'GET',
     headers: {
@@ -92,7 +92,7 @@ async function getCredits({ id, mediaType }) {
     cast: data.cast.map((c) => ({
       id: c.id,
       name: c.name,
-      character: c.character,
+      character: mediaType === 'tv' ? c.roles.map((r) => r.character).join(', ') : c.character,
       imgUrl: `https://image.tmdb.org/t/p/w154/${c.profile_path}`,
     })),
   };
