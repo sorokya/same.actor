@@ -30,6 +30,7 @@ async function findOut(req, res) {
       const castMember = {
         id: c.id,
         name: c.name,
+        imgUrl: c.imgUrl,
       };
 
       if (!cast.some((c) => c.id === castMember.id)) {
@@ -51,6 +52,7 @@ async function findOut(req, res) {
       results.push({
         id: member.id,
         name: member.name,
+        imgUrl: member.imgUrl,
         media: matchingMedia.map((m) => ({
           id: m.id,
           character: m.cast.find((c) => c.id === member.id).character,
