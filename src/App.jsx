@@ -37,10 +37,10 @@ function App() {
       <div className="flex flex-col min-h-screen">
         <div className="w-5/6 m-auto flex-grow">
           <Header />
-          <div className="w-1/3 m-auto">
+          <div className="w-full md:w-2/3 m-auto">
             <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
           </div>
-          <div className="w-1/3 mx-auto mt-1">
+          <div className="w-full md:w-2/3 mx-auto mt-1">
             <Selected selection={selection} removeSelection={removeSelection} />
           </div>
           <div className="w-full text-center mt-2">
