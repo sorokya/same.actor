@@ -93,7 +93,7 @@ async function getCredits({ id, mediaType }) {
       id: c.id,
       name: c.name,
       character: mediaType === 'tv' ? c.roles.map((r) => r.character).join(', ') : c.character,
-      imgUrl: `https://image.tmdb.org/t/p/w154/${c.profile_path}`,
+      imgUrl: c.profile_path ? `https://image.tmdb.org/t/p/w154/${c.profile_path}` : '/avatar.png',
     })),
   };
 }
