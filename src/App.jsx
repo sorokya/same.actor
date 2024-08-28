@@ -34,31 +34,33 @@ function App() {
 
   return (
     <>
-      <div className="w-5/6 m-auto">
-        <Header />
-        <div className="flex flex-col md:flex-row items-start md:items-center">
-          <div className="w-full md:flex-grow md:mr-2">
-            <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
+      <div className="flex flex-col min-h-screen">
+        <div className="w-5/6 m-auto flex-grow">
+          <Header />
+          <div className="flex flex-col md:flex-row items-start md:items-center">
+            <div className="w-full md:flex-grow md:mr-2">
+              <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
+            </div>
+            <div className="flex space-x-1 mt-2 md:mt-0 w-full">
+              <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
+                <FaSearch className="inline" />
+                {' '}
+                Find out!
+              </Button>
+              <Button onClick={() => { setTerm(''); setResults(null); setSearchResults([]); clearSelection(); }} variant={"danger"}>
+                <FaTrash className="inline" />
+                {' '}
+                Clear
+              </Button>
+            </div>
           </div>
-          <div className="flex space-x-1 mt-2 md:mt-0 w-full">
-            <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
-              <FaSearch className="inline" />
-              {' '}
-              Find out!
-            </Button>
-            <Button onClick={() => { setTerm(''); setResults(null); setSearchResults([]); clearSelection(); }} variant={"danger"}>
-              <FaTrash className="inline" />
-              {' '}
-              Clear
-            </Button>
-          </div>
-        </div>
 
-        <Selected selection={selection} removeSelection={removeSelection} />
-        <Dropdown items={searchResults} addSelection={addSelection} />
-        <Results selection={selection} results={results} />
+          <Selected selection={selection} removeSelection={removeSelection} />
+          <Dropdown items={searchResults} addSelection={addSelection} />
+          <Results selection={selection} results={results} />
+        </div>
+        <Footer />
       </div>
-      <Footer />
     </>
   );
 }
