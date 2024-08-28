@@ -8,7 +8,7 @@ export function Results({ selection, results }) {
   }
 
   return (
-    <table className="w-full text-sm text-left text-slate-100">
+    <table className="w-full text-sm text-left text-slate-100 mb-40">
       <thead className="text-md font-bold uppercase bg-slate-600 border-b">
         <tr>
           <th className="px-6 py-3">{' '}</th>

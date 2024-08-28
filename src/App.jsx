@@ -36,11 +36,11 @@ function App() {
     <>
       <div className="w-5/6 m-auto">
         <Header />
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          <div className="col-span-2">
+        <div className="flex flex-col md:flex-row items-start md:items-center">
+          <div className="w-full md:flex-grow md:mr-2">
             <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
           </div>
-          <div className="col-span-2">
+          <div className="flex space-x-1 mt-2 md:mt-0 w-full">
             <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
               <FaSearch className="inline" />
               {' '}
