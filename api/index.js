@@ -1,9 +1,19 @@
+const { rateLimit } = require('express-rate-limit');
+
+const limiter = rateLimit({
+  windowMs: 1000,
+  limit: 1,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+});
+
 require('dotenv').config();
 
 const express = require('express');
 const bodyParser = require('body-parser');
 const app = express();
 
+app.use(limiter);
 app.use(bodyParser.json());
 
 const { search, findOut } = require('./controllers');

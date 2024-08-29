@@ -19,7 +19,9 @@ export function Search({ setSearchResults, setLoading, term, setTerm, mediaType 
       }
 
       setLoading(false);
-      setSearchResults(results);
+      if (results) {
+        setSearchResults(results);
+      }
     };
 
     doSearch();

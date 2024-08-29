@@ -1,7 +1,6 @@
-import { useMemo } from "react";
 import { Button } from "./Button";
 
-export function FindOut({ selection, onClick }) {
+export function FindOut({ onClick }) {
   return (
     <Button
       onClick={onClick}

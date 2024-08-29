@@ -4,5 +4,10 @@ export async function search({ term, mediaType }) {
   }
 
   const response = await fetch(`/api/search?mediaType=${encodeURIComponent(mediaType)}&term=${encodeURIComponent(term.substring(0, 100).trim())}`);
-  return await response.json();
+
+  if (response.status === 429) {
+    return null;
+  }
+
+  return response.json();
 }

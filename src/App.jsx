@@ -25,15 +25,17 @@ function App() {
   const loading = useMemo(() => searchLoading || resultsLoading, [searchLoading, resultsLoading]);
 
   const getResults = useCallback(async () => {
-    if (selection.length < 2) {
+    if (selection.length < 2 || loading) {
       return;
     }
 
     setResultsLoading(true);
     const matches = await getMatches({ selection, mediaType });
-    setResults(matches);
+    if (matches) {
+      setResults(matches);
+    }
     setResultsLoading(false);
-  }, [selection]);
+  }, [selection, loading]);
 
   return (
     <>

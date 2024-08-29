@@ -13,5 +13,9 @@ export async function getMatches({ selection, mediaType }) {
     }),
   });
 
+  if (response.status === 429) {
+    return null;
+  }
+
   return response.json();
 }
