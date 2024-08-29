@@ -4,7 +4,7 @@ export function Results({ selection, results }) {
   }
 
   if (results.length === 0) {
-    return <h1>No matches</h1>;
+    return <h1 className="text-center text-2xl">😞 No matches found</h1>;
   }
 
   return (

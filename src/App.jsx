@@ -40,10 +40,10 @@ function App() {
           <div className="w-full md:w-2/3 m-auto">
             <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
           </div>
-          <div className="w-full md:w-2/3 mx-auto mt-1">
+          <div className="w-full md:w-2/3 mx-auto mt-2">
             <Selected selection={selection} removeSelection={removeSelection} />
           </div>
-          <div className="w-full text-center mt-2">
+          <div className="w-full text-center mt-2 mb-4">
             <Button onClick={getResults} disabled={selection.length < 2} title={selection.length < 2 ? 'Select at least 2 items' : null}>
               <FaSearch className="inline" />
               {' '}

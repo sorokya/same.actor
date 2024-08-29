@@ -1,11 +1,12 @@
 export function Selected({ selection, removeSelection }) {
   return (
-    <ul className="mb-2">
+    <ul className="flex flex-row gap-2">
       {selection.map((item) => (
         <li
           key={item.id}
           onClick={() => removeSelection(item)}
-          className="inline-block mx-1 p-1 bg-slate-100 text-slate-800 rounded hover:cursor-pointer relative"
+          title="Click to remove"
+          className="p-1 bg-slate-100 text-slate-800 rounded hover:cursor-pointer relative"
         >
           <div>
             {item.name}
