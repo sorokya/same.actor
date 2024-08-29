@@ -41,7 +41,7 @@ function App() {
         <div className="w-5/6 m-auto flex-grow">
           <Header />
           <div className="w-full md:w-2/3 m-auto">
-            <MediaType mediaType={mediaType} setMediaType={(value) => { setMediaType(value); clearSelection(); }} />
+            <MediaType mediaType={mediaType} setMediaType={(value) => { setMediaType(value); setResults(null); setSearchResults([]); clearSelection(); }} />
             <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaType={mediaType} term={term} setTerm={setTerm} />
           </div>
           <div className="w-full md:w-2/3 mx-auto mt-2">
