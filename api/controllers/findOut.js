@@ -154,7 +154,7 @@ async function getCredits({ id, mediaType }) {
         mediaType: c.media_type,
         releaseYear: new Date(c.release_date || c.first_air_date).getFullYear(),
         character: c.character || 'Self',
-        imgUrl: c.poster_path ? `https://image.tmdb.org/t/p/w154/${c.poster_path}` : null,
+        imgUrl: c.poster_path ? `https://image.tmdb.org/t/p/w154/${c.poster_path}` : '/poster.png',
       })),
     }
   }
