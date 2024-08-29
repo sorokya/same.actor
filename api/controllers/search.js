@@ -4,6 +4,8 @@ const MEDIA_TYPES = ['tv', 'movie', 'person'];
 
 async function search(req, res) {
   const term = req.query.term;
+  const mediaType = req.query.mediaType || 'film';
+
   if (!term) {
     return res.status(400).send('Search term is required');
   }
@@ -18,6 +20,10 @@ async function search(req, res) {
     return res
       .status(400)
       .send('Search term must be less than 100 characters in length');
+  }
+
+  if (!['film', 'actor'].includes(mediaType)) {
+    return res.status(400).send('Invalid media type');
   }
 
   const url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(
@@ -45,7 +51,8 @@ async function search(req, res) {
           (d) =>
             (d.poster_path || d.profile_path) &&
             (d.first_air_date || d.release_date || d.media_type === 'person') &&
-            MEDIA_TYPES.includes(d.media_type),
+            MEDIA_TYPES.includes(d.media_type) &&
+            (mediaType === 'actor' ? d.media_type === 'person' : d.media_type !== 'person'),
         )
         .map((d) => ({
           id: d.id,

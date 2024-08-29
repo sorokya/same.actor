@@ -10,6 +10,7 @@ import { Button } from './components/Button';
 
 import { FaTrash, FaSearch } from 'react-icons/fa'
 import { Footer } from './components/Footer';
+import { MediaType } from './components/MediaType';
 
 function App() {
   const [term, setTerm] = useState('');
@@ -17,7 +18,9 @@ function App() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [results, setResults] = useState(null);
   const [resultsLoading, setResultsLoading] = useState(false);
-  const { selection, mediaTypes, addSelection, removeSelection, clearSelection } = useSelection({ setTerm, setSearchResults, setResults });
+  const [mediaType, setMediaType] = useState('film');
+
+  const { selection, addSelection, removeSelection, clearSelection } = useSelection({ setTerm, setSearchResults, setResults });
 
   const loading = useMemo(() => searchLoading || resultsLoading, [searchLoading, resultsLoading]);
 
@@ -27,7 +30,7 @@ function App() {
     }
 
     setResultsLoading(true);
-    const matches = await getMatches({ selection });
+    const matches = await getMatches({ selection, mediaType });
     setResults(matches);
     setResultsLoading(false);
   }, [selection]);
@@ -38,7 +41,8 @@ function App() {
         <div className="w-5/6 m-auto flex-grow">
           <Header />
           <div className="w-full md:w-2/3 m-auto">
-            <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaTypes={mediaTypes} term={term} setTerm={setTerm} />
+            <MediaType mediaType={mediaType} setMediaType={(value) => { setMediaType(value); clearSelection(); }} />
+            <Search setSearchResults={setSearchResults} setLoading={setSearchLoading} mediaType={mediaType} term={term} setTerm={setTerm} />
           </div>
           <div className="w-full md:w-2/3 mx-auto mt-2">
             <Selected selection={selection} removeSelection={removeSelection} />
@@ -57,7 +61,7 @@ function App() {
           </div>
 
           <Dropdown items={searchResults} addSelection={addSelection} />
-          <Results selection={selection} results={results} />
+          <Results selection={selection} results={results} mediaType={mediaType} />
         </div>
         <Footer />
       </div>

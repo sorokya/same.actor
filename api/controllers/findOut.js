@@ -6,7 +6,7 @@ async function findOut(req, res) {
     return;
   }
 
-  const { selection } = req.body;
+  const { selection, mediaType } = req.body;
 
   if (selection.length > 5) {
     res.status(400).send('Too many selections');
@@ -21,6 +21,64 @@ async function findOut(req, res) {
     return;
   }
 
+  switch (mediaType) {
+    case 'film':
+      return findOutFilm(selection, res);
+    case 'actor':
+      return findOutActor(selection, res);
+    default:
+      return res.status(400).send('Invalid media type');
+  }
+}
+
+async function findOutActor(selection, res) {
+  const credits = await Promise.all(selection.map((s) => getCredits(s)));
+  const films = [];
+
+  credits.forEach((credit) => {
+    credit.films.forEach((f) => {
+      const film = {
+        id: f.id,
+        name: f.name,
+        imgUrl: f.imgUrl,
+        releaseYear: f.releaseYear,
+        mediaType: f.mediaType,
+      };
+
+      if (!films.some((f) => f.id === film.id)) {
+        films.push(film);
+      }
+    });
+  });
+
+  if (films.length === 0) {
+    res.status(200).json([]);
+    return;
+  }
+
+  const results = [];
+
+  films.forEach((film) => {
+    const matchingActors = credits.filter((actor) => actor.films.some((f) => f.id === film.id));
+    if (matchingActors.length > 1) {
+      results.push({
+        id: film.id,
+        name: film.name,
+        imgUrl: film.imgUrl,
+        releaseYear: film.releaseYear,
+        mediaType: film.mediaType,
+        actors: matchingActors.map((actor) => ({
+          id: actor.id,
+          character: actor.films.find((f) => f.id === film.id).character,
+        })),
+      })
+    }
+  });
+
+  return res.json(results);
+}
+
+async function findOutFilm(selection, res) {
   const credits = await Promise.all(selection.map((s) => getCredits(s)));
 
   const cast = [];
@@ -61,11 +119,12 @@ async function findOut(req, res) {
     }
   });
 
-  res.json(results);
+  return res.json(results);
 }
 
 async function getCredits({ id, mediaType }) {
-  const url = `https://api.themoviedb.org/3/${mediaType}/${id}/${mediaType === 'tv' ? 'aggregate_' : ''}credits?language=en-US`;
+  const api = getCreditsApi(mediaType);
+  const url = `https://api.themoviedb.org/3/${mediaType}/${id}/${api}?language=en-US`;
   const options = {
     method: 'GET',
     headers: {
@@ -86,9 +145,22 @@ async function getCredits({ id, mediaType }) {
     return null;
   }
 
+  if (mediaType === 'person') {
+    return {
+      id,
+      films: data.cast.map((c) => ({
+        id: c.id,
+        name: c.title || c.name,
+        mediaType: c.media_type,
+        releaseYear: new Date(c.release_date || c.first_air_date).getFullYear(),
+        character: c.character || 'Self',
+        imgUrl: c.poster_path ? `https://image.tmdb.org/t/p/w154/${c.poster_path}` : null,
+      })),
+    }
+  }
+
   return {
     id,
-    mediaType,
     cast: data.cast.map((c) => ({
       id: c.id,
       name: c.name,
@@ -96,6 +168,17 @@ async function getCredits({ id, mediaType }) {
       imgUrl: c.profile_path ? `https://image.tmdb.org/t/p/w154/${c.profile_path}` : '/avatar.png',
     })),
   };
+}
+
+function getCreditsApi(mediaType) {
+  switch (mediaType) {
+    case 'person':
+      return 'combined_credits';
+    case 'tv':
+      return 'aggregate_credits';
+    default:
+      return 'credits';
+  }
 }
 
 module.exports = { findOut };

@@ -1,4 +1,4 @@
-export function Results({ selection, results }) {
+export function Results({ selection, results, mediaType }) {
   if (selection.length === 0 || !results) {
     return null;
   }
@@ -16,7 +16,7 @@ export function Results({ selection, results }) {
             <th key={item.id} className="px-6 py-3">
               <a href={`https://www.themoviedb.org/${item.mediaType}/${item.id}`} target="_blank">
                 {item.name}
-                {item.releaseYear ? ` (${item.releaseYear})` : null}
+                {mediaType === 'film' && item.releaseYear ? ` (${item.releaseYear})` : null}
               </a>
             </th>
           ))}
@@ -26,18 +26,19 @@ export function Results({ selection, results }) {
         {results.map((result) => (
           <tr key={result.id} className="border-b">
             <td className="px-6 py-4">
-              <a href={`https://www.themoviedb.org/person/${result.id}`} target="_blank">
+              <a href={`https://www.themoviedb.org/${mediaType === 'film' ? 'person' : result.mediaType}/${result.id}`} target="_blank">
                 <img
                   src={result.imgUrl}
                   alt={`${result.name} poster`}
                   className="inline-block h-20 mr-1"
                 />
                 {result.name}
+                {mediaType === 'person' && result.releaseYear ? ` (${result.releaseYear})` : null}
               </a>
             </td>
 
             {selection.map((item) => {
-              const match = result.media.find((m) => m.id === item.id);
+              const match = result[mediaType === 'actor' ? 'actors' : 'media'].find((m) => m.id === item.id);
               if (match) {
                 return (<td key={item.id} className="px-6 py-4">{match.character}</td>);
               } else {

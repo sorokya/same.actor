@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from 'react';
 
 export function useSelection({ setTerm, setSearchResults, setResults }) {
   const [selection, setSelection] = useState([]);
@@ -28,33 +28,5 @@ export function useSelection({ setTerm, setSearchResults, setResults }) {
     setSelection([]);
   }, [setSelection]);
 
-  const mediaTypes = useMemo(() => {
-    const types = [];
-
-    selection.forEach((item) => {
-      if (!types.includes(item.mediaType)) {
-        types.push(item.mediaType);
-      }
-    });
-
-    if (types.length === 0) {
-      return ['person', 'movie', 'tv'];
-    }
-
-    if (types.length === 1) {
-      switch (types[0]) {
-        case 'movie':
-          types.push('tv');
-          break;
-        case 'tv':
-          types.push('movie');
-          break;
-      }
-    }
-
-    return types;
-  }, [selection]);
-
-
-  return { selection, mediaTypes, addSelection, removeSelection, clearSelection };
+  return { selection, addSelection, removeSelection, clearSelection };
 }

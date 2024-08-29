@@ -2,7 +2,7 @@ import { useDebounce } from '@uidotdev/usehooks';
 import { useCallback, useEffect } from 'react';
 import { search } from '../utils/search';
 
-export function Search({ setSearchResults, setLoading, term, setTerm }) {
+export function Search({ setSearchResults, setLoading, term, setTerm, mediaType }) {
   const debouncedTerm = useDebounce(term, 300);
 
   const onChange = useCallback((e) => {
@@ -15,7 +15,7 @@ export function Search({ setSearchResults, setLoading, term, setTerm }) {
       let results = [];
       setLoading(true);
       if (debouncedTerm) {
-        results = await search({ term })
+        results = await search({ term, mediaType })
       }
 
       setLoading(false);
@@ -23,12 +23,12 @@ export function Search({ setSearchResults, setLoading, term, setTerm }) {
     };
 
     doSearch();
-  }, [debouncedTerm]);
+  }, [debouncedTerm, mediaType]);
 
   return (
     <input
       type="text"
-      placeholder="Enter a movie or tv show name"
+      placeholder={mediaType === 'film' ? 'Enter a movie or tv show name' : 'Enter an actor name'}
       maxLength={100}
       value={term}
       onChange={onChange}
