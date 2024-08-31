@@ -154,7 +154,7 @@ async function getCredits({ id, mediaType }) {
         mediaType: c.media_type,
         releaseYear: new Date(c.release_date || c.first_air_date).getFullYear(),
         character: c.character || 'Self',
-        imgUrl: c.poster_path ? `https://image.tmdb.org/t/p/w154/${c.poster_path}` : '/poster.png',
+        imgUrl: c.poster_path ? `https://image.tmdb.org/t/p/w154/${c.poster_path}` : 'https://same.actor/poster.png',
       })),
     }
   }
@@ -165,7 +165,7 @@ async function getCredits({ id, mediaType }) {
       id: c.id,
       name: c.name,
       character: mediaType === 'tv' ? c.roles.map((r) => r.character).join(', ') : c.character,
-      imgUrl: c.profile_path ? `https://image.tmdb.org/t/p/w154/${c.profile_path}` : '/avatar.png',
+      imgUrl: c.profile_path ? `https://image.tmdb.org/t/p/w154/${c.profile_path}` : 'https://same.actor/avatar.png',
     })),
   };
 }

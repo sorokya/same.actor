@@ -1,6 +1,6 @@
 export function Dropdown({ items, addSelection }) {
   return (
-    <ul className="mt-2">
+    <ul className="mt-2 mb-4">
       {items.map((item) => (
         <li
           key={item.id}

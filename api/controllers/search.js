@@ -69,8 +69,7 @@ async function search(req, res) {
                 )
                 .join(', ')}`
               : d.overview,
-          imgUrl: `https://image.tmdb.org/t/p/w154/${d.poster_path || d.profile_path
-            }`,
+          imgUrl: getImgUrl(d),
           releaseYear:
             d.media_type === 'person'
               ? null
@@ -81,6 +80,15 @@ async function search(req, res) {
     console.error('Failed to search the movie db', err);
     return res.status(500).send('There was an error processing your search');
   }
+}
+
+function getImgUrl(d) {
+  const path = d.poster_path || d.profile_path;
+  if (path) {
+    return `https://image.tmdb.org/t/p/w154/${path}`;
+  }
+
+  return `https://same.actor/${d.media_type === 'person' ? 'avatar' : 'poster'}.png`;
 }
 
 module.exports = { search };
