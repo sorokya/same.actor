@@ -1,0 +1,31 @@
+name: Deploy
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install dependencies and build
+        run: |
+          npm install
+          npm run build
+
+      - name: Sync public folder to remote server
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan leek.cafe >> ~/.ssh/known_hosts
+          rsync -avz --delete ./public/ github@leek.cafe:/var/www/same.actor
+
+      - name: Cleanup SSH Key
+        run: rm -f ~/.ssh/id_rsa
