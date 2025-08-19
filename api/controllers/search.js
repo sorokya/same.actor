@@ -26,6 +26,14 @@ async function search(req, res) {
     return res.status(400).send('Invalid media type');
   }
 
+  if (mediaType === 'film') {
+    return searchFilms(res, term);
+  }
+
+  return searchActors(req, res, term);
+}
+
+async function searchFilms(res, term) {
   const url = `https://api.themoviedb.org/3/search/multi?query=${encodeURIComponent(
     term,
   )}&include_adult=false&language=en-US&page=1`;
@@ -49,31 +57,60 @@ async function search(req, res) {
       data.results
         .filter(
           (d) =>
-            (d.poster_path || d.profile_path) &&
-            (d.first_air_date || d.release_date || d.media_type === 'person') &&
+            (d.first_air_date || d.release_date) &&
             MEDIA_TYPES.includes(d.media_type) &&
-            (mediaType === 'actor' ? d.media_type === 'person' : d.media_type !== 'person'),
+            d.media_type !== 'person',
         )
         .map((d) => ({
           id: d.id,
           mediaType: d.media_type,
           name: d.name || d.title,
-          overview:
-            d.media_type === 'person'
-              ? `Known for: ${d.known_for
+          overview: d.overview,
+          imgUrl: getImgUrl(d),
+          releaseYear: new Date(d.release_date || d.first_air_date).getFullYear(),
+        })),
+    );
+  } catch (err) {
+    console.error('Failed to search the movie db', err);
+    return res.status(500).send('There was an error processing your search');
+  }
+}
+
+async function searchActors(req, res, term) {
+  const url = `https://api.themoviedb.org/3/search/person?query=${encodeURIComponent(
+    term,
+  )}&include_adult=false&language=en-US&page=1`;
+  const options = {
+    method: 'GET',
+    headers: {
+      accept: 'application/json',
+      Authorization: `Bearer ${process.env.TMDB_KEY}`,
+    },
+  };
+
+  try {
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      console.error('Response not OK from the movie db', response);
+      return res.status(500).send('There was an error processing your search');
+    }
+
+    const data = await response.json();
+    return res.json(
+      data.results
+        .map((d) => ({
+          id: d.id,
+          mediaType: 'person',
+          name: d.name,
+          imgUrl: getImgUrl(d),
+          overview: `Known for: ${d.known_for
                 .map(
                   (i) =>
                     `${i.name || i.title} (${new Date(
                       i.release_date || i.first_air_date,
-                    ).getFullYear()})`,
+                    ).getFullYear() || 'N/A'})`,
                 )
-                .join(', ')}`
-              : d.overview,
-          imgUrl: getImgUrl(d),
-          releaseYear:
-            d.media_type === 'person'
-              ? null
-              : new Date(d.release_date || d.first_air_date).getFullYear(),
+                .join(', ')}`,
         })),
     );
   } catch (err) {
