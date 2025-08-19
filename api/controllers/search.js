@@ -102,7 +102,7 @@ async function searchActors(req, res, term) {
           id: d.id,
           mediaType: 'person',
           name: d.name,
-          imgUrl: getImgUrl(d),
+          imgUrl: getImgUrl({media_type: 'person', ...d}),
           overview: `Known for: ${d.known_for
                 .map(
                   (i) =>
