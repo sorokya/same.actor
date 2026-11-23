@@ -22,8 +22,8 @@ Settled by the five up-front questions:
 |---|----------|--------|
 | Q1 | Admin auth | Single token in `ADMIN_TOKEN`, sent as a header. No third-party dependency. |
 | Q2 | IP storage | Raw IP in the log row; 90 days of detail, then rolled into daily aggregates that drop the IP. |
-| Q3 | Geo-IP | DB-IP Lite, no account or key, CC-BY attribution. City or country level, see §4. |
-| Q4 | Sessions | First-party cookie `sa_sid`, random id, `HttpOnly`, `SameSite=Lax`, 30-day expiry. |
+| Q3 | Geo-IP | DB-IP Lite, **country level only**, no account or key, CC-BY attribution. |
+| Q4 | Sessions | First-party cookie `sa_sid`, random id, `HttpOnly`, `SameSite=Lax`, 30-day expiry — **required on search and findout** (§4.1). |
 | Q5 | Discovery table | Ranked list plus actors appearing in 2+ of the N, sorted by how many, capped and paginated. |
 
 Settled here, flagged because they are judgement calls rather than answers:
@@ -33,7 +33,7 @@ Settled here, flagged because they are judgement calls rather than answers:
 | D1 | `rusqlite` with `bundled`, one writer connection, a small read pool. Not `sqlx`. | `bundled` compiles SQLite in, so the image needs no system library and the version is pinned by `Cargo.lock`. A single writer task removes `SQLITE_BUSY` as a class instead of configuring around it. Migrations are `user_version` steps, ~40 lines — the same call as the hand-rolled rate limiter. |
 | D2 | Charts hand-rolled as SVG. No chart library. | The whole SPA is 38 kB. Chart.js would triple it to draw four charts. `og.rs` already generates SVG; the same approach in Preact is ~150 lines for line, bar and sparkline. |
 | D3 | The dashboard lives in the same SPA at `/admin`, lazy-loaded. | A second app to build, deploy and version for one user is not worth it. |
-| D4 | Bans key on IP and CIDR. Session bans are advisory only. | A cookie is client-controlled: a banned visitor clears it. Presenting session bans as enforcement would be a lie in the UI. |
+| D4 | Bans key on a single IP or a CIDR range. **No session bans.** | A cookie is client-controlled: a banned visitor clears it. A ban you can escape by pressing ⌘⇧N is worse than no ban, because it looks like enforcement. |
 | D5 | Geo resolves inside the writer task, never on the request path. | The mmdb read is a memory-mapped lookup measured in microseconds, but there is no reason for it to be in the request's critical path. |
 | D6 | Discovery lists are fetched by a background job into SQLite; pages never call TMDB. | "Top movies" is the most requested page shape; upstream latency must not be in front of it, and 5 lists × 20 titles is a trivial periodic cost. |
 | D7 | Assets, `/healthz` and share-card images are **not** logged by default. `LOG_ASSETS=1` turns assets on. | One page load is one row, not five. This is the difference between 20 MB/day and 100 MB/day (see §9). |
@@ -43,7 +43,8 @@ Settled here, flagged because they are judgement calls rather than answers:
 | D11 | Error `code` and `message` are captured via a response extension set in `AppError::into_response`. | The logging middleware sees the final response, not the `Result`. Putting the error on the response is how it reaches the log without re-parsing JSON bodies. |
 | D12 | Upcoming/New Releases use `TMDB_REGION`, default `US`. | TMDB needs a region for release dates and cannot infer it. |
 | D13 | If `ADMIN_TOKEN` is unset, admin routes 404. | A forgotten env var must not mean an open dashboard. |
-| D14 | Geo defaults to country-level, not city. | 4 MB instead of 60 MB for a column nobody filters on daily. `GEO_LEVEL=city` opts in. |
+| D14 | Country only, no city column, and no `GEO_LEVEL` switch. | 4 MB instead of 60 MB, one lookup, one column. Adding city later is a migration, not a redesign. |
+| D15 | A session cookie is **required** on the two endpoints that call TMDB — `POST /api/findout` and `GET /api/search` — answering `428` with `Set-Cookie` when missing. Everything else is exempt. | Those are the requests that cost an upstream call and represent a visit; forcing a cookie onto a cached read of `/api/trending` or onto an admin call carrying its own token is ceremony, not attribution. See §4.1. |
 
 ---
 
@@ -114,12 +115,12 @@ CREATE TABLE requests (
   code        TEXT,                  -- AppError code on failure, e.g. 'upstream_error'
   message     TEXT,                  -- human message on failure
   kind        TEXT NOT NULL,         -- api | page | card | admin | asset | health
-  country     TEXT,                  -- ISO-3166-1 alpha-2, NULL when unknown
-  city        TEXT
+  country     TEXT                   -- ISO-3166-1 alpha-2, NULL when unknown
 );
 CREATE INDEX requests_ts         ON requests(ts);
 CREATE INDEX requests_ip_ts      ON requests(ip, ts);
-CREATE INDEX requests_session_ts ON requests(session, ts);
+CREATE INDEX requests_session_ts ON requests(session, ts);  -- no session column is NULL
+                                                             -- for /api rows; see §4.1
 CREATE INDEX requests_status_ts  ON requests(status, ts);
 
 CREATE TABLE searches (
@@ -151,8 +152,8 @@ CREATE TABLE bans (
   id         INTEGER PRIMARY KEY,
   created_ts INTEGER NOT NULL,
   expires_ts INTEGER,             -- NULL = permanent
-  target     TEXT NOT NULL,       -- IP, CIDR, or session id
-  kind       TEXT NOT NULL,       -- ip | cidr | session
+  target     TEXT NOT NULL,       -- an address, or a CIDR range
+  kind       TEXT NOT NULL,       -- ip | cidr
   reason     TEXT,
   created_by TEXT NOT NULL,       -- 'admin' | 'auto:<rule>'
   hits       INTEGER NOT NULL DEFAULT 0,
@@ -228,13 +229,14 @@ Middleware `observe`, outermost inside `TraceLayer`:
 3. Read the final status and the `ErrorDetail { code, message }` extension if present.
 4. Build a `RequestLog` and `try_send` it to the writer.
 
-**Cookie.** Set on page responses when absent: 16 random bytes, base64url, `HttpOnly`,
+**Cookie.** Minted on page responses when absent: 16 random bytes, base64url, `HttpOnly`,
 `SameSite=Lax`, `Path=/`, `Max-Age=2592000`, `Secure` when `PUBLIC_ORIGIN` is `https`.
-`getrandom` for the bytes — one small dependency, no `rand` tree.
+`getrandom` for the bytes — one small dependency, no `rand` tree. On the API it is mandatory
+(§4.1).
 
-**Geo.** In the writer task, `geo.rs` looks the IP up in a memory-mapped DB-IP Lite mmdb and
-attaches country and city. Private and loopback addresses resolve to nothing, which is correct
-and also means local development logs clean landscape.
+**Geo.** In the writer task, `geo.rs` looks the IP up in a memory-mapped DB-IP Lite **country**
+mmdb and attaches the ISO code. Private and loopback addresses resolve to nothing, which is
+correct and also means local development logs clean landscape.
 
 **The geo database** is *not* baked into the image (it goes stale monthly). A background task
 downloads the current month's file into `/data/`, verifies the gzip container and the mmdb
@@ -243,13 +245,12 @@ logged once — never a startup failure.
 
 Two facts verified against the live service, both of which would otherwise cost an afternoon:
 
-- **The download 403s without a `User-Agent`.** `https://download.db-ip.com/free/dbip-city-lite-{YYYY-MM}.mmdb.gz`
+- **The download 403s without a `User-Agent`.** `https://download.db-ip.com/free/dbip-country-lite-{YYYY-MM}.mmdb.gz`
   returns `206` with a normal UA and `403` with an empty one. The downloader must set a UA
   explicitly — the same class of silent failure as the broken TMDB logo URL, except this one
   degrades to "no geo forever" instead of a missing image.
-- **Sizes are not small.** City-level is 60 MB compressed (≈120 MB on disk); country-level is
-  4.2 MB compressed. `GEO_LEVEL=city|country`, defaulting to `country`, keeps the default
-  footprint at 4 MB and still fills the country column; city is a deliberate opt-in.
+- **Country-level is 4.2 MB compressed** (city-level is 60 MB, which is why it was dropped —
+  D14). The downloader only ever asks for `dbip-country-lite-{YYYY-MM}.mmdb.gz`.
 
 ```rust
 pub struct RequestLog {
@@ -267,15 +268,47 @@ pub struct RequestLog {
 }
 ```
 
+### 4.1 The session cookie is required on the API
+
+`/api/*` without a `sa_sid` cookie is refused:
+
+```
+428 Precondition Required
+Set-Cookie: sa_sid=<id>; HttpOnly; SameSite=Lax; Path=/; Max-Age=2592000
+{"error":{"code":"session_required","message":"this API requires a session cookie; retry with the cookie from this response"}}
+```
+
+`428` rather than `400` because the request is well-formed and the caller can fix it by
+repeating with the cookie it was just handed — which is exactly what `curl -c jar -b jar` does
+on its second call, and what the SPA already does because it loaded a page first.
+
+**Crawler-facing routes are exempt.** `/og/{mode}/{picks}.png`, `/title/{picks}`,
+`/person/{picks}` and `/healthz` never require a cookie. Discord, Slack, Twitter and every
+other unfurler fetch the share card once, with no cookie jar and no intention of honouring
+`Set-Cookie`. Requiring a cookie there would break every embed in exchange for nothing.
+
+Consequences worth stating plainly:
+
+- The SPA's `fetch` calls are same-origin, so cookies ride along by default; no code change.
+- `SameSite=Lax` means the cookie is *not* sent on a cross-site `POST`, so requiring it does
+  not accidentally open a CSRF hole on `POST /api/findout`.
+- A scripted scraper now has to hold state. Combined with IP bans (§5) that is a real speed
+  bump, not a security boundary — a scraper with a cookie jar is trivially written.
+- Every existing HTTP test that calls `/api` needs a cookie; that is a genuine contract change
+  and the reason phase 2 ships before anything reads these rows.
+
 ---
 
 ## 5. Bans
 
-- Model: `Ban { target, kind, expires_at, reason, created_by }`. Kinds `ip`, `cidr`, `session`.
+- Model: `Ban { target, kind, expires_at, reason, created_by }`. Kinds `ip` and `cidr` only —
+  there is no session ban, by D4.
 - Enforcement: before the rate limit, so a banned client gets a `403` and a reason rather than
   a `429` that invites a retry. The ban set is held in memory and refreshed every 30 s and on
   every mutation, so enforcement costs no DB read per request.
-- Matching: exact IP, CIDR prefix (v4 and v6), and session id (advisory — see D4).
+- Matching: exact address, or a CIDR range covering it (v4 and v6, `/24` and `/48` the likely
+  defaults). Longest prefix wins for reporting, so the log shows the narrowest ban that caught
+  the request rather than just "banned".
 - `hits` and `last_hit` increment on the write path, batched like other writes.
 - Expired bans are ignored by the matcher and purged by the nightly job.
 - Auto-ban rules exist but default **off**: `AUTOBAN_REQUESTS` (n requests / window) and
@@ -358,8 +391,9 @@ that powers the main feature is useless — 190 pairs, mostly empty. Instead:
 - Sort by count descending, then name; cap at 250 rows; paginate 50.
 - Cache the whole result in `list_synergy`, keyed by list id, recomputed only when the list
   snapshot changes.
-- Each row links to that person's own page, and to a comparison of the 3–5 titles they are in
-  — which is how this page feeds the actual product rather than being a dead end.
+- Each row links to that person's TMDB profile (`https://www.themoviedb.org/person/{id}`) in a
+  new tab, `rel="noreferrer noopener"`. There is no `/person/{id}` page on this site yet, and
+  phase 8 does not add one — see §14.
 
 Cost: 5 lists × 20 credit calls every 6 hours, against the existing in-memory cache. The
 refresh job is the only thing that pays it.
@@ -400,6 +434,11 @@ Estimated admin chunk ~14 kB gzipped; the public bundle gains the trending strip
 Login: a token field posting to `/api/admin/session`; the cookie is `HttpOnly`, so nothing
 sensitive lives in `localStorage` (D10).
 
+One new failure state to handle: a `428 session_required` from search or findout means the
+visitor has cookies blocked. The UI says so in plain words ("this app needs cookies enabled")
+rather than showing an empty result set, because an empty result set is what it will look like
+to them either way and it is the wrong explanation.
+
 ---
 
 ## 11. Phases
@@ -433,8 +472,14 @@ Extending the existing 76 tests; every phase adds its own.
 - **Logging.** One request ⇒ exactly one row; a 502 carries `code` and `message`; a 429 is
   logged; assets and `/healthz` are absent by default and present with `LOG_ASSETS=1`; the
   cookie is `HttpOnly` and not set twice.
-- **Bans.** Banned IP ⇒ 403 with the reason; expired ban ignored; CIDR match on v4 and v6;
-  hit counter increments; cache reflects a create and a delete immediately.
+- **Session requirement.** `search` and `findout` without a cookie ⇒ `428` with
+  `code: session_required` *and* a `Set-Cookie`; repeating with that cookie ⇒ `200` and the
+  log row carries it. `/api/trending`, `/og/…`, `/title/…` and `/healthz` all succeed **without**
+  a cookie — the exemption is the part that breaks embeds if it regresses, so it gets a test
+  each rather than one representative.
+- **Bans.** Banned IP ⇒ 403 with the reason; expired ban ignored; CIDR match on v4 and v6, and a
+  `/24` ban does not catch an address outside it; hit counter increments; cache reflects a
+  create and a delete immediately.
 - **Admin.** No token ⇒ 401; wrong token ⇒ 401; unset `ADMIN_TOKEN` ⇒ 404; the token never
   appears in a log row or an error body; admin responses are `no-store`.
 - **Rollup.** 100 raw rows roll up to aggregates that match, and the raw rows are gone; a
@@ -456,16 +501,11 @@ Extending the existing 76 tests; every phase adds its own.
 
 ---
 
-## 14. Open question for you
+## 14. Resolved: no person pages
 
-Phase 8 puts a person row through to that person's own page, which today only exists as a
-*selection* — there is no `/person/{id}` profile page. Two options:
+Settled — synergy rows link out to `https://www.themoviedb.org/person/{id}` and this site grows
+no `/person/{id}` route. Phase 8 therefore adds five list pages and no sixth page type, and
+inherits TMDB's own attribution obligations for that outbound link (already covered by the
+Credits block from the last release).
 
-- **A** — the synergy row links to a comparison of the titles that person shares (works today,
-  zero new pages).
-- **B** — build a small `/person/{id}` profile (filmography, and a "compare with…" affordance).
-  Honest scope addition, roughly a day, and it becomes the natural landing page for the
-  discovery pages.
-
-My recommendation is **A** for phase 8 and **B** as a follow-up, so this plan does not grow a
-new page type while it is already adding five.
+If a `/person/{id}` profile ever becomes worth building, it is a follow-up with its own plan.
