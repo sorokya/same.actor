@@ -174,6 +174,8 @@ struct Harness {
     /// The same store the app writes to, so a test can assert on what was recorded rather
     /// than on what the handler happened to return.
     store: Arc<Store>,
+    /// The app's state, so a test can reach the ban cache the middleware actually reads.
+    state: AppState,
 }
 
 /// A minimal SPA shell with the Open Graph markers, so page rendering can be tested without
@@ -195,6 +197,12 @@ fn test_static_dir() -> std::path::PathBuf {
 }
 
 async fn harness(rate_limit: u32) -> Harness {
+    harness_with(rate_limit, |_| {}).await
+}
+
+/// A harness whose config a test can adjust — needed to exercise rules that are off by default,
+/// like the automatic bans.
+async fn harness_with<F: FnOnce(&mut Config)>(rate_limit: u32, tweak: F) -> Harness {
     let hits = Arc::new(AtomicUsize::new(0));
 
     let stub_app = Router::new()
@@ -227,7 +235,7 @@ async fn harness(rate_limit: u32) -> Harness {
         let _ = std::fs::remove_file(format!("{}{suffix}", db_path.display()));
     }
 
-    let config = Config {
+    let mut config = Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         tmdb_token: "test-token".into(),
         tmdb_auth: TmdbAuth::Bearer,
@@ -246,16 +254,23 @@ async fn harness(rate_limit: u32) -> Harness {
         cache_capacity: 100,
         rate_limit,
         rate_window: Duration::from_secs(60),
+        autoban_requests: 0,
+        autoban_errors: 0,
+        autoban_window: Duration::from_secs(60),
+        autoban_ban_secs: 3600,
         trust_forwarded_for: false,
     };
+
+    tweak(&mut config);
 
     let state = AppState::new(config).unwrap();
     let store = Arc::clone(&state.store);
 
     Harness {
-        app: build_app(state),
+        app: build_app(state.clone()),
         hits,
         store,
+        state,
     }
 }
 
@@ -279,10 +294,25 @@ async fn call(app: &Router, request: Request<Body>) -> (StatusCode, HeaderMap, V
 /// a made-up value here has to look like a real one.
 const SESSION: &str = "testsessionAAAAAAAAAAA";
 
+/// The address the tests appear to come from. Without a `ConnectInfo` extension the server sees
+/// `0.0.0.0`, which would make ban tests assert on a fabricated address rather than a realistic
+/// one — and would log nonsense.
+const CLIENT_IP: &str = "203.0.113.7";
+
+fn with_client(request: Request<Body>) -> Request<Body> {
+    let (mut parts, body) = request.into_parts();
+    parts.extensions.insert(axum::extract::ConnectInfo(
+        format!("{CLIENT_IP}:50000")
+            .parse::<std::net::SocketAddr>()
+            .unwrap(),
+    ));
+    Request::from_parts(parts, body)
+}
+
 /// Every request the tests make carries a session, because `/api/search` and `/api/findout`
 /// refuse one that does not. The `*_anonymous` helpers exist so the refusal itself is tested.
 fn with_session(request: Request<Body>) -> Request<Body> {
-    let (mut parts, body) = request.into_parts();
+    let (mut parts, body) = with_client(request).into_parts();
     parts.headers.insert(
         axum::http::header::COOKIE,
         format!("sa_sid={SESSION}").parse().expect("cookie header"),
@@ -291,19 +321,23 @@ fn with_session(request: Request<Body>) -> Request<Body> {
 }
 
 fn post_findout_anonymous(body: Value) -> Request<Body> {
-    Request::builder()
-        .method("POST")
-        .uri("/api/findout")
-        .header("content-type", "application/json")
-        .body(Body::from(serde_json::to_vec(&body).unwrap()))
-        .unwrap()
+    with_client(
+        Request::builder()
+            .method("POST")
+            .uri("/api/findout")
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap(),
+    )
 }
 
 fn get_search_anonymous(query: &str) -> Request<Body> {
-    Request::builder()
-        .uri(format!("/api/search{query}"))
-        .body(Body::empty())
-        .unwrap()
+    with_client(
+        Request::builder()
+            .uri(format!("/api/search{query}"))
+            .body(Body::empty())
+            .unwrap(),
+    )
 }
 
 fn post_findout(body: Value) -> Request<Body> {
@@ -329,10 +363,12 @@ fn get_path(path: &str) -> Request<Body> {
 }
 
 fn get_healthz() -> Request<Body> {
-    Request::builder()
-        .uri("/healthz")
-        .body(Body::empty())
-        .unwrap()
+    with_client(
+        Request::builder()
+            .uri("/healthz")
+            .body(Body::empty())
+            .unwrap(),
+    )
 }
 
 fn error_code(body: &Value) -> &str {
@@ -1056,4 +1092,150 @@ async fn a_request_still_succeeds_when_the_writer_is_stopped() {
     let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
     assert_eq!(status, StatusCode::OK, "analytics must not be load-bearing");
     assert!(h.store.stats().dropped > 0, "the drop should be counted");
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bans
+// ---------------------------------------------------------------------------------------------
+
+/// Install a ban through the same path the admin API will use, then make it live.
+async fn ban(h: &Harness, target: &str, expires_ts: Option<i64>) -> i64 {
+    let id = same_actor::bans::apply(
+        &h.store,
+        &h.state.bans,
+        same_actor::store::bans::NewBan {
+            target: target.into(),
+            kind: if target.contains('/') { "cidr" } else { "ip" }.into(),
+            reason: Some("test ban".into()),
+            created_by: "admin".into(),
+            expires_ts,
+        },
+    )
+    .await
+    .expect("ban");
+
+    id
+}
+
+#[tokio::test]
+async fn a_banned_address_is_refused_with_a_reason() {
+    let h = harness(100).await;
+    let id = ban(&h, CLIENT_IP, None).await;
+
+    let (status, _, body) = call(&h.app, get_search("mode=title&term=matrix")).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    assert_eq!(error_code(&body), "banned");
+    assert!(
+        body.to_string().contains("test ban"),
+        "the operator's reason should reach the client: {body}"
+    );
+
+    // The hit is counted, so the dashboard can show which ban is doing work.
+    h.store.flush().await.expect("flush");
+    let bans = h.store.bans().await.expect("bans");
+    assert_eq!(bans.iter().find(|b| b.id == id).map(|b| b.hits), Some(1));
+}
+
+#[tokio::test]
+async fn a_ban_on_a_range_catches_an_address_inside_it() {
+    let h = harness(100).await;
+    ban(&h, "203.0.113.0/24", None).await;
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+}
+
+#[tokio::test]
+async fn a_ban_that_has_expired_no_longer_applies() {
+    let h = harness(100).await;
+    ban(&h, CLIENT_IP, Some(same_actor::clock::now_unix() - 1)).await;
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "an expired ban must not be enforced, and must not need a restart to stop"
+    );
+}
+
+#[tokio::test]
+async fn a_temporary_ban_says_when_to_come_back() {
+    let h = harness(100).await;
+    ban(&h, CLIENT_IP, Some(same_actor::clock::now_unix() + 600)).await;
+
+    let (status, headers, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+
+    assert_eq!(status, StatusCode::FORBIDDEN);
+    let retry_after: u64 = headers
+        .get(header::RETRY_AFTER)
+        .expect("a temporary ban should say when it ends")
+        .to_str()
+        .unwrap()
+        .parse()
+        .expect("seconds");
+    assert!(retry_after > 0 && retry_after <= 600);
+}
+
+/// A ban must never be able to make the container look unhealthy — that would turn one abusive
+/// visitor into a restart loop.
+#[tokio::test]
+async fn a_ban_never_blocks_the_health_check() {
+    let h = harness(100).await;
+    ban(&h, CLIENT_IP, None).await;
+
+    let (status, _, _) = call(&h.app, get_healthz()).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn removing_a_ban_lets_the_client_back_in() {
+    let h = harness(100).await;
+    let id = ban(&h, CLIENT_IP, None).await;
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::FORBIDDEN);
+
+    assert!(h.store.delete_ban(id).await.expect("delete"));
+    h.state.bans.reload(&h.store).await.expect("reload");
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::OK, "an unbanned client is served again");
+}
+
+/// The error-counting rule is off by default. Configured, a client that keeps failing earns a
+/// ban — and the ban is labelled as automatic so an operator can tell it from their own.
+#[tokio::test]
+async fn an_automatic_rule_bans_a_client_that_keeps_failing() {
+    let h = harness_with(100, |config| {
+        config.autoban_errors = 2;
+        config.autoban_ban_secs = 600;
+    })
+    .await;
+
+    // Two 422s from the same address, which is what probing with bad parameters produces.
+    // (An unknown path is not a 4xx here: the SPA fallback serves index.html for it.)
+    for _ in 0..2 {
+        let (status, _, _) = call(&h.app, get_search("mode=nonsense&term=matrix")).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    }
+
+    // The ban is created in the background, so wait for the row rather than sleeping blindly.
+    let mut bans = Vec::new();
+    for _ in 0..100 {
+        h.store.flush().await.expect("flush");
+        bans = h.store.bans().await.expect("bans");
+        if !bans.is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+
+    assert_eq!(bans.len(), 1, "the automatic rule did not fire");
+    assert_eq!(bans[0].created_by, "auto:errors");
+    assert_eq!(bans[0].target, CLIENT_IP);
+    assert!(
+        bans[0].expires_ts.is_some(),
+        "an automatic ban must expire on its own; a machine should not be able to ban forever"
+    );
 }

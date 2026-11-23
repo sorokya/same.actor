@@ -455,6 +455,10 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: Duration::from_secs(1),
+            autoban_requests: 0,
+            autoban_errors: 0,
+            autoban_window: Duration::from_secs(60),
+            autoban_ban_secs: 3600,
             trust_forwarded_for: false,
         };
         Tmdb::new(&config).unwrap()

@@ -81,6 +81,10 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `LOG_ASSETS` | `false` | Log static assets. Off because one page load would otherwise be five rows. |
 | `GEO_ENABLED` | `true` | Country lookup via DB-IP Lite. Off means no download and a NULL country. |
 | `GEO_DB_PATH` | `data/dbip-country-lite.mmdb` | Where the database is cached. Put it on the same volume as the SQLite file. |
+| `AUTOBAN_REQUESTS` | `0` (off) | Ban an address that trips the rate limit this many times in the window. |
+| `AUTOBAN_ERRORS` | `0` (off) | Ban an address that triggers this many other client errors in the window. |
+| `AUTOBAN_WINDOW_SECS` | `60` | The window those counters use. |
+| `AUTOBAN_BAN_SECS` | `3600` | How long an automatic ban lasts. Automatic bans always expire. |
 | `GEO_URL` | DB-IP Lite, current month | `{month}` is substituted. Override only to use a mirror. |
 | `TMDB_LOGO_URL` | TMDB's approved `blue_short` SVG | Override only if TMDB rotates the asset. The card renders without the logo if the fetch fails. |
 | `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
@@ -257,6 +261,22 @@ deliberate:
 
 Logging cannot fail a request: the record is offered to a queue, and if the queue is full it is
 dropped and counted in `stats().dropped`.
+
+### Bans
+
+A ban is an address or a CIDR range. **There is no session ban**: a cookie is client-controlled,
+so a ban a visitor escapes by pressing ⌘⇧N is worse than none — it looks like enforcement.
+
+The ban list lives in memory and is rebuilt from the database every 30 seconds and immediately
+after any change, so enforcement costs no query and a new ban is live on the next request rather
+than at the next refresh. Matching prefers the narrowest rule: an exact address beats any range,
+and the longest prefix wins among ranges.
+
+A banned client gets `403` with the operator's reason and, for a temporary ban, a `Retry-After`.
+`/healthz` is exempt — a ban must never be able to make the container look unhealthy.
+
+Automatic bans are **off by default** and always expire. When enabled they are recorded with
+`created_by = 'auto:<rule>'` so a machine's decisions are distinguishable from a human's.
 
 ### Country lookup
 

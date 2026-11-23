@@ -16,6 +16,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
+pub mod bans;
 pub mod clock;
 pub mod compare;
 pub mod config;
@@ -112,6 +113,12 @@ pub fn build_app(state: AppState) -> Router {
     .layer(CatchPanicLayer::new())
     // Outside the panic handler: a panicking handler has to produce a log row with a 500, and
     // that response only exists once `CatchPanicLayer` has made it.
+    // Outside the rate limit and outside every route: a banned client does not get to reach
+    // anything that costs upstream time.
+    .layer(middleware::from_fn_with_state(
+        state.clone(),
+        routes::enforce_bans,
+    ))
     .layer(middleware::from_fn_with_state(
         state.clone(),
         routes::observe,

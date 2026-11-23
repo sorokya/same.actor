@@ -11,11 +11,13 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use crate::error::AppError;
 use crate::state::AppState;
 
+pub mod bans;
 pub mod findout;
 pub mod observe;
 pub mod og;
 pub mod search;
 
+pub use bans::enforce_bans;
 pub use findout::findout;
 pub use observe::{observe, require_session};
 pub use search::search;
@@ -62,20 +64,26 @@ pub fn client_ip(request: &Request, trust_forwarded_for: bool) -> IpAddr {
 }
 
 /// Middleware: one bucket per visitor, `429` with `Retry-After` when spent.
+///
+/// Returns a `Response` rather than a `Result` so a refusal can be examined on the way out —
+/// that is where an automatic ban gets its evidence.
 pub async fn enforce_rate_limit(
     State(state): State<AppState>,
     request: Request,
     next: Next,
-) -> Result<Response, AppError> {
+) -> Response {
     let ip = client_ip(&request, state.config.trust_forwarded_for);
 
-    state
-        .limiter
-        .check(ip)
-        .map_err(|retry_after| AppError::RateLimited {
-            // Round up, so `Retry-After: 0` never means "retry immediately".
-            retry_after_secs: retry_after.as_secs().max(1),
-        })?;
+    match state.limiter.check(ip) {
+        Ok(()) => next.run(request).await,
+        Err(retry_after) => {
+            bans::note_violation(&state, ip, "rate");
 
-    Ok(next.run(request).await)
+            // Round up, so `Retry-After: 0` never means "retry immediately".
+            AppError::RateLimited {
+                retry_after_secs: retry_after.as_secs().max(1),
+            }
+            .into_response()
+        }
+    }
 }

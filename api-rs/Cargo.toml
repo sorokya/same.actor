@@ -41,6 +41,9 @@ rusqlite = { version = "0.43", features = ["bundled"] }
 maxminddb = "0.33"
 flate2 = "1"
 getrandom = "0.4"
+# CIDR parsing and containment for bans. Hand-rolling v4/v6 mask arithmetic is how you end up
+# with a /64 ban that silently matches nothing.
+ipnet = "2"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"

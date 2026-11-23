@@ -71,6 +71,12 @@ pub async fn observe(State(state): State<AppState>, mut request: Request, next: 
         .get::<crate::error::ErrorDetail>()
         .cloned();
 
+    // Automatic bans need evidence from more than the rate limiter: a scanner walking ids
+    // produces 404s, not 429s.
+    if status.is_client_error() && status != axum::http::StatusCode::TOO_MANY_REQUESTS {
+        super::bans::note_violation(&state, ip, "errors");
+    }
+
     if should_log(kind, state.config.log_assets) {
         state.store.record(RequestLog {
             ts: crate::clock::now_unix(),

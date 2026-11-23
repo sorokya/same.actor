@@ -23,6 +23,7 @@ use tokio::sync::Semaphore;
 use crate::error::AppError;
 use crate::geo::Geo;
 
+pub mod bans;
 pub mod migrations;
 pub mod request;
 
@@ -62,10 +63,25 @@ impl Default for StoreConfig {
 
 /// Everything the writer thread accepts. Control messages travel on the same channel so their
 /// ordering relative to records is guaranteed by construction.
-enum WriteOp {
+pub(crate) enum WriteOp {
     Request(RequestLog),
+    Ban(BanWrite),
     Flush(tokio::sync::oneshot::Sender<()>),
     Shutdown(tokio::sync::oneshot::Sender<()>),
+}
+
+/// Durable ban mutations. They carry their own acknowledgement because the admin API has to
+/// know the row exists before it reports success, and because the single-writer rule means the
+/// handler cannot just open a connection and do it.
+pub(crate) enum BanWrite {
+    Insert(
+        bans::NewBan,
+        tokio::sync::oneshot::Sender<Result<i64, String>>,
+    ),
+    Delete(i64, tokio::sync::oneshot::Sender<Result<bool, String>>),
+    /// Fire and forget: a refused request should not wait on a counter.
+    Hit(i64),
+    Purge(tokio::sync::oneshot::Sender<Result<usize, String>>),
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -186,6 +202,38 @@ impl Store {
                 false
             }
         }
+    }
+
+    /// Send a durable mutation to the writer and wait for its result.
+    pub(crate) async fn submit<T, F>(&self, make: F) -> Result<T, AppError>
+    where
+        T: Send + 'static,
+        F: FnOnce(tokio::sync::oneshot::Sender<Result<T, String>>) -> WriteOp + Send + 'static,
+    {
+        let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
+        let op = make(ack_tx);
+        let tx = self.tx.clone();
+
+        let sent = tokio::task::spawn_blocking(move || tx.send(op).is_ok())
+            .await
+            .map_err(|error| AppError::Store(format!("write task failed: {error}")))?;
+
+        if !sent {
+            return Err(AppError::Store("the writer has stopped".into()));
+        }
+
+        match ack_rx.await {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(error)) => Err(AppError::Store(error)),
+            Err(_) => Err(AppError::Store(
+                "the writer did not acknowledge a write".into(),
+            )),
+        }
+    }
+
+    /// Count a hit against a ban without waiting for it to be written.
+    pub(crate) fn offer_ban_hit(&self, id: i64) {
+        self.offer(WriteOp::Ban(BanWrite::Hit(id)));
     }
 
     /// Wait until every record offered so far is committed. Used by tests, by the shutdown
@@ -331,6 +379,26 @@ fn accept(
 ) -> bool {
     match op {
         WriteOp::Request(log) => batch.push(log),
+        WriteOp::Ban(BanWrite::Insert(ban, ack)) => {
+            // Commit the pending records first so the ban's ordering relative to them is
+            // observable; an admin who bans an address can then read the rows that caused it.
+            commit(conn, counters, batch, geo);
+            let _ = ack.send(bans::insert(conn, &ban).map_err(|error| error.to_string()));
+        }
+        WriteOp::Ban(BanWrite::Delete(id, ack)) => {
+            commit(conn, counters, batch, geo);
+            let _ = ack.send(bans::delete(conn, id).map_err(|error| error.to_string()));
+        }
+        WriteOp::Ban(BanWrite::Purge(ack)) => {
+            commit(conn, counters, batch, geo);
+            let now = crate::clock::now_unix();
+            let _ = ack.send(bans::purge_expired(conn, now).map_err(|error| error.to_string()));
+        }
+        WriteOp::Ban(BanWrite::Hit(id)) => {
+            if let Err(error) = bans::record_hit(conn, id) {
+                tracing::warn!(%error, id, "could not record a ban hit");
+            }
+        }
         // A barrier must not be acknowledged before everything ahead of it is committed.
         WriteOp::Flush(ack) => {
             commit(conn, counters, batch, geo);

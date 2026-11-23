@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use moka::future::Cache;
 
+use crate::bans::{AutoBan, BanCache};
 use crate::config::Config;
 use crate::error::AppError;
 use crate::geo::Geo;
@@ -27,6 +28,11 @@ pub struct AppState {
     /// Country lookups. Held here as well as inside the writer so the refresher and the health
     /// panel can reach it.
     pub geo: Arc<Geo>,
+    /// Live ban list. Read on every request, so it is memory, not a query.
+    pub bans: Arc<BanCache>,
+    /// Automatic-ban rules. Disabled unless the thresholds are configured.
+    pub autoban_rate: Arc<AutoBan>,
+    pub autoban_errors: Arc<AutoBan>,
 }
 
 impl AppState {
@@ -57,6 +63,10 @@ impl AppState {
                 .filter(|html| html.trim().len() > 32)
                 .map(Arc::new);
 
+        let bans = Arc::new(BanCache::new());
+        let autoban_rate = Arc::new(AutoBan::new(config.autoban_requests, config.autoban_window));
+        let autoban_errors = Arc::new(AutoBan::new(config.autoban_errors, config.autoban_window));
+
         Ok(Self {
             config: Arc::new(config),
             tmdb: Arc::new(tmdb),
@@ -68,6 +78,9 @@ impl AppState {
             index_html,
             store: Arc::new(store),
             geo,
+            bans,
+            autoban_rate,
+            autoban_errors,
         })
     }
 }
@@ -96,6 +109,10 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: std::time::Duration::from_secs(1),
+            autoban_requests: 0,
+            autoban_errors: 0,
+            autoban_window: std::time::Duration::from_secs(60),
+            autoban_ban_secs: 3600,
             trust_forwarded_for: false,
         }
     }

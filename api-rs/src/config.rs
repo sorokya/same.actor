@@ -48,6 +48,14 @@ pub struct Config {
     pub cache_capacity: u64,
     pub rate_limit: u32,
     pub rate_window: Duration,
+    /// Ban an address that trips the rate limit this many times in the window. 0 disables the
+    /// rule, which is the default: an automatic ban is a loud thing to do on someone's behalf.
+    pub autoban_requests: u32,
+    /// Ban an address that triggers this many other client errors in the window. 0 disables.
+    pub autoban_errors: u32,
+    pub autoban_window: Duration,
+    /// How long an automatic ban lasts.
+    pub autoban_ban_secs: u64,
     /// Honour `X-Forwarded-For` for the client IP. Only enable when the app is actually
     /// behind a proxy you control — otherwise the header is trivially spoofed and the rate
     /// limiter becomes useless.
@@ -111,6 +119,10 @@ impl Config {
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,
             rate_window: env_secs("RATE_WINDOW_SECS", 1),
+            autoban_requests: env_num("AUTOBAN_REQUESTS", 0) as u32,
+            autoban_errors: env_num("AUTOBAN_ERRORS", 0) as u32,
+            autoban_window: env_secs("AUTOBAN_WINDOW_SECS", 60),
+            autoban_ban_secs: env_num("AUTOBAN_BAN_SECS", 3600),
             trust_forwarded_for: env_bool("TRUST_FORWARDED_FOR", false),
         })
     }

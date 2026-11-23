@@ -1679,6 +1679,7 @@ dependencies = [
  "fontdb",
  "getrandom 0.4.3",
  "http-body-util",
+ "ipnet",
  "maxminddb",
  "moka",
  "reqwest",
