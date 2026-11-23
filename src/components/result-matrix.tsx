@@ -74,15 +74,18 @@ export function ResultMatrix({ mode, selections, matches }: ResultMatrixProps) {
             <tr className="border-b border-line bg-raise">
               <th
                 scope="col"
-                className="sticky left-0 z-10 border-r border-line-soft bg-raise px-3 py-2 text-left align-bottom"
+                className="sticky left-0 z-10 border-r border-line-soft bg-raise px-3 pt-10 pb-2 text-left align-top"
               >
+                {/* Padding matches the poster + gap above the film titles, so this label
+                    sits on the same line as the column titles rather than floating above
+                    or below them. */}
                 <span className="label">{rowHeading}</span>
               </th>
               {selections.map((selection) => (
                 <th
                   key={selection.id}
                   scope="col"
-                  className="min-w-[9rem] border-l border-line-soft px-3 py-2 text-left align-bottom font-normal"
+                  className="min-w-[9rem] border-l border-line-soft px-3 py-2 text-left align-top font-normal"
                 >
                   {/* Poster stacked above the label, not beside it: the label's left edge
                       then sits exactly above the cell text, so the column reads as one
