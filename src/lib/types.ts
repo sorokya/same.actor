@@ -68,11 +68,14 @@ export type FindOutResponse =
       readonly mode: 'title';
       readonly selections: SelectionMeta[];
       readonly matches: PersonMatch[];
+      /** How many times this exact set has been viewed, this one included. */
+      readonly views?: number;
     }
   | {
       readonly mode: 'person';
       readonly selections: SelectionMeta[];
       readonly matches: TitleMatch[];
+      readonly views?: number;
     };
 
 export interface ApiErrorBody {

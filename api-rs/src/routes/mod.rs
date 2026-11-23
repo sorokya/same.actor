@@ -16,6 +16,7 @@ pub mod findout;
 pub mod observe;
 pub mod og;
 pub mod search;
+pub mod trending;
 
 pub use bans::enforce_bans;
 pub use findout::findout;

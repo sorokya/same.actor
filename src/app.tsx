@@ -3,6 +3,7 @@ import { CheckIcon, ShareIcon, TrashIcon } from './components/icons';
 import { ResultMatrix } from './components/result-matrix';
 import { SearchPanel } from './components/search-panel';
 import { SelectionChips } from './components/selection-chips';
+import { TrendingStrip } from './components/trending-strip';
 import { Button, ModeSwitch } from './components/ui';
 import { useSearch } from './hooks/use-search';
 import { useUrlState } from './hooks/use-url-state';
@@ -26,6 +27,7 @@ type ResultsState =
       status: 'ok';
       selections: SelectionMeta[];
       matches: ReadonlyArray<PersonMatch | TitleMatch>;
+      views?: number | undefined;
     }
   | { status: 'error'; message: string };
 
@@ -84,6 +86,7 @@ export function App() {
           status: 'ok',
           selections: response.selections,
           matches: response.matches,
+          views: response.views,
         });
       })
       .catch((error: unknown) => {
@@ -245,6 +248,11 @@ export function App() {
             onPick={addPick}
             canAdd={picks.length < MAX_SELECTIONS}
           />
+
+          {/* Directly under the input, where a first-time visitor is already looking. */}
+          {picks.length === 0 && results.status === 'idle' ? (
+            <TrendingStrip onPick={setTerm} />
+          ) : null}
         </div>
 
         <div className="mt-6 space-y-5">
@@ -308,7 +316,13 @@ export function App() {
                     ? `${results.matches.length} ${results.matches.length === 1 ? 'actor' : 'actors'} in at least two of these titles`
                     : `${results.matches.length} ${results.matches.length === 1 ? 'title' : 'titles'} featuring at least two of these people`}
                 </h2>
-                {results.matches.length > 1 ? <p className="label">most shared first</p> : null}
+                <div className="flex items-baseline gap-3">
+                  {/* Only once it is worth saying. "Viewed 1 time" is noise about yourself. */}
+                  {results.views && results.views > 1 ? (
+                    <p className="label">viewed {results.views.toLocaleString()} times</p>
+                  ) : null}
+                  {results.matches.length > 1 ? <p className="label">most shared first</p> : null}
+                </div>
               </div>
               <ResultMatrix mode={mode} selections={results.selections} matches={results.matches} />
             </div>

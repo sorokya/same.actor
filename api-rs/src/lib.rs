@@ -35,6 +35,7 @@ pub mod session;
 pub mod state;
 pub mod store;
 pub mod tmdb;
+pub mod views;
 
 use state::AppState;
 
@@ -45,6 +46,16 @@ pub fn build_app(state: AppState) -> Router {
     // The two endpoints that call TMDB and therefore *are* a visit. `require_session` sits
     // inside the rate limit so a caller with no cookie is still counted before being told to
     // come back with one — otherwise 428s would be free.
+    // Trending is a cached aggregate of counts: there is no visit to attribute and the strip
+    // renders on first paint, so it is deliberately outside `require_session`.
+    let public_api = Router::new()
+        .route("/trending", get(routes::trending::trending))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            routes::enforce_rate_limit,
+        ))
+        .with_state(state.clone());
+
     let api = Router::new()
         .route("/search", get(routes::search))
         .route("/findout", post(routes::findout))
@@ -95,6 +106,7 @@ pub fn build_app(state: AppState) -> Router {
         .route("/healthz", get(routes::healthz))
         .nest("/api/admin", admin)
         .nest("/api", api)
+        .nest("/api", public_api)
         .merge(share_card)
         .merge(comparison_page);
 

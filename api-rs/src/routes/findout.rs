@@ -10,8 +10,60 @@ use super::cacheable;
 use crate::compare::compare;
 use crate::domain::{FindOutResponse, Kind, Mode, Selection, MAX_SELECTIONS, MIN_SELECTIONS};
 use crate::error::{invalid, AppError};
-use crate::extract::AppJson;
+use crate::extract::{AppJson, Session};
 use crate::state::AppState;
+use crate::store::comparisons;
+use crate::store::comparisons::NewView;
+
+/// The parts of a comparison that the analytics layer needs: a stable key, a human label, and
+/// what the set actually was.
+pub(crate) fn view_of(
+    mode: Mode,
+    selection: &[crate::domain::Selection],
+    selections: &[crate::domain::SelectionMeta],
+) -> NewView {
+    let picks: Vec<String> = selection
+        .iter()
+        .map(|entry| format!("{}-{}", entry.kind.as_str(), entry.id.get()))
+        .collect();
+
+    NewView {
+        key: comparisons::key(mode.as_str(), &picks),
+        mode: mode.as_str().to_owned(),
+        label: selections
+            .iter()
+            .map(|meta| meta.name.as_str())
+            .collect::<Vec<_>>()
+            .join(" + "),
+        picks_json: serde_json::json!(selections
+            .iter()
+            .map(|meta| serde_json::json!({
+                "id": meta.id,
+                "kind": meta.kind.as_str(),
+                "name": meta.name,
+            }))
+            .collect::<Vec<_>>())
+        .to_string(),
+    }
+}
+
+/// Record a view unless this visitor has already looked at this set recently, and return the
+/// count to show.
+pub(crate) async fn note_view(state: &AppState, session: Option<&str>, view: NewView) -> i64 {
+    let counted = state.views.first_sighting(session, &view.key).await;
+
+    // Read *before* offering the write, then add this view ourselves. The write is batched and
+    // asynchronous, so reading afterwards would always miss it — the first visitor to any
+    // comparison would be told it had never been viewed.
+    let existing = state.store.view_count(view.key.clone()).await.unwrap_or(0);
+
+    if counted {
+        state.store.note_view(view);
+        existing + 1
+    } else {
+        existing
+    }
+}
 
 /// Credits are stable; ten minutes of caching keeps repeat comparisons off the upstream quota
 /// without ever being stale in a way that matters (review H6).
@@ -25,11 +77,15 @@ pub struct FindOutRequest {
 
 pub async fn findout(
     State(state): State<AppState>,
+    Session(session): Session,
     AppJson(body): AppJson<FindOutRequest>,
 ) -> Result<axum::response::Response, AppError> {
     validate(body.mode, &body.selection)?;
 
     let (selections, matches) = compare(&state.tmdb, body.mode, &body.selection).await?;
+
+    let view = view_of(body.mode, &body.selection, &selections);
+    let views = note_view(&state, session.as_deref(), view).await;
 
     Ok(cacheable(
         CACHE_SECONDS,
@@ -37,6 +93,7 @@ pub async fn findout(
             mode: body.mode,
             selections,
             matches,
+            views,
         }),
     ))
 }

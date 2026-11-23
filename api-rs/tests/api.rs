@@ -321,6 +321,16 @@ fn with_session(request: Request<Body>) -> Request<Body> {
     Request::from_parts(parts, body)
 }
 
+/// The same request with a different session, for testing that view counts are per visitor.
+fn with_session_of(request: Request<Body>, session: &str) -> Request<Body> {
+    let (mut parts, body) = request.into_parts();
+    parts.headers.insert(
+        axum::http::header::COOKIE,
+        format!("sa_sid={session}").parse().expect("cookie header"),
+    );
+    Request::from_parts(parts, body)
+}
+
 fn post_findout_anonymous(body: Value) -> Request<Body> {
     with_client(
         Request::builder()
@@ -1598,4 +1608,104 @@ async fn the_stats_endpoints_answer_their_own_shapes() {
         assert_eq!(status, StatusCode::OK, "{path} -> {body}");
         assert!(body.is_array(), "{path} should be a list: {body}");
     }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Public analytics
+// ---------------------------------------------------------------------------------------------
+
+/// The strip renders on first paint, so it must not require a session — and it must not publish
+/// a term one person searched once.
+#[tokio::test]
+async fn trending_is_anonymous_and_hides_one_off_searches() {
+    let h = harness(100).await;
+
+    let (status, _, body) = call(&h.app, with_client(get_path_raw("/api/trending"))).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "trending must not require a session"
+    );
+    assert!(body["terms"].as_array().expect("terms").is_empty());
+
+    // Two searches is below the threshold; three is not.
+    for _ in 0..2 {
+        let _ = call(&h.app, get_search("mode=title&term=Arrival")).await;
+    }
+    h.store.flush().await.expect("flush");
+    let (_, _, body) = call(&h.app, with_client(get_path_raw("/api/trending"))).await;
+    assert!(
+        body["terms"].as_array().unwrap().is_empty(),
+        "two searches is not trending: {body}"
+    );
+
+    let _ = call(&h.app, get_search("mode=title&term=Arrival")).await;
+    h.store.flush().await.expect("flush");
+
+    // The cache is cleared by issuing a fresh build of the same app? No — the response is cached
+    // for a minute on purpose, so this asserts the *store* rather than fighting the cache.
+    let terms = h.store.trending(1, 3, 8).await.expect("trending");
+    assert_eq!(terms.len(), 1);
+    assert_eq!(terms[0].term, "arrival");
+    assert_eq!(terms[0].searches, 3);
+}
+
+#[tokio::test]
+async fn a_comparison_reports_how_often_it_has_been_viewed() {
+    let h = harness(100).await;
+
+    let body = json!({
+        "mode": "title",
+        "selection": [{"id": 603, "kind": "movie"}, {"id": 604, "kind": "movie"}]
+    });
+
+    let (status, _, first) = call(&h.app, post_findout(body.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    h.store.flush().await.expect("flush");
+
+    // A different visitor looking at the same set is a second view.
+    let (_, _, second) = call(
+        &h.app,
+        with_session_of(
+            post_findout_anonymous(body.clone()),
+            "anothersessionBBBBBBBB",
+        ),
+    )
+    .await;
+
+    let first_views = first["views"].as_i64().unwrap_or(0);
+    let second_views = second["views"].as_i64().unwrap_or(0);
+
+    assert!(
+        first_views >= 1,
+        "the first view should be counted: {first}"
+    );
+    assert!(
+        second_views >= 2,
+        "a second visitor should see at least two: {first} then {second}"
+    );
+}
+
+/// The same visitor reloading, or the page calling findout after the page render already
+/// counted, is one view. Without this a refresh would look like an audience.
+#[tokio::test]
+async fn one_visitor_looking_twice_is_counted_once() {
+    let h = harness(100).await;
+
+    let body = json!({
+        "mode": "title",
+        "selection": [{"id": 603, "kind": "movie"}, {"id": 604, "kind": "movie"}]
+    });
+
+    for _ in 0..3 {
+        let _ = call(&h.app, post_findout(body.clone())).await;
+    }
+    h.store.flush().await.expect("flush");
+
+    let key = "title:movie-603,movie-604".to_owned();
+    assert_eq!(
+        h.store.view_count(key).await.expect("count"),
+        1,
+        "three requests from one session in the window is one view"
+    );
 }

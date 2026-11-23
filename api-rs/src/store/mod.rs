@@ -24,6 +24,7 @@ use crate::error::AppError;
 use crate::geo::Geo;
 
 pub mod bans;
+pub mod comparisons;
 pub mod maintenance;
 pub mod migrations;
 pub mod report;
@@ -69,6 +70,7 @@ impl Default for StoreConfig {
 pub(crate) enum WriteOp {
     Request(RequestLog),
     Search(searches::SearchEvent),
+    View(comparisons::NewView),
     Ban(BanWrite),
     /// `(retention_days, now, ack)`.
     Maintenance(
@@ -246,6 +248,11 @@ impl Store {
         self.offer(WriteOp::Search(event))
     }
 
+    /// Offer a view of a comparison. Fire and forget.
+    pub(crate) fn offer_view(&self, view: comparisons::NewView) -> bool {
+        self.offer(WriteOp::View(view))
+    }
+
     /// Count a hit against a ban without waiting for it to be written.
     pub(crate) fn offer_ban_hit(&self, id: i64) {
         self.offer(WriteOp::Ban(BanWrite::Hit(id)));
@@ -345,20 +352,22 @@ fn open_connection(path: &Path) -> Result<Connection, AppError> {
 struct Pending {
     requests: Vec<RequestLog>,
     searches: Vec<searches::SearchEvent>,
+    views: Vec<comparisons::NewView>,
 }
 
 impl Pending {
     fn len(&self) -> usize {
-        self.requests.len() + self.searches.len()
+        self.requests.len() + self.searches.len() + self.views.len()
     }
 
     fn is_empty(&self) -> bool {
-        self.requests.is_empty() && self.searches.is_empty()
+        self.requests.is_empty() && self.searches.is_empty() && self.views.is_empty()
     }
 
     fn clear(&mut self) {
         self.requests.clear();
         self.searches.clear();
+        self.views.clear();
     }
 }
 
@@ -373,6 +382,7 @@ fn writer_loop(
     let mut pending = Pending {
         requests: Vec::with_capacity(batch_max),
         searches: Vec::new(),
+        views: Vec::new(),
     };
 
     loop {
@@ -421,6 +431,7 @@ fn accept(
     match op {
         WriteOp::Request(log) => pending.requests.push(log),
         WriteOp::Search(event) => pending.searches.push(event),
+        WriteOp::View(view) => pending.views.push(view),
         // A barrier must not be acknowledged before everything ahead of it is committed.
         WriteOp::Flush(ack) => {
             commit(conn, counters, pending, geo);
@@ -485,7 +496,13 @@ fn commit(conn: &mut Connection, counters: &Counters, pending: &mut Pending, geo
     }
 
     let result = request::insert(conn, &pending.requests)
-        .and_then(|()| searches::insert(conn, &pending.searches));
+        .and_then(|()| searches::insert(conn, &pending.searches))
+        .and_then(|()| {
+            for view in &pending.views {
+                comparisons::record_view(conn, view)?;
+            }
+            Ok(())
+        });
 
     match result {
         Ok(()) => {

@@ -44,6 +44,16 @@ impl Mode {
 }
 
 impl Kind {
+    /// The wire name, matching the serde representation. Used wherever a kind is stored rather
+    /// than serialised, so the two cannot drift.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Kind::Movie => "movie",
+            Kind::Tv => "tv",
+            Kind::Person => "person",
+        }
+    }
+
     pub const fn is_title(self) -> bool {
         matches!(self, Kind::Movie | Kind::Tv)
     }
@@ -130,6 +140,10 @@ pub struct FindOutResponse {
     pub mode: Mode,
     pub selections: Vec<SelectionMeta>,
     pub matches: Matches,
+    /// How many times this exact set has been viewed, including this one. Shown under the
+    /// result count so a visitor can see they are not the first person to wonder.
+    #[serde(default)]
+    pub views: i64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]

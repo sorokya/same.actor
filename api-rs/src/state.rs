@@ -12,6 +12,7 @@ use crate::geo::Geo;
 use crate::ratelimit::RateLimiter;
 use crate::store::{Store, StoreConfig};
 use crate::tmdb::Tmdb;
+use crate::views::ViewDeduper;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -36,6 +37,11 @@ pub struct AppState {
     pub autoban_errors: Arc<AutoBan>,
     /// Admin credentials. Disabled when `ADMIN_TOKEN` is unset.
     pub admin: Arc<AdminAuth>,
+    /// Decides whether a page view is a new one.
+    pub views: Arc<ViewDeduper>,
+    /// Public trending terms. Cached for a minute so the strip costs one query a minute rather
+    /// than one per page view.
+    pub trending_cache: Cache<u8, Arc<Vec<crate::store::searches::TrendingTerm>>>,
 }
 
 impl AppState {
@@ -71,6 +77,7 @@ impl AppState {
             tracing::info!("ADMIN_TOKEN is not set; the admin API is disabled");
         }
 
+        let views = Arc::new(ViewDeduper::new());
         let bans = Arc::new(BanCache::new());
         let autoban_rate = Arc::new(AutoBan::new(config.autoban_requests, config.autoban_window));
         let autoban_errors = Arc::new(AutoBan::new(config.autoban_errors, config.autoban_window));
@@ -90,6 +97,11 @@ impl AppState {
             autoban_rate,
             autoban_errors,
             admin,
+            views,
+            trending_cache: Cache::builder()
+                .max_capacity(4)
+                .time_to_live(std::time::Duration::from_secs(60))
+                .build(),
         })
     }
 }

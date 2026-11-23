@@ -33,6 +33,32 @@ where
     }
 }
 
+/// The visitor's session, if this request has one.
+///
+/// Reads it from the extensions rather than from the cookie, because `observe` has already
+/// validated and (when absent) minted it — using the same value here means the comparison a
+/// visitor is looking at and the log row that records them agree.
+///
+/// This is parts-based on purpose: an endpoint that parses a JSON body cannot also take
+/// `Request`, because `Request` is `FromRequest` and would consume the body first.
+pub struct Session(pub Option<String>);
+
+impl<S> FromRequestParts<S> for Session
+where
+    S: Send + Sync,
+{
+    type Rejection = std::convert::Infallible;
+
+    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Session(
+            parts
+                .extensions
+                .get::<crate::session::SessionId>()
+                .map(|id| id.0.clone()),
+        ))
+    }
+}
+
 pub struct AppQuery<T>(pub T);
 
 impl<S, T> FromRequestParts<S> for AppQuery<T>

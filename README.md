@@ -279,6 +279,25 @@ A banned client gets `403` with the operator's reason and, for a temporary ban, 
 Automatic bans are **off by default** and always expire. When enabled they are recorded with
 `created_by = 'auto:<rule>'` so a machine's decisions are distinguishable from a human's.
 
+## Public analytics
+
+Two things a visitor sees, both fed by the same store:
+
+- **`GET /api/trending`** — what people searched for in the last day, cached for a minute. Terms
+  searched fewer than three times are **not published**: below that the strip would be a log of
+  individual people's one-off queries, which does not belong on a public page. The thresholds are
+  `const` assertions, so lowering them fails the build rather than a test run.
+- **View counts** — "viewed N times" on a comparison, from `/api/findout`'s `views` field.
+
+A "view" is a visitor looking at a comparison once. Deduplication is in memory for 30 minutes per
+(session, comparison), because the page render and the `findout` that follows it are one visit,
+and a refresh is not an audience. The count is read *before* the write is offered and this view
+added manually — the write is batched and asynchronous, so reading afterwards would always miss
+it and the first visitor to any comparison would be told it had never been viewed.
+
+`GET /api/trending` is exempt from the session requirement: it is a cached aggregate, it renders
+on first paint, and there is no visit to attribute.
+
 ## Admin API
 
 Everything lives under `/api/admin` and requires `ADMIN_TOKEN`. Two ways to present it:

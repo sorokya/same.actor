@@ -11,6 +11,7 @@ use tokio::task::JoinSet;
 use crate::compare::compare;
 use crate::domain::{Kind, Matches, Mode, Selection};
 use crate::error::AppError;
+use crate::extract::Session;
 use crate::og::{self, Card, Pick};
 use crate::paths::{canonical, parse_picks};
 use crate::state::AppState;
@@ -141,20 +142,27 @@ fn png_response(body: Vec<u8>) -> Response {
 /// right title, description and card.
 pub async fn page_title(
     State(state): State<AppState>,
+    Session(session): Session,
     Path(picks): Path<String>,
 ) -> Result<Response, AppError> {
-    page(state, Mode::Title, picks).await
+    page(state, Mode::Title, picks, session).await
 }
 
 /// `GET /person/{picks}` — as above, for the people comparison.
 pub async fn page_person(
     State(state): State<AppState>,
+    Session(session): Session,
     Path(picks): Path<String>,
 ) -> Result<Response, AppError> {
-    page(state, Mode::Person, picks).await
+    page(state, Mode::Person, picks, session).await
 }
 
-async fn page(state: AppState, mode: Mode, picks_raw: String) -> Result<Response, AppError> {
+async fn page(
+    state: AppState,
+    mode: Mode,
+    picks_raw: String,
+    session: Option<String>,
+) -> Result<Response, AppError> {
     let Some(template) = state.index_html.clone() else {
         // No built SPA (API-only deployment): nothing to render.
         return Err(AppError::NotFound);
@@ -185,6 +193,12 @@ async fn page(state: AppState, mode: Mode, picks_raw: String) -> Result<Response
     let Some((selections, count)) = meta else {
         return Ok(html_response(template.to_string(), "no-store"));
     };
+
+    // A crawler unfurling a link counts once, exactly like a visitor; and a visitor who then
+    // calls /api/findout for the results does not count twice, because the deduper sees the same
+    // session and key.
+    let view = super::findout::view_of(mode, &picks, &selections);
+    super::findout::note_view(&state, session.as_deref(), view).await;
 
     let names: Vec<&str> = selections.iter().map(|s| s.name.as_str()).collect();
     let title = format!("{} — same.actor", names.join(" vs "));

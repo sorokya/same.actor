@@ -78,6 +78,22 @@ export function findOut(
   });
 }
 
+export interface TrendingResponse {
+  readonly window: string;
+  readonly terms: { readonly term: string; readonly searches: number }[];
+}
+
+/**
+ * What people are searching for. Cached for a minute server-side, so this is safe to call on
+ * every page load.
+ */
+export function trending(signal: AbortSignal): Promise<TrendingResponse> {
+  return request<TrendingResponse>('/api/trending', {
+    signal,
+    headers: { accept: 'application/json' },
+  });
+}
+
 /** Human copy for a failure, without pretending a 500 is the user's fault. */
 export function describe(error: unknown): string {
   if (error instanceof ApiError) {
