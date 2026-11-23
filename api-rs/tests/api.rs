@@ -211,6 +211,18 @@ async fn harness(rate_limit: u32) -> Harness {
     // seeing an empty shell gets an empty body, and the flake looked like a renderer bug.
     let static_dir = test_static_dir();
 
+    // Each harness gets its own database. Sharing one file would let a parallel test's rows
+    // show up in this test's counts, which is the same class of flake as the shared shell.
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let db_path = static_dir.join(format!(
+        "harness-{}-{}.db",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    for suffix in ["", "-wal", "-shm"] {
+        let _ = std::fs::remove_file(format!("{}{suffix}", db_path.display()));
+    }
+
     let config = Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         tmdb_token: "test-token".into(),
@@ -218,6 +230,9 @@ async fn harness(rate_limit: u32) -> Harness {
         tmdb_base: format!("http://{addr}/3"),
         image_base: "https://image.tmdb.org/t/p/w342".into(),
         static_dir: static_dir.to_string_lossy().into_owned(),
+        db_path: db_path.to_string_lossy().into_owned(),
+        log_retention_days: 90,
+        log_assets: false,
         public_origin: "https://same.test".into(),
         tmdb_logo_url: "https://same.test/logo.svg".into(),
         cache_ttl: Duration::from_secs(60),

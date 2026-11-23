@@ -7,6 +7,7 @@ use moka::future::Cache;
 use crate::config::Config;
 use crate::error::AppError;
 use crate::ratelimit::RateLimiter;
+use crate::store::{Store, StoreConfig};
 use crate::tmdb::Tmdb;
 
 #[derive(Clone)]
@@ -20,12 +21,22 @@ pub struct AppState {
     /// `dist/index.html` held in memory so Open Graph tags can be injected per comparison.
     /// `None` when the deployment serves no SPA.
     pub index_html: Option<Arc<String>>,
+    /// The request log and everything derived from it.
+    pub store: Arc<Store>,
 }
 
 impl AppState {
     pub fn new(config: Config) -> Result<Self, AppError> {
         let tmdb = Tmdb::new(&config)?;
         let limiter = RateLimiter::new(config.rate_limit, config.rate_window);
+
+        // Opened here rather than in `main` so every caller — including tests — gets a working
+        // store with no extra ceremony. A failing migration is a startup failure: serving with
+        // no analytics is fine, serving with a *silently broken* one is not.
+        let store = Store::open(StoreConfig {
+            path: std::path::PathBuf::from(&config.db_path),
+            ..StoreConfig::default()
+        })?;
 
         // A truncated or empty shell would render blank pages with a 200; treat it as absent
         // so the failure mode is a visible 404 rather than a mystery.
@@ -44,6 +55,7 @@ impl AppState {
                 .time_to_live(std::time::Duration::from_secs(3600))
                 .build(),
             index_html,
+            store: Arc::new(store),
         })
     }
 }
@@ -60,6 +72,9 @@ mod tests {
             tmdb_base: "http://127.0.0.1:1/3".into(),
             image_base: "http://127.0.0.1:1/t/p/w342".into(),
             static_dir: static_dir.to_string_lossy().into_owned(),
+            db_path: static_dir.join("test.db").to_string_lossy().into_owned(),
+            log_retention_days: 90,
+            log_assets: false,
             public_origin: "http://localhost:3001".into(),
             tmdb_logo_url: "http://127.0.0.1:1/logo.svg".into(),
             cache_ttl: std::time::Duration::from_secs(60),

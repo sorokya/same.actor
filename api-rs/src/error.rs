@@ -34,6 +34,11 @@ pub enum AppError {
 
     #[error("internal error: {0}")]
     Internal(String),
+
+    /// The database refused a read, a write, or a migration. Distinct from `Internal` so a
+    /// storage fault is greppable in the logs instead of hiding among handler bugs.
+    #[error("storage error: {0}")]
+    Store(String),
 }
 
 /// Stable, documented error codes. The frontend switches on these, not on prose.
@@ -81,6 +86,11 @@ impl AppError {
                 "internal_error",
                 "Something went wrong on our side.".into(),
             ),
+            AppError::Store(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "storage_error",
+                "Something went wrong on our side.".into(),
+            ),
         }
     }
 }
@@ -95,6 +105,7 @@ impl IntoResponse for AppError {
             AppError::Upstream(detail) => tracing::warn!(error = %detail, "upstream failure"),
             AppError::Internal(detail) => tracing::error!(error = %detail, "internal failure"),
             AppError::Config(detail) => tracing::error!(error = %detail, "configuration failure"),
+            AppError::Store(detail) => tracing::error!(error = %detail, "storage failure"),
             AppError::Validation(_) | AppError::NotFound | AppError::RateLimited { .. } => {
                 tracing::debug!(%code, "client error")
             }

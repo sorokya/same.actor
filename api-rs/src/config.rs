@@ -29,6 +29,15 @@ pub struct Config {
     /// TMDB's own logo, fetched unmodified for the share card. Approved asset from
     /// <https://www.themoviedb.org/about/logos-attribution>.
     pub tmdb_logo_url: String,
+    /// SQLite file. The container points this at a volume; the default is relative so a
+    /// developer needs no configuration at all.
+    pub db_path: String,
+    /// Days of raw request rows kept before they are rolled into daily aggregates. The
+    /// aggregates keep no IP and no session id, so this is the privacy cutover as well as the
+    /// size one.
+    pub log_retention_days: u32,
+    /// Log static assets. Off by default: one page load is one row, not five.
+    pub log_assets: bool,
     pub cache_ttl: Duration,
     pub cache_capacity: u64,
     pub rate_limit: u32,
@@ -83,6 +92,9 @@ impl Config {
                 "TMDB_LOGO_URL",
                 "https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg",
             ),
+            db_path: env_str("DB_PATH", crate::store::DEFAULT_PATH),
+            log_retention_days: env_num("LOG_RETENTION_DAYS", 90).clamp(1, 3650) as u32,
+            log_assets: env_bool("LOG_ASSETS", false),
             cache_ttl: env_secs("CACHE_TTL_SECS", 600),
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,

@@ -27,6 +27,7 @@ pub mod paths;
 pub mod ratelimit;
 pub mod routes;
 pub mod state;
+pub mod store;
 pub mod tmdb;
 
 use state::AppState;

@@ -76,6 +76,9 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `IMAGE_BASE` | `https://image.tmdb.org/t/p/w342` | Poster/portrait prefix. |
 | `STATIC_DIR` | `dist` | Directory holding the built SPA. API-only if absent. |
 | `PUBLIC_ORIGIN` | `http://localhost:3001` | Absolute origin for `og:url` and `og:image`. **Set this in production** — Open Graph requires absolute URLs and it cannot be inferred behind a proxy. |
+| `DB_PATH` | `data/same-actor.db` | SQLite file. Relative by default so a local run needs no configuration; the container sets `/data/same-actor.db` on a volume. |
+| `LOG_RETENTION_DAYS` | `90` | Days of raw request rows kept before rollup. The aggregates keep no IP and no session id, so this is the privacy cutover as well as the size one. |
+| `LOG_ASSETS` | `false` | Log static assets. Off because one page load would otherwise be five rows. |
 | `TMDB_LOGO_URL` | TMDB's approved `blue_short` SVG | Override only if TMDB rotates the asset. The card renders without the logo if the fetch fails. |
 | `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
 | `CACHE_CAPACITY` | `10000` | Cache entry ceiling. |
@@ -179,6 +182,53 @@ writes a sample without starting the server.
 The unit tests assert on **pixels**, not file sizes — that a poster's colour reaches the
 poster well, and that a round portrait is clipped at the corners. A size comparison passes
 whether or not the artwork rendered, which is how the first version of that test lied.
+
+## Storage
+
+One SQLite file, one writer thread, a small pool of read connections under WAL. SQLite
+permits exactly one writer, so instead of configuring a pool and hoping `busy_timeout` covers
+the contention, a single thread owns the write connection and applies batched transactions
+(up to 256 rows or 250 ms, whichever comes first). Readers run concurrently — that is what WAL
+is for.
+
+Writes are *offered*, not performed: `Store::record` drops a record when the queue is full and
+counts it in `stats().dropped`. Analytics must never be load-bearing, so a slow disk cannot
+slow a page. The dropped count is the honest signal, and it is surfaced rather than hidden.
+
+`Store::flush()` is a barrier: everything offered before it is committed when it returns, which
+is what makes the tests deterministic without a single sleep. On `SIGTERM` the writer commits
+its last batch, checkpoints the WAL (so a backup sees one consistent file), and stops.
+
+`PRAGMA user_version` steps the migrations, each in its own transaction with the version bump
+inside it. Opening a database written by a *newer* build is refused outright: running old code
+against a newer schema is not something to discover later.
+
+The schema (nine tables) lands in one migration rather than growing one table per phase — an
+empty table costs nothing, and one reviewed schema in one place beats eight migrations that
+each need their own reasoning.
+
+### The database needs a volume the container can write
+
+The image runs as uid 10001 and `DB_PATH` is `/data/same-actor.db`. Under rootless podman a
+bind-mounted host directory belongs to a different uid, so the default mount is refused at
+startup:
+
+```
+$ podman run -v ~/same-data:/data same-actor
+Error: Store("/data exists but this process cannot write to it (Permission denied ...).
+        If it is a bind-mounted host directory, give it to the container with
+        `-v <dir>:/data:U`, or use a named volume instead.")
+```
+
+Either of these works, and both were verified against the image:
+
+```sh
+podman run -d -p 3001:3001 -v same-actor-data:/data -e TMDB_TOKEN=… same-actor   # named volume
+podman run -d -p 3001:3001 -v ~/same-data:/data:U -e TMDB_TOKEN=… same-actor     # bind mount
+```
+
+`podman stop` is a `SIGTERM`, which commits the last batch and checkpoints the WAL, so a backup
+sees one consistent `.db` file and no `-wal` sidecar.
 
 ## TMDB attribution
 

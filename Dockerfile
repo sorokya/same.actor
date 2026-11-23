@@ -47,7 +47,14 @@ COPY --from=spa /spa/dist /srv/dist
 
 ENV STATIC_DIR=/srv/dist \
     BIND=0.0.0.0:3001 \
+    DB_PATH=/data/same-actor.db \
     RUST_LOG=info
+
+# The request log lives on a volume. Without this, the database sits in the container's
+# writable layer and disappears on every deploy — the failure would look like "analytics
+# reset", not like a missing mount.
+RUN mkdir -p /data && chown 10001:10001 /data
+VOLUME ["/data"]
 
 USER 10001
 EXPOSE 3001

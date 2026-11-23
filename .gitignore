@@ -25,3 +25,6 @@ dist-ssr
 
 # Container build artefacts
 .containers/
+
+# Local database (the default DB_PATH is relative so a developer needs no configuration)
+data/

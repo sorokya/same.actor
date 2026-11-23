@@ -20,7 +20,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let bind = config.bind;
     let trust_forwarded_for = config.trust_forwarded_for;
     let state = AppState::new(config)?;
-    let app = build_app(state);
+    let app = build_app(state.clone());
 
     let listener = TcpListener::bind(bind).await?;
     tracing::info!(%bind, trust_forwarded_for, "same-actor listening");
@@ -32,7 +32,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     .with_graceful_shutdown(shutdown_signal())
     .await?;
 
-    tracing::info!("shut down cleanly");
+    // Fold the WAL back in and stop the writer thread, so a restart or a backup never sees a
+    // half-applied batch.
+    if let Err(error) = state.store.close().await {
+        tracing::warn!(%error, "could not close the store cleanly");
+    }
+
+    let stats = state.store.stats();
+    tracing::info!(
+        rows = stats.rows,
+        commits = stats.commits,
+        dropped = stats.dropped,
+        "shut down cleanly"
+    );
     Ok(())
 }
 

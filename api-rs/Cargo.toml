@@ -8,7 +8,14 @@ license = "MIT"
 
 [dependencies]
 axum = "0.8"
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "net", "time"] }
+tokio = { version = "1", features = [
+  "rt-multi-thread",
+  "macros",
+  "signal",
+  "net",
+  "time",
+  "sync",
+] }
 reqwest = { version = "0.13", default-features = false, features = [
   "json",
   "rustls",
@@ -27,6 +34,9 @@ tower-http = { version = "0.7", features = [
   "set-header",
 ] }
 moka = { version = "0.12", features = ["future"] }
+# `bundled` compiles SQLite into the binary: no system library in the image, and the version
+# is pinned by Cargo.lock instead of by whatever the base image ships.
+rusqlite = { version = "0.43", features = ["bundled"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"

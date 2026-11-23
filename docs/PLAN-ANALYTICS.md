@@ -445,6 +445,10 @@ to them either way and it is the wrong explanation.
 
 Each phase leaves the app working and shippable.
 
+**Status:** phase 1 done — `store/` with migrations, the writer thread, the read pool and 14
+tests; `DB_PATH`, `LOG_RETENTION_DAYS` and `LOG_ASSETS` in config; the container now puts the
+database on a `/data` volume. Phases 2–8 not started.
+
 | Phase | Content | Size |
 |---|---|---|
 | 1 | `store/` — open, pragmas, migrations, writer task, read pool, connection tests | M |
