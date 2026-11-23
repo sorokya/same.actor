@@ -35,17 +35,22 @@ export function SelectionChips({ selections, meta, onRemove }: SelectionChipsPro
                 type="button"
                 onClick={() => onRemove(selection)}
                 title={label === null ? `Remove #${selection.id}` : `Remove ${label}`}
-                className={`group inline-flex max-w-full items-center gap-2 overflow-hidden rounded border bg-raise py-1 pr-2 text-left transition-colors hover:bg-raise-2 ${tint.chip}`}
+                className={`group inline-flex max-w-full items-center gap-2.5 overflow-hidden rounded border bg-raise py-1 pr-2 text-left transition-colors hover:bg-raise-2 ${tint.chip}`}
               >
-                <span aria-hidden="true" className={`h-6 w-[3px] shrink-0 ${tint.bar}`} />
+                <span aria-hidden="true" className={`h-9 w-[3px] shrink-0 ${tint.bar}`} />
+                {/* Artwork is the point of a film comparison, so it gets enough size to be
+                    recognisable rather than a 22px thumbnail. */}
                 <Poster
                   src={image}
                   alt=""
                   shape={selection.kind === 'person' ? 'avatar' : 'poster'}
-                  width={22}
-                  height={22}
+                  width={34}
+                  height={selection.kind === 'person' ? 34 : 50}
+                  className="my-0.5"
                 />
-                <span className="truncate text-xs text-paper">{label ?? `#${selection.id}`}</span>
+                <span className="max-w-[13rem] truncate text-[13px] text-paper">
+                  {label ?? `#${selection.id}`}
+                </span>
                 <CloseIcon size={11} className="shrink-0 text-dim group-hover:text-danger" />
                 <span className="sr-only">Remove</span>
               </button>

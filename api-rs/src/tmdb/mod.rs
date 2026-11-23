@@ -29,7 +29,14 @@ pub struct Tmdb {
     token: String,
     auth: TmdbAuth,
     cache: Cache<String, Arc<Value>>,
+    /// Raster images (posters, portraits) as fetched. Separate from `cache` because these
+    /// are bytes from the image CDN, not JSON, and they are much bigger.
+    image_cache: Cache<String, Arc<Vec<u8>>>,
 }
+
+/// Largest image worth keeping in memory. TMDB's `w185` thumbnails are tens of kilobytes;
+/// anything past this is not a poster.
+const MAX_IMAGE_BYTES: usize = 3 * 1024 * 1024;
 
 impl Tmdb {
     pub fn new(config: &Config) -> Result<Self, AppError> {
@@ -48,6 +55,11 @@ impl Tmdb {
             .time_to_live(config.cache_ttl)
             .build();
 
+        let image_cache = Cache::builder()
+            .max_capacity(512)
+            .time_to_live(Duration::from_secs(6 * 60 * 60))
+            .build();
+
         Ok(Self {
             client,
             base,
@@ -55,7 +67,44 @@ impl Tmdb {
             token: config.tmdb_token.clone(),
             auth: config.tmdb_auth,
             cache,
+            image_cache,
         })
+    }
+
+    /// Fetch an image from the CDN.
+    ///
+    /// Deliberately unauthenticated: the TMDB token belongs to the API host, not the image
+    /// host, and sending it there would leak a credential to a third party for no reason.
+    /// Any failure returns `None` — a missing poster must cost the card its picture, never
+    /// the card itself.
+    pub async fn fetch_image(&self, url: &str) -> Option<Arc<Vec<u8>>> {
+        if let Some(hit) = self.image_cache.get(url).await {
+            return Some(hit);
+        }
+
+        let response = self.client.get(url).send().await.ok()?;
+        if !response.status().is_success() {
+            tracing::debug!(%url, status = %response.status(), "image fetch failed");
+            return None;
+        }
+
+        if let Some(length) = response.content_length() {
+            if length as usize > MAX_IMAGE_BYTES {
+                tracing::warn!(%url, length, "image too large; skipping");
+                return None;
+            }
+        }
+
+        let bytes = response.bytes().await.ok()?;
+        if bytes.len() > MAX_IMAGE_BYTES {
+            return None;
+        }
+
+        let bytes = Arc::new(bytes.to_vec());
+        self.image_cache
+            .insert(url.to_owned(), Arc::clone(&bytes))
+            .await;
+        Some(bytes)
     }
 
     fn image(&self, path: Option<&str>) -> Option<String> {
@@ -395,6 +444,7 @@ mod tests {
             image_base: "https://image.tmdb.org/t/p/w342".into(),
             static_dir: "dist".into(),
             public_origin: "http://localhost:3001".into(),
+            tmdb_logo_url: "https://www.themoviedb.org/assets/v4/logos/v2/blue_short.svg".into(),
             cache_ttl: Duration::from_secs(60),
             cache_capacity: 10,
             rate_limit: 10,

@@ -29,6 +29,13 @@ type ResultsState =
     }
   | { status: 'error'; message: string };
 
+/**
+ * TMDB's approved logo, served unmodified from their CDN as their brand rules require.
+ * See https://www.themoviedb.org/about/logos-attribution
+ */
+const TMDB_LOGO_URL =
+  'https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg';
+
 const COPY: Record<Mode, { heading: string; sub: string }> = {
   title: {
     heading: 'What do these films share?',
@@ -316,11 +323,41 @@ export function App() {
       </main>
 
       <footer className="border-t border-line">
-        <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-4 py-4">
-          <p className="text-[11px] text-dim">© {new Date().getFullYear()} Richard Leek</p>
-          <p className="text-[11px] text-dim">
-            This product uses the TMDB API but is not endorsed or certified by TMDB.
-          </p>
+        <div className="mx-auto w-full max-w-3xl px-4 py-5">
+          {/* TMDB's attribution terms require their logo, the notice below, and both to sit
+              in a Credits-type section — and the logo to be less prominent than our own
+              mark. The wordmark above is 13px; this sits at 10px and lower contrast. */}
+          <section aria-labelledby="credits-heading">
+            <h2 id="credits-heading" className="label">
+              Credits
+            </h2>
+
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <a
+                href="https://www.themoviedb.org/"
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex items-center opacity-70 transition-opacity hover:opacity-100"
+              >
+                <img
+                  src={TMDB_LOGO_URL}
+                  alt="The Movie Database"
+                  height={10}
+                  className="h-2.5 w-auto"
+                  loading="lazy"
+                  decoding="async"
+                />
+              </a>
+              <p className="text-xs text-dim">
+                Cast, crew and title data from TMDB. This product uses the TMDB API but is not
+                endorsed or certified by TMDB.
+              </p>
+            </div>
+
+            <p className="mt-3 text-[11px] text-dim/80">
+              © {new Date().getFullYear()} Richard Leek
+            </p>
+          </section>
         </div>
       </footer>
     </div>

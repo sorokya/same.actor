@@ -6,9 +6,10 @@ use axum::body::Body;
 use axum::extract::{Path, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
+use tokio::task::JoinSet;
 
 use crate::compare::compare;
-use crate::domain::{Matches, Mode, Selection};
+use crate::domain::{Kind, Matches, Mode, Selection};
 use crate::error::AppError;
 use crate::og::{self, Card, Pick};
 use crate::paths::{canonical, parse_picks};
@@ -60,6 +61,11 @@ async fn render_card(
         Matches::Titles(titles) => titles.len(),
     };
 
+    // Artwork and the attribution mark. Neither can fail the card: a missing poster leaves a
+    // placeholder, a missing logo leaves a log line.
+    let images = fetch_images(state, &selections).await;
+    let logo = state.tmdb.fetch_image(&state.config.tmdb_logo_url).await;
+
     let card = Card {
         heading: match mode {
             Mode::Title => "What do these films share?".to_owned(),
@@ -67,9 +73,12 @@ async fn render_card(
         },
         picks: selections
             .iter()
-            .map(|selection| Pick {
+            .zip(images)
+            .map(|(selection, image)| Pick {
                 name: selection.name.clone(),
                 year: selection.year,
+                image,
+                round: selection.kind == Kind::Person,
             })
             .collect(),
         count,
@@ -84,7 +93,37 @@ async fn render_card(
         },
     };
 
-    og::render(&card).map_err(AppError::Internal)
+    og::render(&card, logo.as_deref().map(Vec::as_slice)).map_err(AppError::Internal)
+}
+
+/// Fetch every selection's artwork concurrently, at the size the card draws it.
+///
+/// Any single failure leaves a placeholder in that row; artwork is never allowed to cost the
+/// card, and the TMDB query is already cached, so this only pays for images.
+async fn fetch_images(
+    state: &AppState,
+    selections: &[crate::domain::SelectionMeta],
+) -> Vec<Option<Arc<Vec<u8>>>> {
+    let mut tasks = JoinSet::new();
+
+    for (index, selection) in selections.iter().enumerate() {
+        let Some(url) = selection.image.clone() else {
+            continue;
+        };
+        let tmdb = Arc::clone(&state.tmdb);
+        tasks.spawn(async move { (index, tmdb.fetch_image(&og::thumb_url(&url)).await) });
+    }
+
+    let mut out: Vec<Option<Arc<Vec<u8>>>> = vec![None; selections.len()];
+    while let Some(joined) = tasks.join_next().await {
+        if let Ok((index, image)) = joined {
+            if let Some(slot) = out.get_mut(index) {
+                *slot = image;
+            }
+        }
+    }
+
+    out
 }
 
 fn png_response(body: Vec<u8>) -> Response {

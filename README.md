@@ -76,6 +76,7 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `IMAGE_BASE` | `https://image.tmdb.org/t/p/w342` | Poster/portrait prefix. |
 | `STATIC_DIR` | `dist` | Directory holding the built SPA. API-only if absent. |
 | `PUBLIC_ORIGIN` | `http://localhost:3001` | Absolute origin for `og:url` and `og:image`. **Set this in production** — Open Graph requires absolute URLs and it cannot be inferred behind a proxy. |
+| `TMDB_LOGO_URL` | TMDB's approved `blue_short` SVG | Override only if TMDB rotates the asset. The card renders without the logo if the fetch fails. |
 | `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
 | `CACHE_CAPACITY` | `10000` | Cache entry ceiling. |
 | `RATE_LIMIT` | `10` | Requests per window per client IP. |
@@ -165,11 +166,30 @@ afternoon if you meet them cold:
 
 ## Share cards
 
-`GET /og/{mode}/{picks}.png` renders 1200×630 with resvg from an SVG built in `og.rs`. Text
-is escaped, long titles are truncated to a width the layout can guarantee, and fonts are
-`include_bytes!`'d so the output does not depend on what the host has installed.
-`./scripts/cargo.sh cargo run --example og-preview -- card.png` writes a sample without
-starting the server.
+`GET /og/{mode}/{picks}.png` renders 1200×630 with resvg from an SVG built in `og.rs`: the
+selections with their **posters and portraits** (fetched at `w185`, clipped to a rectangle or
+a circle), the shared-credit count, and TMDB's logo. Text is escaped, long titles are
+truncated to a width the layout can guarantee, and fonts are `include_bytes!`'d so the output
+does not depend on what the host has installed.
+
+Artwork never costs you the card: a failed image fetch leaves an empty well, and a failed logo
+fetch leaves a log line. `./scripts/cargo.sh cargo run --example og-preview -- card.png`
+writes a sample without starting the server.
+
+The unit tests assert on **pixels**, not file sizes — that a poster's colour reaches the
+poster well, and that a round portrait is clipped at the corners. A size comparison passes
+whether or not the artwork rendered, which is how the first version of that test lied.
+
+## TMDB attribution
+
+Required by [TMDB's terms](https://www.themoviedb.org/about/logos-attribution): the logo, the
+sentence *"This product uses the TMDB API but is not endorsed or certified by TMDB."*, both
+inside a Credits-type section, with the logo less prominent than this app's own mark. The
+footer carries all three; the share card carries the logo.
+
+The logo is linked from TMDB's CDN rather than vendored, so it is always their unmodified
+asset. Note the asset path is `/assets/v4/logos/v2/…` — the `/assets/2/v4/…` path in the
+previous implementation 403s, so that logo had been broken without anyone noticing.
 
 The image route shares the API's per-IP rate limit, because each uncached card costs two
 upstream calls plus a rasterisation; rendered cards are cached for an hour. The pages

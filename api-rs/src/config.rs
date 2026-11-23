@@ -26,6 +26,9 @@ pub struct Config {
     /// Absolute origin used for `og:url` and `og:image`. Open Graph requires absolute URLs,
     /// so this cannot be inferred from the request behind a proxy.
     pub public_origin: String,
+    /// TMDB's own logo, fetched unmodified for the share card. Approved asset from
+    /// <https://www.themoviedb.org/about/logos-attribution>.
+    pub tmdb_logo_url: String,
     pub cache_ttl: Duration,
     pub cache_capacity: u64,
     pub rate_limit: u32,
@@ -76,6 +79,10 @@ impl Config {
             image_base: env_str("IMAGE_BASE", "https://image.tmdb.org/t/p/w342"),
             static_dir: env_str("STATIC_DIR", "dist"),
             public_origin: env_str("PUBLIC_ORIGIN", "http://localhost:3001"),
+            tmdb_logo_url: env_str(
+                "TMDB_LOGO_URL",
+                "https://www.themoviedb.org/assets/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg",
+            ),
             cache_ttl: env_secs("CACHE_TTL_SECS", 600),
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,

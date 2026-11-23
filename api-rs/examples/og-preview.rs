@@ -14,14 +14,20 @@ fn main() {
             Pick {
                 name: "The Matrix".into(),
                 year: Some(1999),
+                image: None,
+                round: false,
             },
             Pick {
                 name: "The Matrix Reloaded".into(),
                 year: Some(2003),
+                image: None,
+                round: false,
             },
             Pick {
                 name: "The Matrix Revolutions".into(),
                 year: Some(2003),
+                image: None,
+                round: false,
             },
         ],
         count: 33,
@@ -29,7 +35,7 @@ fn main() {
         mode_label: "TITLES",
     };
 
-    let png = render(&card).expect("render");
+    let png = render(&card, None).expect("render");
     std::fs::write(&path, &png).expect("write");
     println!("wrote {path} ({} bytes)", png.len());
 }

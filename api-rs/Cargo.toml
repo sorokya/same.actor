@@ -33,6 +33,7 @@ thiserror = "2"
 resvg = "0.50"
 tiny-skia = "0.12"
 fontdb = "0.24"
+base64 = "0.22"
 
 [dev-dependencies]
 http-body-util = "0.1"

@@ -204,6 +204,7 @@ async fn harness(rate_limit: u32) -> Harness {
         image_base: "https://image.tmdb.org/t/p/w342".into(),
         static_dir: static_dir.to_string_lossy().into_owned(),
         public_origin: "https://same.test".into(),
+        tmdb_logo_url: "https://same.test/logo.svg".into(),
         cache_ttl: Duration::from_secs(60),
         cache_capacity: 100,
         rate_limit,
