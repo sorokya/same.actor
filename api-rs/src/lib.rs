@@ -21,6 +21,7 @@ pub mod bans;
 pub mod clock;
 pub mod compare;
 pub mod config;
+pub mod discovery;
 pub mod domain;
 pub mod error;
 pub mod extract;
@@ -50,6 +51,8 @@ pub fn build_app(state: AppState) -> Router {
     // renders on first paint, so it is deliberately outside `require_session`.
     let public_api = Router::new()
         .route("/trending", get(routes::trending::trending))
+        .route("/discover", get(routes::discover::index))
+        .route("/discover/{slug}", get(routes::discover::show))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             routes::enforce_rate_limit,

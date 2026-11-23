@@ -445,9 +445,22 @@ to them either way and it is the wrong explanation.
 
 Each phase leaves the app working and shippable.
 
-**Status:** phase 1 done — `store/` with migrations, the writer thread, the read pool and 14
+**Status:** phases 1–8 done — `store/` with migrations, the writer thread, the read pool and 14
 tests; `DB_PATH`, `LOG_RETENTION_DAYS` and `LOG_ASSETS` in config; the container now puts the
-database on a `/data` volume. Phases 2–8 not started.
+database on a `/data` volume.
+
+Phase 2 landed `observe`, the `sa_sid` cookie with its exemptions, and DB-IP country lookup.
+Phase 3 added bans (IP and range only) with optional automatic rules. Phase 4 added rollups,
+retention and search events. Phase 5 added the admin API. Phase 6 added the dashboard as a lazy
+chunk. Phase 7 added trending and view counts. Phase 8 added the five discovery lists and their
+synergy tables.
+
+Deviations from what is written above, all made during implementation and recorded in the commits:
+`daily_totals` (migration 2) exists because summing per-group distinct sessions overcounts
+visitors; the id-walking signal is measured within a session rather than against a session count;
+trending reads the raw table as well as the aggregates, because for the last 24 hours the
+aggregates do not exist yet; `/api/admin` is exempt from ban enforcement so an operator cannot
+lock themselves out of the only screen that can undo a ban.
 
 | Phase | Content | Size |
 |---|---|---|

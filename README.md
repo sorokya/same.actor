@@ -81,6 +81,7 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `LOG_ASSETS` | `false` | Log static assets. Off because one page load would otherwise be five rows. |
 | `GEO_ENABLED` | `true` | Country lookup via DB-IP Lite. Off means no download and a NULL country. |
 | `GEO_DB_PATH` | `data/dbip-country-lite.mmdb` | Where the database is cached. Put it on the same volume as the SQLite file. |
+| `TMDB_REGION` | `US` | Region for release dates on "in cinemas" and "coming soon". |
 | `ADMIN_TOKEN` | unset | Admin API token. **Unset means the whole `/api/admin` subtree answers 404** — a forgotten env var must not mean an open dashboard. |
 | `AUTOBAN_REQUESTS` | `0` (off) | Ban an address that trips the rate limit this many times in the window. |
 | `AUTOBAN_ERRORS` | `0` (off) | Ban an address that triggers this many other client errors in the window. |
@@ -297,6 +298,25 @@ it and the first visitor to any comparison would be told it had never been viewe
 
 `GET /api/trending` is exempt from the session requirement: it is a cached aggregate, it renders
 on first paint, and there is no visit to attribute.
+
+## Discovery pages
+
+Five lists at `/discover/:slug` — top films, top shows, in cinemas, coming soon, on the air —
+each with a cast-synergy table. Refreshed into SQLite every six hours by a background job, so no
+page ever waits on TMDB and a TMDB outage costs freshness, not availability.
+
+`GET /api/discover` lists them with their refresh times; `GET /api/discover/{slug}` returns one.
+A list that has never been built is a **404**, not an empty page: an empty list reads as "nothing
+is popular", which is a lie.
+
+The synergy table is the interesting part. Twenty titles makes the pairwise intersection that
+powers the main comparison useless — 190 pairs, most of them empty. What is meaningful at that
+scale is an actor appearing in **two or more** of the list, which is what the job computes once
+per refresh and stores alongside the list. Rows link to `themoviedb.org/person/{id}`; this site
+has no person pages.
+
+`TMDB_REGION` (default `US`) is required by the two date-scoped lists — "upcoming" means nothing
+without a region. Only those two send it.
 
 ## Admin API
 

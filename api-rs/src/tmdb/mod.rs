@@ -107,6 +107,12 @@ impl Tmdb {
         Some(bytes)
     }
 
+    /// Public form of [`Self::image`] for callers outside this module — the discovery lists
+    /// build their own items from `/movie/popular`, which returns bare paths.
+    pub fn image_url(&self, path: &str) -> String {
+        self.image(Some(path)).unwrap_or_default()
+    }
+
     fn image(&self, path: Option<&str>) -> Option<String> {
         let path = path?.trim();
         if path.is_empty() {
@@ -273,6 +279,28 @@ impl Tmdb {
                     .collect())
             }
         }
+    }
+
+    /// A discovery list — `/movie/popular`, `/movie/upcoming`, `/tv/on_the_air`, and so on.
+    ///
+    /// `region` is only sent for the lists that need one: TMDB rejects a region on endpoints that
+    /// do not take it, and ignores one on the rest.
+    pub async fn list(
+        &self,
+        path: &str,
+        region: Option<&str>,
+    ) -> Result<Vec<types::ListItem>, AppError> {
+        let mut query = vec![("language", LANGUAGE), ("page", "1")];
+        if let Some(region) = region {
+            query.push(("region", region));
+        }
+
+        // Split into segments: `get` percent-encodes each one, so passing "movie/popular" as a
+        // single segment sends `/3/movie%2Fpopular` — a 404 that looks like a permissions
+        // problem in the log.
+        let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
+        let response: types::ListResponse = self.get(&segments, &query).await?;
+        Ok(response.results)
     }
 
     /// Cast of one selected title. Used when comparing titles.
@@ -455,6 +483,7 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: Duration::from_secs(1),
+            tmdb_region: "US".into(),
             admin_token: None,
             autoban_requests: 0,
             autoban_errors: 0,

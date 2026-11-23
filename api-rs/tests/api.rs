@@ -41,6 +41,18 @@ async fn stub(State(stub): State<Stub>, request: Request<Body>) -> Response {
     let path = request.uri().path().to_owned();
 
     match path.as_str() {
+        // Discovery lists: the two titles the stub knows, so the synergy table has overlap.
+        "/3/movie/popular" => Json(json!({
+            "page": 1,
+            "results": [
+                {"id": 603, "title": "The Matrix", "release_date": "1999-03-31",
+                 "poster_path": "/matrix.jpg", "overview": "Hackers.", "vote_average": 8.2},
+                {"id": 604, "title": "The Matrix Reloaded", "release_date": "2003-05-15",
+                 "poster_path": "/reloaded.jpg", "overview": "More hackers.", "vote_average": 7.1}
+            ]
+        }))
+        .into_response(),
+
         "/3/search/multi" => Json(json!({
             "results": [
                 {
@@ -254,6 +266,7 @@ async fn harness_with<F: FnOnce(&mut Config)>(rate_limit: u32, tweak: F) -> Harn
         cache_capacity: 100,
         rate_limit,
         rate_window: Duration::from_secs(60),
+        tmdb_region: "US".into(),
         admin_token: None,
         autoban_requests: 0,
         autoban_errors: 0,
@@ -1708,4 +1721,81 @@ async fn one_visitor_looking_twice_is_counted_once() {
         1,
         "three requests from one session in the window is one view"
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Discovery
+// ---------------------------------------------------------------------------------------------
+
+/// A list that has never been built is a 404, not an empty page: "nothing is popular" is a lie.
+#[tokio::test]
+async fn an_unbuilt_discovery_list_is_not_found() {
+    let h = harness(100).await;
+
+    let (status, _, _) = call(
+        &h.app,
+        with_client(get_path_raw("/api/discover/top-movies")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // The index still lists it, with no refresh time, so the UI can say "not built yet".
+    let (status, _, body) = call(&h.app, with_client(get_path_raw("/api/discover"))).await;
+    assert_eq!(status, StatusCode::OK);
+    let lists = body["lists"].as_array().expect("lists");
+    assert_eq!(lists.len(), 5);
+    assert!(lists[0]["refreshed_ts"].is_null());
+}
+
+#[tokio::test]
+async fn an_unknown_slug_is_not_found() {
+    let h = harness(100).await;
+    let (status, _, _) = call(
+        &h.app,
+        with_client(get_path_raw("/api/discover/best-anime")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// Runs the refresh the background job runs, against the stub, then reads the page back. The
+/// interesting assertion is the synergy table: 603 and 604 share two actors.
+#[tokio::test]
+async fn a_refreshed_list_is_served_with_its_synergy() {
+    let h = harness(100).await;
+
+    let spec = same_actor::discovery::by_slug("top-movies").expect("the spec");
+    let (titles, people) =
+        same_actor::discovery::refresh_one(&h.state.tmdb, &h.state.store, spec, "US")
+            .await
+            .expect("refresh");
+
+    assert_eq!(titles, 2, "both stub titles have credits");
+    assert!(people >= 2, "shared actors should produce rows");
+
+    let (status, _, body) = call(
+        &h.app,
+        with_client(get_path_raw("/api/discover/top-movies")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["heading"], "Top films");
+
+    let items = body["items"].as_array().expect("items");
+    assert_eq!(items.len(), 2);
+    assert_eq!(items[0]["name"], "The Matrix");
+
+    let synergy = body["synergy"].as_array().expect("synergy");
+    let names: Vec<&str> = synergy
+        .iter()
+        .filter_map(|row| row["name"].as_str())
+        .collect();
+    assert!(names.contains(&"Keanu Reeves"), "got {names:?}");
+    assert!(names.contains(&"Carrie-Anne Moss"), "got {names:?}");
+
+    // Everyone listed is in both titles, and the titles are in list order.
+    for row in synergy {
+        assert_eq!(row["count"], 2);
+        assert_eq!(row["titles"][0], "The Matrix");
+    }
 }

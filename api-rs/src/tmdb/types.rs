@@ -193,3 +193,41 @@ mod tests {
         assert!(c.cast.is_empty());
     }
 }
+
+/// `/movie/popular`, `/tv/on_the_air`, and friends. One shape covers all of them: the fields
+/// that differ (movie vs tv titles and dates) are optional and read through helpers.
+#[derive(Debug, Deserialize)]
+pub struct ListResponse {
+    #[serde(default)]
+    pub results: Vec<ListItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListItem {
+    pub id: u32,
+    pub title: Option<String>,
+    pub name: Option<String>,
+    pub release_date: Option<String>,
+    pub first_air_date: Option<String>,
+    pub poster_path: Option<String>,
+    pub overview: Option<String>,
+    pub vote_average: Option<f64>,
+}
+
+impl ListItem {
+    pub fn display_name(&self) -> String {
+        self.title
+            .clone()
+            .or_else(|| self.name.clone())
+            .filter(|name| !name.trim().is_empty())
+            .unwrap_or_else(|| format!("#{}", self.id))
+    }
+
+    pub fn year(&self) -> Option<u16> {
+        crate::domain::year_from_date(
+            self.release_date
+                .as_deref()
+                .or(self.first_air_date.as_deref()),
+        )
+    }
+}

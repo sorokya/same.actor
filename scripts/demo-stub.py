@@ -44,6 +44,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/3/search/person":
             return self.json({"page": 1, "results": self.fixtures["search_person"]})
 
+        # Discovery lists. The movie lists return titles the stub knows, so the cast-synergy
+        # table has something real to show; the tv lists return ids it does not, which
+        # demonstrates the empty-synergy path.
+        if path in ("/3/movie/popular", "/3/movie/now_playing", "/3/movie/upcoming"):
+            return self.json({"page": 1, "results": self.fixtures["lists_movie"]})
+        if path in ("/3/tv/popular", "/3/tv/on_the_air"):
+            return self.json({"page": 1, "results": self.fixtures["lists_tv"]})
+
         for collection in ("media", "people"):
             entry = self.fixtures[collection].get(path)
             if entry is not None:

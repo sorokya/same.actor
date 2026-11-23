@@ -338,6 +338,25 @@ export function App() {
 
       <footer className="border-t border-line">
         <div className="mx-auto w-full max-w-3xl px-4 py-5">
+          <nav aria-label="Browse" className="mb-5">
+            <p className="label mb-2">Browse by list</p>
+            <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+              {[
+                ['top-movies', 'Top films'],
+                ['top-tv', 'Top shows'],
+                ['new-movies', 'In cinemas'],
+                ['upcoming', 'Coming soon'],
+                ['on-the-air', 'On the air'],
+              ].map(([slug, label]) => (
+                <li key={slug}>
+                  <a href={`/discover/${slug}`} className="text-xs text-dim hover:text-paper">
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+
           {/* TMDB's attribution terms require their logo, the notice below, and both to sit
               in a Credits-type section — and the logo to be less prominent than our own
               mark. The wordmark above is 13px; this sits at 10px and lower contrast. */}

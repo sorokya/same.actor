@@ -56,6 +56,9 @@ pub struct Config {
     pub autoban_window: Duration,
     /// How long an automatic ban lasts.
     pub autoban_ban_secs: u64,
+    /// ISO-3166-1 code used for release dates on the discovery lists. TMDB cannot infer it, and
+    /// "upcoming" means nothing without it.
+    pub tmdb_region: String,
     /// Admin API token. Unset means the admin API is disabled and answers 404 — a forgotten env
     /// var must not mean an open dashboard.
     pub admin_token: Option<String>,
@@ -126,6 +129,7 @@ impl Config {
             autoban_errors: env_num("AUTOBAN_ERRORS", 0) as u32,
             autoban_window: env_secs("AUTOBAN_WINDOW_SECS", 60),
             autoban_ban_secs: env_num("AUTOBAN_BAN_SECS", 3600),
+            tmdb_region: env_str("TMDB_REGION", "US"),
             admin_token: env::var("ADMIN_TOKEN")
                 .ok()
                 .map(|token| token.trim().to_owned())

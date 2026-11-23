@@ -1,6 +1,7 @@
 import { Component, type ComponentChildren, render } from 'preact';
 import { AdminRoot } from './admin/root';
 import { App } from './app';
+import { Discover } from './discover';
 import './index.css';
 
 interface BoundaryState {
@@ -56,9 +57,16 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, BoundaryS
 const container = document.getElementById('root');
 if (!container) throw new Error('#root is missing from index.html');
 
-// One binary, two surfaces. `/admin` is a separate entry point because it is a separate job:
-// the comparison tool is what a visitor opens, and nothing about it should wait on, or pay for,
-// the dashboard's chunk.
-const isAdmin = window.location.pathname.startsWith('/admin');
+// Three surfaces, one binary. `/admin` is its own entry point because it is a separate job: the
+// comparison tool is what a visitor opens, and nothing about it should wait on, or pay for, the
+// dashboard's chunk. `/discover/:slug` is a page of the public site.
+const path = window.location.pathname;
+const isAdmin = path.startsWith('/admin');
+const discoverSlug = /^\/discover\/([a-z0-9-]+)\/?$/.exec(path)?.[1];
 
-render(<ErrorBoundary>{isAdmin ? <AdminRoot /> : <App />}</ErrorBoundary>, container);
+render(
+  <ErrorBoundary>
+    {isAdmin ? <AdminRoot /> : discoverSlug ? <Discover slug={discoverSlug} /> : <App />}
+  </ErrorBoundary>,
+  container,
+);

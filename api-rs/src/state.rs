@@ -130,6 +130,7 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: std::time::Duration::from_secs(1),
+            tmdb_region: "US".into(),
             admin_token: None,
             autoban_requests: 0,
             autoban_errors: 0,

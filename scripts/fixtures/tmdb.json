@@ -1,994 +1,1048 @@
 {
- "media": {
-  "/3/movie/603": {
-   "id": 603,
-   "title": "The Matrix",
-   "release_date": "1999-03-31",
-   "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg",
-   "credits": {
-    "cast": [
-     {
-      "id": 6384,
-      "name": "Keanu Reeves",
-      "character": "Neo",
-      "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
-     },
-     {
-      "id": 2975,
-      "name": "Laurence Fishburne",
-      "character": "Morpheus",
-      "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
-     },
-     {
-      "id": 530,
-      "name": "Carrie-Anne Moss",
-      "character": "Trinity",
-      "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
-     },
-     {
-      "id": 1331,
-      "name": "Hugo Weaving",
-      "character": "Agent Smith",
-      "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
-     },
-     {
-      "id": 9364,
-      "name": "Gloria Foster",
-      "character": "Oracle",
-      "profile_path": "/AriGXtC9fjBOia9Zr8CZjn4o3rx.jpg"
-     },
-     {
-      "id": 75131,
-      "name": "Nash Edgerton",
-      "character": "Resistance Member",
-      "profile_path": "/qaqSjQXRjTyCKChgVtBSHnnWbb9.jpg"
-     }
-    ]
-   }
+  "media": {
+    "/3/movie/603": {
+      "id": 603,
+      "title": "The Matrix",
+      "release_date": "1999-03-31",
+      "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg",
+      "credits": {
+        "cast": [
+          {
+            "id": 6384,
+            "name": "Keanu Reeves",
+            "character": "Neo",
+            "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
+          },
+          {
+            "id": 2975,
+            "name": "Laurence Fishburne",
+            "character": "Morpheus",
+            "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
+          },
+          {
+            "id": 530,
+            "name": "Carrie-Anne Moss",
+            "character": "Trinity",
+            "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
+          },
+          {
+            "id": 1331,
+            "name": "Hugo Weaving",
+            "character": "Agent Smith",
+            "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
+          },
+          {
+            "id": 9364,
+            "name": "Gloria Foster",
+            "character": "Oracle",
+            "profile_path": "/AriGXtC9fjBOia9Zr8CZjn4o3rx.jpg"
+          },
+          {
+            "id": 75131,
+            "name": "Nash Edgerton",
+            "character": "Resistance Member",
+            "profile_path": "/qaqSjQXRjTyCKChgVtBSHnnWbb9.jpg"
+          }
+        ]
+      }
+    },
+    "/3/movie/604": {
+      "id": 604,
+      "title": "The Matrix Reloaded",
+      "release_date": "2003-05-15",
+      "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg",
+      "credits": {
+        "cast": [
+          {
+            "id": 6384,
+            "name": "Keanu Reeves",
+            "character": "Neo",
+            "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
+          },
+          {
+            "id": 2975,
+            "name": "Laurence Fishburne",
+            "character": "Morpheus",
+            "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
+          },
+          {
+            "id": 530,
+            "name": "Carrie-Anne Moss",
+            "character": "Trinity",
+            "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
+          },
+          {
+            "id": 1331,
+            "name": "Hugo Weaving",
+            "character": "Agent Smith",
+            "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
+          },
+          {
+            "id": 9364,
+            "name": "Gloria Foster",
+            "character": "The Oracle",
+            "profile_path": "/AriGXtC9fjBOia9Zr8CZjn4o3rx.jpg"
+          },
+          {
+            "id": 75131,
+            "name": "Nash Edgerton",
+            "character": "Security Guard #5",
+            "profile_path": "/qaqSjQXRjTyCKChgVtBSHnnWbb9.jpg"
+          },
+          {
+            "id": 9575,
+            "name": "Jada Pinkett Smith",
+            "character": "Niobe",
+            "profile_path": "/3RyvVVSlgRbZANDFkYiAsRMaHW.jpg"
+          },
+          {
+            "id": 6195,
+            "name": "Harold Perrineau",
+            "character": "Link",
+            "profile_path": "/bVSLpGUaislREbujmknOqadrxYM.jpg"
+          },
+          {
+            "id": 28782,
+            "name": "Monica Bellucci",
+            "character": "Persephone",
+            "profile_path": "/7g3k3u2gZpE7XU8GRYwHDuN1jlM.jpg"
+          },
+          {
+            "id": 9464,
+            "name": "Harry Lennix",
+            "character": "Commander Lock",
+            "profile_path": "/kNGiizWpetf4pyAkINkjkWacmCL.jpg"
+          },
+          {
+            "id": 2192,
+            "name": "Lambert Wilson",
+            "character": "The Merovingian",
+            "profile_path": "/pFuLPZtgrKsnRXJCKWILQ69k6Ta.jpg"
+          },
+          {
+            "id": 18286,
+            "name": "Nona Gaye",
+            "character": "Zee",
+            "profile_path": "/nD6Gawyx0QOQIKsFtJXBWMzjLw3.jpg"
+          },
+          {
+            "id": 2516,
+            "name": "Anthony Zerbe",
+            "character": "Councillor Hamann",
+            "profile_path": "/ctp83m2ntqbz69jOU8W5aU4sBtI.jpg"
+          },
+          {
+            "id": 9443,
+            "name": "Helmut Bakaitis",
+            "character": "The Architect",
+            "profile_path": "/p7YMk9Gk2BZsvo2EUp7x903gdLZ.jpg"
+          },
+          {
+            "id": 52908,
+            "name": "Collin Chou",
+            "character": "Seraph",
+            "profile_path": "/1bxUqslOLipmTgsg7lcHHN6pPf1.jpg"
+          },
+          {
+            "id": 62486,
+            "name": "Ian Bliss",
+            "character": "Bane",
+            "profile_path": "/26Ms6gQlbfxAzdrSTKfkcMoJrov.jpg"
+          },
+          {
+            "id": 33449,
+            "name": "Essie Davis",
+            "character": "Maggie",
+            "profile_path": "/mwJrRr9bdlUZFZBNDTgWxAKAdqR.jpg"
+          },
+          {
+            "id": 9457,
+            "name": "Roy Jones Jr.",
+            "character": "Ballard",
+            "profile_path": "/eLYiTsYcUXSjzSKAYbFnCwQGL5V.jpg"
+          },
+          {
+            "id": 75175,
+            "name": "Christopher Kirby",
+            "character": "Mauser",
+            "profile_path": "/djNk4Q2A79XPhMOtAE2F2fgCIhI.jpg"
+          },
+          {
+            "id": 152559,
+            "name": "Peter Lamb",
+            "character": "Colt",
+            "profile_path": "/https://same.actor/avatar.png"
+          },
+          {
+            "id": 41784,
+            "name": "Nathaniel Lees",
+            "character": "Mifune",
+            "profile_path": "/l35ATgC4SbzyKGeAZBAQSyYs18P.jpg"
+          },
+          {
+            "id": 83769,
+            "name": "Robert Mammone",
+            "character": "AK",
+            "profile_path": "/6R2xAV1tpJow5mLUmewOdtDA2Rg.jpg"
+          },
+          {
+            "id": 73883,
+            "name": "Rene Naufahu",
+            "character": "Zion Gate Operator",
+            "profile_path": "/9YFXNZYTebxcp9lhNAP7SfpdClY.jpg"
+          },
+          {
+            "id": 75893,
+            "name": "Robyn Nevin",
+            "character": "Councillor Dillard",
+            "profile_path": "/kSj8W81HQLkMXkzkIQm6l7zgB8F.jpg"
+          },
+          {
+            "id": 139654,
+            "name": "Genevieve O'Reilly",
+            "character": "Officer Wirtz",
+            "profile_path": "/4eOoW1PNBZfxRW0g8RmYH8bL6mq.jpg"
+          },
+          {
+            "id": 187189,
+            "name": "Rupert Reid",
+            "character": "Lock's Lieutenant",
+            "profile_path": "/6EdSU7Ay8V26gUE7UFpbJfOg3T6.jpg"
+          },
+          {
+            "id": 537506,
+            "name": "Cornel West",
+            "character": "Councillor West",
+            "profile_path": "/eyLtTHcC3InxVPTyRus1pNfa0pK.jpg"
+          },
+          {
+            "id": 77553,
+            "name": "David Roberts",
+            "character": "Roland",
+            "profile_path": "/n263zF76GX42aEK1AeMwcJDwKpd.jpg"
+          },
+          {
+            "id": 9576,
+            "name": "Gina Torres",
+            "character": "Cas",
+            "profile_path": "/ukDNHgvEgdU95eaw6pngiAPucv4.jpg"
+          },
+          {
+            "id": 56347,
+            "name": "Clayton Watson",
+            "character": "Kid",
+            "profile_path": "/7T4RCGl5jfpB1XcjXywb6ZmwGUC.jpg"
+          },
+          {
+            "id": 156739,
+            "name": "Bernard White",
+            "character": "Rama-Kandra",
+            "profile_path": "/yW1MG2BHGBWxIAQ7F93TFtUNUFv.jpg"
+          },
+          {
+            "id": 930817,
+            "name": "Anthony Brandon Wong",
+            "character": "Ghost",
+            "profile_path": "/4QEeh3j7DG6uduyRHGLF6b1KJix.jpg"
+          },
+          {
+            "id": 75122,
+            "name": "Lachy Hulme",
+            "character": "Sparks (uncredited)",
+            "profile_path": "/z6ZEqpIkh1LYQXgSNMcc8akW3ZR.jpg"
+          }
+        ]
+      }
+    },
+    "/3/movie/605": {
+      "id": 605,
+      "title": "The Matrix Revolutions",
+      "release_date": "2003-11-05",
+      "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg",
+      "credits": {
+        "cast": [
+          {
+            "id": 6384,
+            "name": "Keanu Reeves",
+            "character": "Neo",
+            "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
+          },
+          {
+            "id": 2975,
+            "name": "Laurence Fishburne",
+            "character": "Morpheus",
+            "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
+          },
+          {
+            "id": 530,
+            "name": "Carrie-Anne Moss",
+            "character": "Trinity",
+            "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
+          },
+          {
+            "id": 1331,
+            "name": "Hugo Weaving",
+            "character": "Agent Smith",
+            "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
+          },
+          {
+            "id": 9575,
+            "name": "Jada Pinkett Smith",
+            "character": "Niobe",
+            "profile_path": "/3RyvVVSlgRbZANDFkYiAsRMaHW.jpg"
+          },
+          {
+            "id": 6195,
+            "name": "Harold Perrineau",
+            "character": "Link",
+            "profile_path": "/bVSLpGUaislREbujmknOqadrxYM.jpg"
+          },
+          {
+            "id": 28782,
+            "name": "Monica Bellucci",
+            "character": "Persephone",
+            "profile_path": "/7g3k3u2gZpE7XU8GRYwHDuN1jlM.jpg"
+          },
+          {
+            "id": 9464,
+            "name": "Harry Lennix",
+            "character": "Commander Lock",
+            "profile_path": "/kNGiizWpetf4pyAkINkjkWacmCL.jpg"
+          },
+          {
+            "id": 2192,
+            "name": "Lambert Wilson",
+            "character": "Merovingian",
+            "profile_path": "/pFuLPZtgrKsnRXJCKWILQ69k6Ta.jpg"
+          },
+          {
+            "id": 18286,
+            "name": "Nona Gaye",
+            "character": "Zee",
+            "profile_path": "/nD6Gawyx0QOQIKsFtJXBWMzjLw3.jpg"
+          },
+          {
+            "id": 2516,
+            "name": "Anthony Zerbe",
+            "character": "Councillor Hamann",
+            "profile_path": "/ctp83m2ntqbz69jOU8W5aU4sBtI.jpg"
+          },
+          {
+            "id": 9443,
+            "name": "Helmut Bakaitis",
+            "character": "The Architect",
+            "profile_path": "/p7YMk9Gk2BZsvo2EUp7x903gdLZ.jpg"
+          },
+          {
+            "id": 52908,
+            "name": "Collin Chou",
+            "character": "Seraph",
+            "profile_path": "/1bxUqslOLipmTgsg7lcHHN6pPf1.jpg"
+          },
+          {
+            "id": 62486,
+            "name": "Ian Bliss",
+            "character": "Bane",
+            "profile_path": "/26Ms6gQlbfxAzdrSTKfkcMoJrov.jpg"
+          },
+          {
+            "id": 33449,
+            "name": "Essie Davis",
+            "character": "Maggie",
+            "profile_path": "/mwJrRr9bdlUZFZBNDTgWxAKAdqR.jpg"
+          },
+          {
+            "id": 9457,
+            "name": "Roy Jones Jr.",
+            "character": "Captain Ballard (uncredited)",
+            "profile_path": "/eLYiTsYcUXSjzSKAYbFnCwQGL5V.jpg"
+          },
+          {
+            "id": 75175,
+            "name": "Christopher Kirby",
+            "character": "Mauser",
+            "profile_path": "/djNk4Q2A79XPhMOtAE2F2fgCIhI.jpg"
+          },
+          {
+            "id": 152559,
+            "name": "Peter Lamb",
+            "character": "Colt",
+            "profile_path": "/https://same.actor/avatar.png"
+          },
+          {
+            "id": 41784,
+            "name": "Nathaniel Lees",
+            "character": "Mifune",
+            "profile_path": "/l35ATgC4SbzyKGeAZBAQSyYs18P.jpg"
+          },
+          {
+            "id": 83769,
+            "name": "Robert Mammone",
+            "character": "AK",
+            "profile_path": "/6R2xAV1tpJow5mLUmewOdtDA2Rg.jpg"
+          },
+          {
+            "id": 73883,
+            "name": "Rene Naufahu",
+            "character": "Zion Gate Operator",
+            "profile_path": "/9YFXNZYTebxcp9lhNAP7SfpdClY.jpg"
+          },
+          {
+            "id": 75893,
+            "name": "Robyn Nevin",
+            "character": "Councillor Dillard",
+            "profile_path": "/kSj8W81HQLkMXkzkIQm6l7zgB8F.jpg"
+          },
+          {
+            "id": 139654,
+            "name": "Genevieve O'Reilly",
+            "character": "Officer Wirtz",
+            "profile_path": "/4eOoW1PNBZfxRW0g8RmYH8bL6mq.jpg"
+          },
+          {
+            "id": 187189,
+            "name": "Rupert Reid",
+            "character": "Lock's Lieutenant",
+            "profile_path": "/6EdSU7Ay8V26gUE7UFpbJfOg3T6.jpg"
+          },
+          {
+            "id": 537506,
+            "name": "Cornel West",
+            "character": "Councillor West",
+            "profile_path": "/eyLtTHcC3InxVPTyRus1pNfa0pK.jpg"
+          },
+          {
+            "id": 77553,
+            "name": "David Roberts",
+            "character": "Roland",
+            "profile_path": "/n263zF76GX42aEK1AeMwcJDwKpd.jpg"
+          },
+          {
+            "id": 9576,
+            "name": "Gina Torres",
+            "character": "Cas",
+            "profile_path": "/ukDNHgvEgdU95eaw6pngiAPucv4.jpg"
+          },
+          {
+            "id": 56347,
+            "name": "Clayton Watson",
+            "character": "Kid",
+            "profile_path": "/7T4RCGl5jfpB1XcjXywb6ZmwGUC.jpg"
+          },
+          {
+            "id": 156739,
+            "name": "Bernard White",
+            "character": "Rama-Kandra",
+            "profile_path": "/yW1MG2BHGBWxIAQ7F93TFtUNUFv.jpg"
+          },
+          {
+            "id": 930817,
+            "name": "Anthony Brandon Wong",
+            "character": "Ghost",
+            "profile_path": "/4QEeh3j7DG6uduyRHGLF6b1KJix.jpg"
+          },
+          {
+            "id": 75122,
+            "name": "Lachy Hulme",
+            "character": "Sparks",
+            "profile_path": "/z6ZEqpIkh1LYQXgSNMcc8akW3ZR.jpg"
+          }
+        ]
+      }
+    }
   },
-  "/3/movie/604": {
-   "id": 604,
-   "title": "The Matrix Reloaded",
-   "release_date": "2003-05-15",
-   "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg",
-   "credits": {
-    "cast": [
-     {
+  "people": {
+    "/3/person/6384": {
       "id": 6384,
       "name": "Keanu Reeves",
-      "character": "Neo",
-      "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
-     },
-     {
-      "id": 2975,
-      "name": "Laurence Fishburne",
-      "character": "Morpheus",
-      "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
-     },
-     {
+      "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg",
+      "combined_credits": {
+        "cast": [
+          {
+            "id": 603,
+            "media_type": "movie",
+            "title": "The Matrix",
+            "release_date": "1999-01-01",
+            "character": "Neo",
+            "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
+          },
+          {
+            "id": 604,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded",
+            "release_date": "2003-01-01",
+            "character": "Neo",
+            "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg"
+          },
+          {
+            "id": 605,
+            "media_type": "movie",
+            "title": "The Matrix Revolutions",
+            "release_date": "2003-01-01",
+            "character": "Neo",
+            "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
+          },
+          {
+            "id": 24914,
+            "media_type": "movie",
+            "title": "Kid's Story",
+            "release_date": "2003-01-01",
+            "character": "Neo (voice)",
+            "poster_path": "/SteXNwc3hRV9o2BlyxV3yBXCV2.jpg"
+          },
+          {
+            "id": 14543,
+            "media_type": "movie",
+            "title": "The Matrix Revisited",
+            "release_date": "2001-01-01",
+            "character": "Self - Neo",
+            "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
+          },
+          {
+            "id": 55931,
+            "media_type": "movie",
+            "title": "The Animatrix",
+            "release_date": "2003-01-01",
+            "character": "Neo (\"Kid's Story\") (voice)",
+            "poster_path": "/eDjIG2hAeMU5cxLrd6oiQqdqoZt.jpg"
+          },
+          {
+            "id": 221495,
+            "media_type": "movie",
+            "title": "The Matrix Recalibrated",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
+          },
+          {
+            "id": 503880,
+            "media_type": "movie",
+            "title": "The Matrix Revolutions Revisited",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/61ASnmqvzpuz9VEfFElo3e2nIft.jpg"
+          },
+          {
+            "id": 591955,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded Revisited",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/gb7C4oRzYWXWCuZMR1cwtHa53Pz.jpg"
+          },
+          {
+            "id": 624860,
+            "media_type": "movie",
+            "title": "The Matrix Resurrections",
+            "release_date": "2021-01-01",
+            "character": "Neo / Thomas Anderson",
+            "poster_path": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
+          },
+          {
+            "id": 684431,
+            "media_type": "movie",
+            "title": "Making \"The Matrix\"",
+            "release_date": "1999-01-01",
+            "character": "Self",
+            "poster_path": "/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg"
+          },
+          {
+            "id": 684731,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded: Pre-Load",
+            "release_date": "2003-01-01",
+            "character": "Self",
+            "poster_path": "/https://same.actor/poster.png"
+          },
+          {
+            "id": 174615,
+            "media_type": "movie",
+            "title": "Return to Source: The Philosophy of The Matrix",
+            "release_date": "2004-01-01",
+            "character": "Neo",
+            "poster_path": "/8y6mcZbXxL0IIV4GJJ4whLwApow.jpg"
+          },
+          {
+            "id": 1489,
+            "media_type": "tv",
+            "title": "Jimmy Kimmel Live!",
+            "release_date": "2003-01-01",
+            "character": "Self",
+            "poster_path": "/bGB6bEbG4qL22C1SFupkdAxYC9i.jpg"
+          },
+          {
+            "id": 2221,
+            "media_type": "tv",
+            "title": "The View",
+            "release_date": "1997-01-01",
+            "character": "Self",
+            "poster_path": "/pEUNIxCMh2jFjUj7u09f4O5CcR4.jpg"
+          },
+          {
+            "id": 83216,
+            "media_type": "tv",
+            "title": "Red Table Talk",
+            "release_date": "2018-01-01",
+            "character": "Self",
+            "poster_path": "/9MFH6LriSscCg9HiGeLam78KfBV.jpg"
+          },
+          {
+            "id": 203296,
+            "media_type": "tv",
+            "title": "The Game Awards",
+            "release_date": "2014-01-01",
+            "character": "Self",
+            "poster_path": "/yVnoliFxMyTIUjgIiOY1QJMEjVZ.jpg"
+          },
+          {
+            "id": 82873,
+            "media_type": "tv",
+            "title": "The Kelly Clarkson Show",
+            "release_date": "2019-01-01",
+            "character": "Self",
+            "poster_path": "/sBix25bie9UQFzbarN51DpFO5ky.jpg"
+          },
+          {
+            "id": 74239,
+            "media_type": "tv",
+            "title": "The Russell Howard Hour",
+            "release_date": "2017-01-01",
+            "character": "Self",
+            "poster_path": "/yhhZyhYgLU79jx7mXlnv9kPmxWu.jpg"
+          },
+          {
+            "id": 313038,
+            "media_type": "tv",
+            "title": "The Animatrix",
+            "release_date": "2003-01-01",
+            "character": "Neo (voice)",
+            "poster_path": "/3lKYUWSHUeKpfyBOjATX3GkSCzn.jpg"
+          }
+        ]
+      }
+    },
+    "/3/person/530": {
       "id": 530,
       "name": "Carrie-Anne Moss",
-      "character": "Trinity",
-      "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
-     },
-     {
-      "id": 1331,
-      "name": "Hugo Weaving",
-      "character": "Agent Smith",
-      "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
-     },
-     {
-      "id": 9364,
-      "name": "Gloria Foster",
-      "character": "The Oracle",
-      "profile_path": "/AriGXtC9fjBOia9Zr8CZjn4o3rx.jpg"
-     },
-     {
-      "id": 75131,
-      "name": "Nash Edgerton",
-      "character": "Security Guard #5",
-      "profile_path": "/qaqSjQXRjTyCKChgVtBSHnnWbb9.jpg"
-     },
-     {
-      "id": 9575,
-      "name": "Jada Pinkett Smith",
-      "character": "Niobe",
-      "profile_path": "/3RyvVVSlgRbZANDFkYiAsRMaHW.jpg"
-     },
-     {
-      "id": 6195,
-      "name": "Harold Perrineau",
-      "character": "Link",
-      "profile_path": "/bVSLpGUaislREbujmknOqadrxYM.jpg"
-     },
-     {
-      "id": 28782,
-      "name": "Monica Bellucci",
-      "character": "Persephone",
-      "profile_path": "/7g3k3u2gZpE7XU8GRYwHDuN1jlM.jpg"
-     },
-     {
-      "id": 9464,
-      "name": "Harry Lennix",
-      "character": "Commander Lock",
-      "profile_path": "/kNGiizWpetf4pyAkINkjkWacmCL.jpg"
-     },
-     {
-      "id": 2192,
-      "name": "Lambert Wilson",
-      "character": "The Merovingian",
-      "profile_path": "/pFuLPZtgrKsnRXJCKWILQ69k6Ta.jpg"
-     },
-     {
-      "id": 18286,
-      "name": "Nona Gaye",
-      "character": "Zee",
-      "profile_path": "/nD6Gawyx0QOQIKsFtJXBWMzjLw3.jpg"
-     },
-     {
-      "id": 2516,
-      "name": "Anthony Zerbe",
-      "character": "Councillor Hamann",
-      "profile_path": "/ctp83m2ntqbz69jOU8W5aU4sBtI.jpg"
-     },
-     {
-      "id": 9443,
-      "name": "Helmut Bakaitis",
-      "character": "The Architect",
-      "profile_path": "/p7YMk9Gk2BZsvo2EUp7x903gdLZ.jpg"
-     },
-     {
-      "id": 52908,
-      "name": "Collin Chou",
-      "character": "Seraph",
-      "profile_path": "/1bxUqslOLipmTgsg7lcHHN6pPf1.jpg"
-     },
-     {
-      "id": 62486,
-      "name": "Ian Bliss",
-      "character": "Bane",
-      "profile_path": "/26Ms6gQlbfxAzdrSTKfkcMoJrov.jpg"
-     },
-     {
-      "id": 33449,
-      "name": "Essie Davis",
-      "character": "Maggie",
-      "profile_path": "/mwJrRr9bdlUZFZBNDTgWxAKAdqR.jpg"
-     },
-     {
-      "id": 9457,
-      "name": "Roy Jones Jr.",
-      "character": "Ballard",
-      "profile_path": "/eLYiTsYcUXSjzSKAYbFnCwQGL5V.jpg"
-     },
-     {
-      "id": 75175,
-      "name": "Christopher Kirby",
-      "character": "Mauser",
-      "profile_path": "/djNk4Q2A79XPhMOtAE2F2fgCIhI.jpg"
-     },
-     {
-      "id": 152559,
-      "name": "Peter Lamb",
-      "character": "Colt",
-      "profile_path": "/https://same.actor/avatar.png"
-     },
-     {
-      "id": 41784,
-      "name": "Nathaniel Lees",
-      "character": "Mifune",
-      "profile_path": "/l35ATgC4SbzyKGeAZBAQSyYs18P.jpg"
-     },
-     {
-      "id": 83769,
-      "name": "Robert Mammone",
-      "character": "AK",
-      "profile_path": "/6R2xAV1tpJow5mLUmewOdtDA2Rg.jpg"
-     },
-     {
-      "id": 73883,
-      "name": "Rene Naufahu",
-      "character": "Zion Gate Operator",
-      "profile_path": "/9YFXNZYTebxcp9lhNAP7SfpdClY.jpg"
-     },
-     {
-      "id": 75893,
-      "name": "Robyn Nevin",
-      "character": "Councillor Dillard",
-      "profile_path": "/kSj8W81HQLkMXkzkIQm6l7zgB8F.jpg"
-     },
-     {
-      "id": 139654,
-      "name": "Genevieve O'Reilly",
-      "character": "Officer Wirtz",
-      "profile_path": "/4eOoW1PNBZfxRW0g8RmYH8bL6mq.jpg"
-     },
-     {
-      "id": 187189,
-      "name": "Rupert Reid",
-      "character": "Lock's Lieutenant",
-      "profile_path": "/6EdSU7Ay8V26gUE7UFpbJfOg3T6.jpg"
-     },
-     {
-      "id": 537506,
-      "name": "Cornel West",
-      "character": "Councillor West",
-      "profile_path": "/eyLtTHcC3InxVPTyRus1pNfa0pK.jpg"
-     },
-     {
-      "id": 77553,
-      "name": "David Roberts",
-      "character": "Roland",
-      "profile_path": "/n263zF76GX42aEK1AeMwcJDwKpd.jpg"
-     },
-     {
-      "id": 9576,
-      "name": "Gina Torres",
-      "character": "Cas",
-      "profile_path": "/ukDNHgvEgdU95eaw6pngiAPucv4.jpg"
-     },
-     {
-      "id": 56347,
-      "name": "Clayton Watson",
-      "character": "Kid",
-      "profile_path": "/7T4RCGl5jfpB1XcjXywb6ZmwGUC.jpg"
-     },
-     {
-      "id": 156739,
-      "name": "Bernard White",
-      "character": "Rama-Kandra",
-      "profile_path": "/yW1MG2BHGBWxIAQ7F93TFtUNUFv.jpg"
-     },
-     {
-      "id": 930817,
-      "name": "Anthony Brandon Wong",
-      "character": "Ghost",
-      "profile_path": "/4QEeh3j7DG6uduyRHGLF6b1KJix.jpg"
-     },
-     {
-      "id": 75122,
-      "name": "Lachy Hulme",
-      "character": "Sparks (uncredited)",
-      "profile_path": "/z6ZEqpIkh1LYQXgSNMcc8akW3ZR.jpg"
-     }
-    ]
-   }
+      "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg",
+      "combined_credits": {
+        "cast": [
+          {
+            "id": 603,
+            "media_type": "movie",
+            "title": "The Matrix",
+            "release_date": "1999-01-01",
+            "character": "Trinity",
+            "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
+          },
+          {
+            "id": 604,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded",
+            "release_date": "2003-01-01",
+            "character": "Trinity",
+            "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg"
+          },
+          {
+            "id": 605,
+            "media_type": "movie",
+            "title": "The Matrix Revolutions",
+            "release_date": "2003-01-01",
+            "character": "Trinity",
+            "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
+          },
+          {
+            "id": 24914,
+            "media_type": "movie",
+            "title": "Kid's Story",
+            "release_date": "2003-01-01",
+            "character": "Trinity (voice)",
+            "poster_path": "/SteXNwc3hRV9o2BlyxV3yBXCV2.jpg"
+          },
+          {
+            "id": 14543,
+            "media_type": "movie",
+            "title": "The Matrix Revisited",
+            "release_date": "2001-01-01",
+            "character": "Self - Trinity",
+            "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
+          },
+          {
+            "id": 55931,
+            "media_type": "movie",
+            "title": "The Animatrix",
+            "release_date": "2003-01-01",
+            "character": "Trinity (\"Kid's Story\" and \"A Detective Story\") (voice)",
+            "poster_path": "/eDjIG2hAeMU5cxLrd6oiQqdqoZt.jpg"
+          },
+          {
+            "id": 221495,
+            "media_type": "movie",
+            "title": "The Matrix Recalibrated",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
+          },
+          {
+            "id": 503880,
+            "media_type": "movie",
+            "title": "The Matrix Revolutions Revisited",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/61ASnmqvzpuz9VEfFElo3e2nIft.jpg"
+          },
+          {
+            "id": 591955,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded Revisited",
+            "release_date": "2004-01-01",
+            "character": "Self",
+            "poster_path": "/gb7C4oRzYWXWCuZMR1cwtHa53Pz.jpg"
+          },
+          {
+            "id": 624860,
+            "media_type": "movie",
+            "title": "The Matrix Resurrections",
+            "release_date": "2021-01-01",
+            "character": "Trinity / Tiffany",
+            "poster_path": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
+          },
+          {
+            "id": 684431,
+            "media_type": "movie",
+            "title": "Making \"The Matrix\"",
+            "release_date": "1999-01-01",
+            "character": "Self",
+            "poster_path": "/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg"
+          },
+          {
+            "id": 684731,
+            "media_type": "movie",
+            "title": "The Matrix Reloaded: Pre-Load",
+            "release_date": "2003-01-01",
+            "character": "Self",
+            "poster_path": "/https://same.actor/poster.png"
+          },
+          {
+            "id": 174615,
+            "media_type": "movie",
+            "title": "Return to Source: The Philosophy of The Matrix",
+            "release_date": "2004-01-01",
+            "character": "Trinity",
+            "poster_path": "/8y6mcZbXxL0IIV4GJJ4whLwApow.jpg"
+          },
+          {
+            "id": 1489,
+            "media_type": "tv",
+            "title": "Jimmy Kimmel Live!",
+            "release_date": "2003-01-01",
+            "character": "Self - Guest",
+            "poster_path": "/bGB6bEbG4qL22C1SFupkdAxYC9i.jpg"
+          },
+          {
+            "id": 2221,
+            "media_type": "tv",
+            "title": "The View",
+            "release_date": "1997-01-01",
+            "character": "Self",
+            "poster_path": "/pEUNIxCMh2jFjUj7u09f4O5CcR4.jpg"
+          },
+          {
+            "id": 83216,
+            "media_type": "tv",
+            "title": "Red Table Talk",
+            "release_date": "2018-01-01",
+            "character": "Self",
+            "poster_path": "/9MFH6LriSscCg9HiGeLam78KfBV.jpg"
+          },
+          {
+            "id": 203296,
+            "media_type": "tv",
+            "title": "The Game Awards",
+            "release_date": "2014-01-01",
+            "character": "Self",
+            "poster_path": "/yVnoliFxMyTIUjgIiOY1QJMEjVZ.jpg"
+          },
+          {
+            "id": 82873,
+            "media_type": "tv",
+            "title": "The Kelly Clarkson Show",
+            "release_date": "2019-01-01",
+            "character": "Self",
+            "poster_path": "/sBix25bie9UQFzbarN51DpFO5ky.jpg"
+          },
+          {
+            "id": 74239,
+            "media_type": "tv",
+            "title": "The Russell Howard Hour",
+            "release_date": "2017-01-01",
+            "character": "Self",
+            "poster_path": "/yhhZyhYgLU79jx7mXlnv9kPmxWu.jpg"
+          },
+          {
+            "id": 313038,
+            "media_type": "tv",
+            "title": "The Animatrix",
+            "release_date": "2003-01-01",
+            "character": "Trinity (voice)",
+            "poster_path": "/3lKYUWSHUeKpfyBOjATX3GkSCzn.jpg"
+          }
+        ]
+      }
+    }
   },
-  "/3/movie/605": {
-   "id": 605,
-   "title": "The Matrix Revolutions",
-   "release_date": "2003-11-05",
-   "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg",
-   "credits": {
-    "cast": [
-     {
-      "id": 6384,
-      "name": "Keanu Reeves",
-      "character": "Neo",
-      "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg"
-     },
-     {
-      "id": 2975,
-      "name": "Laurence Fishburne",
-      "character": "Morpheus",
-      "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg"
-     },
-     {
-      "id": 530,
-      "name": "Carrie-Anne Moss",
-      "character": "Trinity",
-      "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg"
-     },
-     {
-      "id": 1331,
-      "name": "Hugo Weaving",
-      "character": "Agent Smith",
-      "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg"
-     },
-     {
-      "id": 9575,
-      "name": "Jada Pinkett Smith",
-      "character": "Niobe",
-      "profile_path": "/3RyvVVSlgRbZANDFkYiAsRMaHW.jpg"
-     },
-     {
-      "id": 6195,
-      "name": "Harold Perrineau",
-      "character": "Link",
-      "profile_path": "/bVSLpGUaislREbujmknOqadrxYM.jpg"
-     },
-     {
-      "id": 28782,
-      "name": "Monica Bellucci",
-      "character": "Persephone",
-      "profile_path": "/7g3k3u2gZpE7XU8GRYwHDuN1jlM.jpg"
-     },
-     {
-      "id": 9464,
-      "name": "Harry Lennix",
-      "character": "Commander Lock",
-      "profile_path": "/kNGiizWpetf4pyAkINkjkWacmCL.jpg"
-     },
-     {
-      "id": 2192,
-      "name": "Lambert Wilson",
-      "character": "Merovingian",
-      "profile_path": "/pFuLPZtgrKsnRXJCKWILQ69k6Ta.jpg"
-     },
-     {
-      "id": 18286,
-      "name": "Nona Gaye",
-      "character": "Zee",
-      "profile_path": "/nD6Gawyx0QOQIKsFtJXBWMzjLw3.jpg"
-     },
-     {
-      "id": 2516,
-      "name": "Anthony Zerbe",
-      "character": "Councillor Hamann",
-      "profile_path": "/ctp83m2ntqbz69jOU8W5aU4sBtI.jpg"
-     },
-     {
-      "id": 9443,
-      "name": "Helmut Bakaitis",
-      "character": "The Architect",
-      "profile_path": "/p7YMk9Gk2BZsvo2EUp7x903gdLZ.jpg"
-     },
-     {
-      "id": 52908,
-      "name": "Collin Chou",
-      "character": "Seraph",
-      "profile_path": "/1bxUqslOLipmTgsg7lcHHN6pPf1.jpg"
-     },
-     {
-      "id": 62486,
-      "name": "Ian Bliss",
-      "character": "Bane",
-      "profile_path": "/26Ms6gQlbfxAzdrSTKfkcMoJrov.jpg"
-     },
-     {
-      "id": 33449,
-      "name": "Essie Davis",
-      "character": "Maggie",
-      "profile_path": "/mwJrRr9bdlUZFZBNDTgWxAKAdqR.jpg"
-     },
-     {
-      "id": 9457,
-      "name": "Roy Jones Jr.",
-      "character": "Captain Ballard (uncredited)",
-      "profile_path": "/eLYiTsYcUXSjzSKAYbFnCwQGL5V.jpg"
-     },
-     {
-      "id": 75175,
-      "name": "Christopher Kirby",
-      "character": "Mauser",
-      "profile_path": "/djNk4Q2A79XPhMOtAE2F2fgCIhI.jpg"
-     },
-     {
-      "id": 152559,
-      "name": "Peter Lamb",
-      "character": "Colt",
-      "profile_path": "/https://same.actor/avatar.png"
-     },
-     {
-      "id": 41784,
-      "name": "Nathaniel Lees",
-      "character": "Mifune",
-      "profile_path": "/l35ATgC4SbzyKGeAZBAQSyYs18P.jpg"
-     },
-     {
-      "id": 83769,
-      "name": "Robert Mammone",
-      "character": "AK",
-      "profile_path": "/6R2xAV1tpJow5mLUmewOdtDA2Rg.jpg"
-     },
-     {
-      "id": 73883,
-      "name": "Rene Naufahu",
-      "character": "Zion Gate Operator",
-      "profile_path": "/9YFXNZYTebxcp9lhNAP7SfpdClY.jpg"
-     },
-     {
-      "id": 75893,
-      "name": "Robyn Nevin",
-      "character": "Councillor Dillard",
-      "profile_path": "/kSj8W81HQLkMXkzkIQm6l7zgB8F.jpg"
-     },
-     {
-      "id": 139654,
-      "name": "Genevieve O'Reilly",
-      "character": "Officer Wirtz",
-      "profile_path": "/4eOoW1PNBZfxRW0g8RmYH8bL6mq.jpg"
-     },
-     {
-      "id": 187189,
-      "name": "Rupert Reid",
-      "character": "Lock's Lieutenant",
-      "profile_path": "/6EdSU7Ay8V26gUE7UFpbJfOg3T6.jpg"
-     },
-     {
-      "id": 537506,
-      "name": "Cornel West",
-      "character": "Councillor West",
-      "profile_path": "/eyLtTHcC3InxVPTyRus1pNfa0pK.jpg"
-     },
-     {
-      "id": 77553,
-      "name": "David Roberts",
-      "character": "Roland",
-      "profile_path": "/n263zF76GX42aEK1AeMwcJDwKpd.jpg"
-     },
-     {
-      "id": 9576,
-      "name": "Gina Torres",
-      "character": "Cas",
-      "profile_path": "/ukDNHgvEgdU95eaw6pngiAPucv4.jpg"
-     },
-     {
-      "id": 56347,
-      "name": "Clayton Watson",
-      "character": "Kid",
-      "profile_path": "/7T4RCGl5jfpB1XcjXywb6ZmwGUC.jpg"
-     },
-     {
-      "id": 156739,
-      "name": "Bernard White",
-      "character": "Rama-Kandra",
-      "profile_path": "/yW1MG2BHGBWxIAQ7F93TFtUNUFv.jpg"
-     },
-     {
-      "id": 930817,
-      "name": "Anthony Brandon Wong",
-      "character": "Ghost",
-      "profile_path": "/4QEeh3j7DG6uduyRHGLF6b1KJix.jpg"
-     },
-     {
-      "id": 75122,
-      "name": "Lachy Hulme",
-      "character": "Sparks",
-      "profile_path": "/z6ZEqpIkh1LYQXgSNMcc8akW3ZR.jpg"
-     }
-    ]
-   }
-  }
- },
- "people": {
-  "/3/person/6384": {
-   "id": 6384,
-   "name": "Keanu Reeves",
-   "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg",
-   "combined_credits": {
-    "cast": [
-     {
+  "search_multi": [
+    {
       "id": 603,
       "media_type": "movie",
       "title": "The Matrix",
       "release_date": "1999-01-01",
-      "character": "Neo",
+      "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker who joins a group of underground insurgents fighting the vast and powerful computers who now rule the earth.",
       "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
-     },
-     {
+    },
+    {
       "id": 604,
       "media_type": "movie",
       "title": "The Matrix Reloaded",
       "release_date": "2003-01-01",
-      "character": "Neo",
+      "overview": "The Resistance builds in numbers as humans are freed from the Matrix and brought to the city of Zion. Neo discovers his superpowers, including the ability to see the code inside the Matrix. With machine sentinels digging to Zion in 72 hours, Neo, Morpheus and Trinity must find the Keymaker to ultimately reach the Source.",
       "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg"
-     },
-     {
-      "id": 605,
-      "media_type": "movie",
-      "title": "The Matrix Revolutions",
-      "release_date": "2003-01-01",
-      "character": "Neo",
-      "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
-     },
-     {
-      "id": 24914,
-      "media_type": "movie",
-      "title": "Kid's Story",
-      "release_date": "2003-01-01",
-      "character": "Neo (voice)",
-      "poster_path": "/SteXNwc3hRV9o2BlyxV3yBXCV2.jpg"
-     },
-     {
-      "id": 14543,
-      "media_type": "movie",
-      "title": "The Matrix Revisited",
-      "release_date": "2001-01-01",
-      "character": "Self - Neo",
-      "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
-     },
-     {
-      "id": 55931,
-      "media_type": "movie",
-      "title": "The Animatrix",
-      "release_date": "2003-01-01",
-      "character": "Neo (\"Kid's Story\") (voice)",
-      "poster_path": "/eDjIG2hAeMU5cxLrd6oiQqdqoZt.jpg"
-     },
-     {
-      "id": 221495,
-      "media_type": "movie",
-      "title": "The Matrix Recalibrated",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
-     },
-     {
-      "id": 503880,
-      "media_type": "movie",
-      "title": "The Matrix Revolutions Revisited",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/61ASnmqvzpuz9VEfFElo3e2nIft.jpg"
-     },
-     {
-      "id": 591955,
-      "media_type": "movie",
-      "title": "The Matrix Reloaded Revisited",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/gb7C4oRzYWXWCuZMR1cwtHa53Pz.jpg"
-     },
-     {
+    },
+    {
       "id": 624860,
       "media_type": "movie",
       "title": "The Matrix Resurrections",
       "release_date": "2021-01-01",
-      "character": "Neo / Thomas Anderson",
+      "overview": "Plagued by strange memories, Neo's life takes an unexpected turn when he finds himself back inside the Matrix.",
       "poster_path": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
-     },
-     {
-      "id": 684431,
+    },
+    {
+      "id": 605,
       "media_type": "movie",
-      "title": "Making \"The Matrix\"",
-      "release_date": "1999-01-01",
-      "character": "Self",
-      "poster_path": "/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg"
-     },
-     {
-      "id": 684731,
+      "title": "The Matrix Revolutions",
+      "release_date": "2003-01-01",
+      "overview": "The human city of Zion defends itself against the massive invasion of the machines as Neo fights to end the war at another front while also opposing the rogue Agent Smith.",
+      "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
+    },
+    {
+      "id": 711,
+      "media_type": "tv",
+      "title": "Threat Matrix",
+      "release_date": "2003-01-01",
+      "overview": "Against the rising threat, the Homeland Security Agency has created a highly specialized, elite task force trained and equipped to counter anyone or anything that threatens our nation. The head of this super-secret team is Special Agent John Kilmer. He reports only to the President and has authority to call upon the technical skills, firepower and the specialist agents of the FBI, CIA and NSA.",
+      "poster_path": "/xOeA42Rc9EiIe0dGnwywLqYKetG.jpg"
+    },
+    {
+      "id": 11393,
+      "media_type": "tv",
+      "title": "Matrix",
+      "release_date": "1993-01-01",
+      "overview": "A murdered hitman is given a second chance at redemption by returning to Earth as a reluctant guardian, tasked with protecting people in danger while struggling against the darkness of his former life.",
+      "poster_path": "/sNrH17lMcPEgNPZTst95mgSkgzE.jpg"
+    },
+    {
+      "id": 411948,
       "media_type": "movie",
-      "title": "The Matrix Reloaded: Pre-Load",
-      "release_date": "2003-01-01",
-      "character": "Self",
-      "poster_path": "/https://same.actor/poster.png"
-     },
-     {
-      "id": 174615,
+      "title": "Matrix",
+      "release_date": "1971-01-01",
+      "overview": "A piece of abstract cinema by John Whitney. A series squares follow a 3-dimensional track, each one with a slight delay after the other.",
+      "poster_path": "/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg"
+    },
+    {
+      "id": 1217455,
       "media_type": "movie",
-      "title": "Return to Source: The Philosophy of The Matrix",
-      "release_date": "2004-01-01",
-      "character": "Neo",
-      "poster_path": "/8y6mcZbXxL0IIV4GJJ4whLwApow.jpg"
-     },
-     {
-      "id": 1489,
+      "title": "The Matrix: Generation",
+      "release_date": "2023-01-01",
+      "overview": "After the 1999 premiere of the first Matrix movie, it became a pop culture phenomenon. A special documentary about the Matrix saga and its prophetic aspects.",
+      "poster_path": "/53McB8R9RUBxfINRxWaPwUMtL5Q.jpg"
+    },
+    {
+      "id": 21769,
+      "media_type": "movie",
+      "title": "Armitage: Dual Matrix",
+      "release_date": "2002-01-01",
+      "overview": "Naomi Armitage and Ross Sylibus have changed their names and live with their daughter Yoko as a happy and normal family on Mars \u2014 until an android riot breaks out at an anti-matter plant on Earth.",
+      "poster_path": "/tmila2EqReVL2Tz8HBvRGIjdI9N.jpg"
+    },
+    {
+      "id": 373223,
+      "media_type": "movie",
+      "title": "Matrix",
+      "release_date": "1973-01-01",
+      "overview": "Abstract art film made for gallery exhibition.",
+      "poster_path": "/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg"
+    },
+    {
+      "id": 51767,
+      "media_type": "movie",
+      "title": "Sexual Matrix",
+      "release_date": "2000-01-01",
+      "overview": "A professor designing a machine designed to meet the naughtiest fantasies. In order to perfect the discovery, he performed tests on various subjects, aided by his very appealing assistant.",
+      "poster_path": "/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg"
+    },
+    {
+      "id": 33322,
+      "media_type": "movie",
+      "title": "Armitage III: Poly Matrix",
+      "release_date": "1996-01-01",
+      "overview": "Ross Sylibus is assigned to a police unit on a Martian colony, to find that women are being murdered by a psychotic named D'anclaude. He is assigned a very unorthodox partner named Naomi Armitage, who seems to have links to the victims. To stir things up more, every victim is found to be an illegally made third-generation android.",
+      "poster_path": "/7sUCRdjGe7VggDCGIHywfguYdAK.jpg"
+    },
+    {
+      "id": 306887,
       "media_type": "tv",
-      "title": "Jimmy Kimmel Live!",
-      "release_date": "2003-01-01",
-      "character": "Self",
-      "poster_path": "/bGB6bEbG4qL22C1SFupkdAxYC9i.jpg"
-     },
-     {
-      "id": 2221,
-      "media_type": "tv",
-      "title": "The View",
-      "release_date": "1997-01-01",
-      "character": "Self",
-      "poster_path": "/pEUNIxCMh2jFjUj7u09f4O5CcR4.jpg"
-     },
-     {
-      "id": 83216,
-      "media_type": "tv",
-      "title": "Red Table Talk",
-      "release_date": "2018-01-01",
-      "character": "Self",
-      "poster_path": "/9MFH6LriSscCg9HiGeLam78KfBV.jpg"
-     },
-     {
-      "id": 203296,
-      "media_type": "tv",
-      "title": "The Game Awards",
-      "release_date": "2014-01-01",
-      "character": "Self",
-      "poster_path": "/yVnoliFxMyTIUjgIiOY1QJMEjVZ.jpg"
-     },
-     {
-      "id": 82873,
-      "media_type": "tv",
-      "title": "The Kelly Clarkson Show",
-      "release_date": "2019-01-01",
-      "character": "Self",
-      "poster_path": "/sBix25bie9UQFzbarN51DpFO5ky.jpg"
-     },
-     {
-      "id": 74239,
-      "media_type": "tv",
-      "title": "The Russell Howard Hour",
-      "release_date": "2017-01-01",
-      "character": "Self",
-      "poster_path": "/yhhZyhYgLU79jx7mXlnv9kPmxWu.jpg"
-     },
-     {
-      "id": 313038,
-      "media_type": "tv",
-      "title": "The Animatrix",
-      "release_date": "2003-01-01",
-      "character": "Neo (voice)",
-      "poster_path": "/3lKYUWSHUeKpfyBOjATX3GkSCzn.jpg"
-     }
-    ]
-   }
-  },
-  "/3/person/530": {
-   "id": 530,
-   "name": "Carrie-Anne Moss",
-   "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg",
-   "combined_credits": {
-    "cast": [
-     {
+      "title": "Matrix Dreads",
+      "release_date": "2030-01-01",
+      "overview": "Matrix Dreads is a strange universe that suddenly appears in the middle of the city of Arlilowy and targets Zax, Hans, Ruzy and Suzy to be brought into the universe.",
+      "poster_path": "/mQbvyR1ak6xoJ41wmKtPjMhkBoy.jpg"
+    },
+    {
+      "id": 555879,
+      "media_type": "movie",
+      "title": "Matrix",
+      "release_date": "1998-01-01",
+      "overview": "The film is composed of receding planes in a landscape: a back garden and the houses beyond. The wooden lattice fence, visible in the image, marks the border between enclosed and open, private and public space, and forms both a fulcrum for the work and a formal grid by which the shots are framed and organised.",
+      "poster_path": "/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg"
+    },
+    {
+      "id": 393587,
+      "media_type": "movie",
+      "title": "Matrix III",
+      "release_date": "1972-01-01",
+      "overview": "An abstract computer-generated animation set to music by Terry Riley.",
+      "poster_path": "/5OwWTs0guJwcIXFgZdiDqtXLiFm.jpg"
+    },
+    {
+      "id": 14543,
+      "media_type": "movie",
+      "title": "The Matrix Revisited",
+      "release_date": "2001-01-01",
+      "overview": "The film goes behind the scenes of the 1999 sci-fi movie The Matrix.",
+      "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
+    }
+  ],
+  "search_person": [
+    {
+      "id": 6384,
+      "name": "Keanu Reeves",
+      "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg",
+      "known_for": [
+        {
+          "id": 603,
+          "title": "The Matrix",
+          "release_date": "1999-03-31"
+        },
+        {
+          "id": 604,
+          "title": "The Matrix Reloaded",
+          "release_date": "2003-05-15"
+        }
+      ]
+    },
+    {
+      "id": 530,
+      "name": "Carrie-Anne Moss",
+      "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg",
+      "known_for": [
+        {
+          "id": 603,
+          "title": "The Matrix",
+          "release_date": "1999-03-31"
+        },
+        {
+          "id": 604,
+          "title": "The Matrix Reloaded",
+          "release_date": "2003-05-15"
+        }
+      ]
+    },
+    {
+      "id": 2975,
+      "name": "Laurence Fishburne",
+      "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg",
+      "known_for": [
+        {
+          "id": 603,
+          "title": "The Matrix",
+          "release_date": "1999-03-31"
+        },
+        {
+          "id": 604,
+          "title": "The Matrix Reloaded",
+          "release_date": "2003-05-15"
+        }
+      ]
+    },
+    {
+      "id": 1331,
+      "name": "Hugo Weaving",
+      "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg",
+      "known_for": [
+        {
+          "id": 603,
+          "title": "The Matrix",
+          "release_date": "1999-03-31"
+        },
+        {
+          "id": 604,
+          "title": "The Matrix Reloaded",
+          "release_date": "2003-05-15"
+        }
+      ]
+    }
+  ],
+  "lists_movie": [
+    {
       "id": 603,
-      "media_type": "movie",
       "title": "The Matrix",
-      "release_date": "1999-01-01",
-      "character": "Trinity",
-      "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
-     },
-     {
+      "name": "The Matrix",
+      "release_date": "1999-03-31",
+      "first_air_date": "1999-03-31",
+      "poster_path": "/matrix.jpg",
+      "overview": "A hacker learns the truth.",
+      "vote_average": 8.2
+    },
+    {
       "id": 604,
-      "media_type": "movie",
       "title": "The Matrix Reloaded",
-      "release_date": "2003-01-01",
-      "character": "Trinity",
-      "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg"
-     },
-     {
+      "name": "The Matrix Reloaded",
+      "release_date": "2003-05-15",
+      "first_air_date": "2003-05-15",
+      "poster_path": "/reloaded.jpg",
+      "overview": "More hackers.",
+      "vote_average": 7.1
+    },
+    {
       "id": 605,
-      "media_type": "movie",
-      "title": "The Matrix Revolutions",
-      "release_date": "2003-01-01",
-      "character": "Trinity",
-      "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
-     },
-     {
-      "id": 24914,
-      "media_type": "movie",
-      "title": "Kid's Story",
-      "release_date": "2003-01-01",
-      "character": "Trinity (voice)",
-      "poster_path": "/SteXNwc3hRV9o2BlyxV3yBXCV2.jpg"
-     },
-     {
-      "id": 14543,
-      "media_type": "movie",
-      "title": "The Matrix Revisited",
-      "release_date": "2001-01-01",
-      "character": "Self - Trinity",
-      "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
-     },
-     {
-      "id": 55931,
-      "media_type": "movie",
-      "title": "The Animatrix",
-      "release_date": "2003-01-01",
-      "character": "Trinity (\"Kid's Story\" and \"A Detective Story\") (voice)",
-      "poster_path": "/eDjIG2hAeMU5cxLrd6oiQqdqoZt.jpg"
-     },
-     {
-      "id": 221495,
-      "media_type": "movie",
-      "title": "The Matrix Recalibrated",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/gRni1Q651AZPnLqZczmahiIxG0s.jpg"
-     },
-     {
-      "id": 503880,
-      "media_type": "movie",
-      "title": "The Matrix Revolutions Revisited",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/61ASnmqvzpuz9VEfFElo3e2nIft.jpg"
-     },
-     {
-      "id": 591955,
-      "media_type": "movie",
-      "title": "The Matrix Reloaded Revisited",
-      "release_date": "2004-01-01",
-      "character": "Self",
-      "poster_path": "/gb7C4oRzYWXWCuZMR1cwtHa53Pz.jpg"
-     },
-     {
-      "id": 624860,
-      "media_type": "movie",
-      "title": "The Matrix Resurrections",
-      "release_date": "2021-01-01",
-      "character": "Trinity / Tiffany",
-      "poster_path": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
-     },
-     {
-      "id": 684431,
-      "media_type": "movie",
-      "title": "Making \"The Matrix\"",
-      "release_date": "1999-01-01",
-      "character": "Self",
-      "poster_path": "/m2yIfRJYwpCgHON1Ig1pNKMWTxp.jpg"
-     },
-     {
-      "id": 684731,
-      "media_type": "movie",
-      "title": "The Matrix Reloaded: Pre-Load",
-      "release_date": "2003-01-01",
-      "character": "Self",
-      "poster_path": "/https://same.actor/poster.png"
-     },
-     {
-      "id": 174615,
-      "media_type": "movie",
-      "title": "Return to Source: The Philosophy of The Matrix",
-      "release_date": "2004-01-01",
-      "character": "Trinity",
-      "poster_path": "/8y6mcZbXxL0IIV4GJJ4whLwApow.jpg"
-     },
-     {
-      "id": 1489,
-      "media_type": "tv",
-      "title": "Jimmy Kimmel Live!",
-      "release_date": "2003-01-01",
-      "character": "Self - Guest",
-      "poster_path": "/bGB6bEbG4qL22C1SFupkdAxYC9i.jpg"
-     },
-     {
-      "id": 2221,
-      "media_type": "tv",
-      "title": "The View",
-      "release_date": "1997-01-01",
-      "character": "Self",
-      "poster_path": "/pEUNIxCMh2jFjUj7u09f4O5CcR4.jpg"
-     },
-     {
-      "id": 83216,
-      "media_type": "tv",
-      "title": "Red Table Talk",
-      "release_date": "2018-01-01",
-      "character": "Self",
-      "poster_path": "/9MFH6LriSscCg9HiGeLam78KfBV.jpg"
-     },
-     {
-      "id": 203296,
-      "media_type": "tv",
-      "title": "The Game Awards",
-      "release_date": "2014-01-01",
-      "character": "Self",
-      "poster_path": "/yVnoliFxMyTIUjgIiOY1QJMEjVZ.jpg"
-     },
-     {
-      "id": 82873,
-      "media_type": "tv",
-      "title": "The Kelly Clarkson Show",
-      "release_date": "2019-01-01",
-      "character": "Self",
-      "poster_path": "/sBix25bie9UQFzbarN51DpFO5ky.jpg"
-     },
-     {
-      "id": 74239,
-      "media_type": "tv",
-      "title": "The Russell Howard Hour",
-      "release_date": "2017-01-01",
-      "character": "Self",
-      "poster_path": "/yhhZyhYgLU79jx7mXlnv9kPmxWu.jpg"
-     },
-     {
-      "id": 313038,
-      "media_type": "tv",
-      "title": "The Animatrix",
-      "release_date": "2003-01-01",
-      "character": "Trinity (voice)",
-      "poster_path": "/3lKYUWSHUeKpfyBOjATX3GkSCzn.jpg"
-     }
-    ]
-   }
-  }
- },
- "search_multi": [
-  {
-   "id": 603,
-   "media_type": "movie",
-   "title": "The Matrix",
-   "release_date": "1999-01-01",
-   "overview": "Set in the 22nd century, The Matrix tells the story of a computer hacker who joins a group of underground insurgents fighting the vast and powerful computers who now rule the earth.",
-   "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
-  },
-  {
-   "id": 604,
-   "media_type": "movie",
-   "title": "The Matrix Reloaded",
-   "release_date": "2003-01-01",
-   "overview": "The Resistance builds in numbers as humans are freed from the Matrix and brought to the city of Zion. Neo discovers his superpowers, including the ability to see the code inside the Matrix. With machine sentinels digging to Zion in 72 hours, Neo, Morpheus and Trinity must find the Keymaker to ultimately reach the Source.",
-   "poster_path": "/8xEVAe84zlL9rkfYT6dZXero4KK.jpg"
-  },
-  {
-   "id": 624860,
-   "media_type": "movie",
-   "title": "The Matrix Resurrections",
-   "release_date": "2021-01-01",
-   "overview": "Plagued by strange memories, Neo's life takes an unexpected turn when he finds himself back inside the Matrix.",
-   "poster_path": "/8c4a8kE7PizaGQQnditMmI1xbRp.jpg"
-  },
-  {
-   "id": 605,
-   "media_type": "movie",
-   "title": "The Matrix Revolutions",
-   "release_date": "2003-01-01",
-   "overview": "The human city of Zion defends itself against the massive invasion of the machines as Neo fights to end the war at another front while also opposing the rogue Agent Smith.",
-   "poster_path": "/qEWiBXJGXK28jGBAm8oFKKTB0WD.jpg"
-  },
-  {
-   "id": 711,
-   "media_type": "tv",
-   "title": "Threat Matrix",
-   "release_date": "2003-01-01",
-   "overview": "Against the rising threat, the Homeland Security Agency has created a highly specialized, elite task force trained and equipped to counter anyone or anything that threatens our nation. The head of this super-secret team is Special Agent John Kilmer. He reports only to the President and has authority to call upon the technical skills, firepower and the specialist agents of the FBI, CIA and NSA.",
-   "poster_path": "/xOeA42Rc9EiIe0dGnwywLqYKetG.jpg"
-  },
-  {
-   "id": 11393,
-   "media_type": "tv",
-   "title": "Matrix",
-   "release_date": "1993-01-01",
-   "overview": "A murdered hitman is given a second chance at redemption by returning to Earth as a reluctant guardian, tasked with protecting people in danger while struggling against the darkness of his former life.",
-   "poster_path": "/sNrH17lMcPEgNPZTst95mgSkgzE.jpg"
-  },
-  {
-   "id": 411948,
-   "media_type": "movie",
-   "title": "Matrix",
-   "release_date": "1971-01-01",
-   "overview": "A piece of abstract cinema by John Whitney. A series squares follow a 3-dimensional track, each one with a slight delay after the other.",
-   "poster_path": "/wwGvUPEM6MRiXv3gRNaVUlUCHiT.jpg"
-  },
-  {
-   "id": 1217455,
-   "media_type": "movie",
-   "title": "The Matrix: Generation",
-   "release_date": "2023-01-01",
-   "overview": "After the 1999 premiere of the first Matrix movie, it became a pop culture phenomenon. A special documentary about the Matrix saga and its prophetic aspects.",
-   "poster_path": "/53McB8R9RUBxfINRxWaPwUMtL5Q.jpg"
-  },
-  {
-   "id": 21769,
-   "media_type": "movie",
-   "title": "Armitage: Dual Matrix",
-   "release_date": "2002-01-01",
-   "overview": "Naomi Armitage and Ross Sylibus have changed their names and live with their daughter Yoko as a happy and normal family on Mars \u2014 until an android riot breaks out at an anti-matter plant on Earth.",
-   "poster_path": "/tmila2EqReVL2Tz8HBvRGIjdI9N.jpg"
-  },
-  {
-   "id": 373223,
-   "media_type": "movie",
-   "title": "Matrix",
-   "release_date": "1973-01-01",
-   "overview": "Abstract art film made for gallery exhibition.",
-   "poster_path": "/wx2s9xYeC6uP2auuuVg99yl4RpU.jpg"
-  },
-  {
-   "id": 51767,
-   "media_type": "movie",
-   "title": "Sexual Matrix",
-   "release_date": "2000-01-01",
-   "overview": "A professor designing a machine designed to meet the naughtiest fantasies. In order to perfect the discovery, he performed tests on various subjects, aided by his very appealing assistant.",
-   "poster_path": "/vmhBIPKyYCWlp2PrIIc6EXZlP9Z.jpg"
-  },
-  {
-   "id": 33322,
-   "media_type": "movie",
-   "title": "Armitage III: Poly Matrix",
-   "release_date": "1996-01-01",
-   "overview": "Ross Sylibus is assigned to a police unit on a Martian colony, to find that women are being murdered by a psychotic named D'anclaude. He is assigned a very unorthodox partner named Naomi Armitage, who seems to have links to the victims. To stir things up more, every victim is found to be an illegally made third-generation android.",
-   "poster_path": "/7sUCRdjGe7VggDCGIHywfguYdAK.jpg"
-  },
-  {
-   "id": 306887,
-   "media_type": "tv",
-   "title": "Matrix Dreads",
-   "release_date": "2030-01-01",
-   "overview": "Matrix Dreads is a strange universe that suddenly appears in the middle of the city of Arlilowy and targets Zax, Hans, Ruzy and Suzy to be brought into the universe.",
-   "poster_path": "/mQbvyR1ak6xoJ41wmKtPjMhkBoy.jpg"
-  },
-  {
-   "id": 555879,
-   "media_type": "movie",
-   "title": "Matrix",
-   "release_date": "1998-01-01",
-   "overview": "The film is composed of receding planes in a landscape: a back garden and the houses beyond. The wooden lattice fence, visible in the image, marks the border between enclosed and open, private and public space, and forms both a fulcrum for the work and a formal grid by which the shots are framed and organised.",
-   "poster_path": "/AfFD10ZqEx2vkxM2yvRZkybsGB7.jpg"
-  },
-  {
-   "id": 393587,
-   "media_type": "movie",
-   "title": "Matrix III",
-   "release_date": "1972-01-01",
-   "overview": "An abstract computer-generated animation set to music by Terry Riley.",
-   "poster_path": "/5OwWTs0guJwcIXFgZdiDqtXLiFm.jpg"
-  },
-  {
-   "id": 14543,
-   "media_type": "movie",
-   "title": "The Matrix Revisited",
-   "release_date": "2001-01-01",
-   "overview": "The film goes behind the scenes of the 1999 sci-fi movie The Matrix.",
-   "poster_path": "/fNG2JOskhQnttmAaj2knM5h59Io.jpg"
-  }
- ],
- "search_person": [
-  {
-   "id": 6384,
-   "name": "Keanu Reeves",
-   "profile_path": "/8RZLOyYGsoRe9p44q3xin9QkMHv.jpg",
-   "known_for": [
+      "title": "Undated",
+      "name": "Undated",
+      "release_date": null,
+      "first_air_date": null,
+      "poster_path": null,
+      "overview": null,
+      "vote_average": 0.0
+    }
+  ],
+  "lists_tv": [
     {
-     "id": 603,
-     "title": "The Matrix",
-     "release_date": "1999-03-31"
+      "id": 1396,
+      "title": "Breaking Bad",
+      "name": "Breaking Bad",
+      "release_date": "2008-01-20",
+      "first_air_date": "2008-01-20",
+      "poster_path": "/bb.jpg",
+      "overview": "Chemistry.",
+      "vote_average": 8.9
     },
     {
-     "id": 604,
-     "title": "The Matrix Reloaded",
-     "release_date": "2003-05-15"
+      "id": 1399,
+      "title": "Game of Thrones",
+      "name": "Game of Thrones",
+      "release_date": "2011-04-17",
+      "first_air_date": "2011-04-17",
+      "poster_path": "/got.jpg",
+      "overview": "Politics.",
+      "vote_average": 8.4
     }
-   ]
-  },
-  {
-   "id": 530,
-   "name": "Carrie-Anne Moss",
-   "profile_path": "/9zya72vRZYBQILfetACsnmCBgdj.jpg",
-   "known_for": [
-    {
-     "id": 603,
-     "title": "The Matrix",
-     "release_date": "1999-03-31"
-    },
-    {
-     "id": 604,
-     "title": "The Matrix Reloaded",
-     "release_date": "2003-05-15"
-    }
-   ]
-  },
-  {
-   "id": 2975,
-   "name": "Laurence Fishburne",
-   "profile_path": "/2GbXERENPpl5MmlqOLlPVaVtifD.jpg",
-   "known_for": [
-    {
-     "id": 603,
-     "title": "The Matrix",
-     "release_date": "1999-03-31"
-    },
-    {
-     "id": 604,
-     "title": "The Matrix Reloaded",
-     "release_date": "2003-05-15"
-    }
-   ]
-  },
-  {
-   "id": 1331,
-   "name": "Hugo Weaving",
-   "profile_path": "/lSC8Et0PYi5zeQb3IpPkFje7hgR.jpg",
-   "known_for": [
-    {
-     "id": 603,
-     "title": "The Matrix",
-     "release_date": "1999-03-31"
-    },
-    {
-     "id": 604,
-     "title": "The Matrix Reloaded",
-     "release_date": "2003-05-15"
-    }
-   ]
-  }
- ]
+  ]
 }

@@ -25,6 +25,7 @@ use crate::geo::Geo;
 
 pub mod bans;
 pub mod comparisons;
+pub mod lists;
 pub mod maintenance;
 pub mod migrations;
 pub mod report;
@@ -77,6 +78,14 @@ pub(crate) enum WriteOp {
         u32,
         i64,
         tokio::sync::oneshot::Sender<Result<maintenance::Report, String>>,
+    ),
+    /// A whole discovery snapshot: `(id, payload, synergy, now, ack)`.
+    PutList(
+        String,
+        String,
+        String,
+        i64,
+        tokio::sync::oneshot::Sender<Result<(), String>>,
     ),
     Flush(tokio::sync::oneshot::Sender<()>),
     Shutdown(tokio::sync::oneshot::Sender<()>),
@@ -466,6 +475,12 @@ fn accept(
             }))
             .unwrap_or_default();
             let _ = ack.send(Ok(report));
+        }
+        WriteOp::PutList(id, payload, synergy, now, ack) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(
+                lists::put(conn, &id, &payload, &synergy, now).map_err(|error| error.to_string()),
+            );
         }
         WriteOp::Shutdown(ack) => {
             commit(conn, counters, pending, geo);

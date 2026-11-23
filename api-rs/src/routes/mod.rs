@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub mod bans;
+pub mod discover;
 pub mod findout;
 pub mod observe;
 pub mod og;
