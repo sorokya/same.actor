@@ -27,10 +27,13 @@ impl AppState {
         let tmdb = Tmdb::new(&config)?;
         let limiter = RateLimiter::new(config.rate_limit, config.rate_window);
 
+        // A truncated or empty shell would render blank pages with a 200; treat it as absent
+        // so the failure mode is a visible 404 rather than a mystery.
         let index_html =
             std::fs::read_to_string(std::path::Path::new(&config.static_dir).join("index.html"))
-                .map(Arc::new)
-                .ok();
+                .ok()
+                .filter(|html| html.trim().len() > 32)
+                .map(Arc::new);
 
         Ok(Self {
             config: Arc::new(config),
@@ -42,5 +45,62 @@ impl AppState {
                 .build(),
             index_html,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(static_dir: &std::path::Path) -> Config {
+        Config {
+            bind: "127.0.0.1:0".parse().unwrap(),
+            tmdb_token: "test-token".into(),
+            tmdb_auth: crate::config::TmdbAuth::Bearer,
+            tmdb_base: "http://127.0.0.1:1/3".into(),
+            image_base: "http://127.0.0.1:1/t/p/w342".into(),
+            static_dir: static_dir.to_string_lossy().into_owned(),
+            public_origin: "http://localhost:3001".into(),
+            tmdb_logo_url: "http://127.0.0.1:1/logo.svg".into(),
+            cache_ttl: std::time::Duration::from_secs(60),
+            cache_capacity: 10,
+            rate_limit: 10,
+            rate_window: std::time::Duration::from_secs(1),
+            trust_forwarded_for: false,
+        }
+    }
+
+    fn dir_with(contents: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!(
+            "same-actor-state-{}-{}",
+            std::process::id(),
+            contents.len()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("index.html"), contents).unwrap();
+        dir
+    }
+
+    #[test]
+    fn a_real_shell_is_loaded() {
+        let dir = dir_with("<!doctype html><html><head><!--og:start--><!--og:end--></head></html>");
+        let state = AppState::new(config(&dir)).expect("state");
+        assert!(state.index_html.is_some());
+    }
+
+    /// A truncated shell — the file being rewritten underneath us, or a bad image — must not
+    /// become a blank page served with a 200.
+    #[test]
+    fn an_empty_shell_is_treated_as_absent() {
+        let state = AppState::new(config(&dir_with(""))).expect("state");
+        assert!(state.index_html.is_none());
+    }
+
+    #[test]
+    fn a_missing_shell_is_absent_not_fatal() {
+        let dir = std::env::temp_dir().join("same-actor-state-does-not-exist");
+        let _ = std::fs::remove_dir_all(&dir);
+        let state = AppState::new(config(&dir)).expect("an API-only deployment must still start");
+        assert!(state.index_html.is_none());
     }
 }

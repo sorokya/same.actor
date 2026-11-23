@@ -172,6 +172,24 @@ struct Harness {
     hits: Arc<AtomicUsize>,
 }
 
+/// A minimal SPA shell with the Open Graph markers, so page rendering can be tested without
+/// a real build. Created exactly once per test process.
+fn test_static_dir() -> std::path::PathBuf {
+    static DIR: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+    DIR.get_or_init(|| {
+        let dir = std::env::temp_dir().join(format!("same-actor-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("index.html"),
+            r#"<!doctype html><html><head><!--og:start--><title>default</title><!--og:end--></head><body><div id="root"></div></body></html>"#,
+        )
+        .unwrap();
+        dir
+    })
+    .clone()
+}
+
 async fn harness(rate_limit: u32) -> Harness {
     let hits = Arc::new(AtomicUsize::new(0));
 
@@ -188,13 +206,10 @@ async fn harness(rate_limit: u32) -> Harness {
 
     // A minimal SPA shell carrying the Open Graph markers, so page rendering can be tested
     // without a real build.
-    let static_dir = std::env::temp_dir().join(format!("same-actor-test-{}", std::process::id()));
-    std::fs::create_dir_all(&static_dir).unwrap();
-    std::fs::write(
-        static_dir.join("index.html"),
-        r#"<!doctype html><html><head><!--og:start--><title>default</title><!--og:end--></head><body><div id="root"></div></body></html>"#,
-    )
-    .unwrap();
+    // Written once per process. Tests run in parallel and each calls `harness()`, so
+    // rewriting the file here meant a concurrent reader could catch it truncated — a reader
+    // seeing an empty shell gets an empty body, and the flake looked like a renderer bug.
+    let static_dir = test_static_dir();
 
     let config = Config {
         bind: "127.0.0.1:0".parse().unwrap(),
