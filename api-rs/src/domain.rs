@@ -32,6 +32,17 @@ pub enum Kind {
     Person,
 }
 
+impl Mode {
+    /// The wire name, matching the serde representation. Used wherever a mode is stored rather
+    /// than serialised, so the two cannot drift.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Mode::Title => "title",
+            Mode::Person => "person",
+        }
+    }
+}
+
 impl Kind {
     pub const fn is_title(self) -> bool {
         matches!(self, Kind::Movie | Kind::Tv)

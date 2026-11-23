@@ -24,8 +24,10 @@ use crate::error::AppError;
 use crate::geo::Geo;
 
 pub mod bans;
+pub mod maintenance;
 pub mod migrations;
 pub mod request;
+pub mod searches;
 
 pub use request::{Kind, RequestLog, RequestRow};
 
@@ -65,7 +67,14 @@ impl Default for StoreConfig {
 /// ordering relative to records is guaranteed by construction.
 pub(crate) enum WriteOp {
     Request(RequestLog),
+    Search(searches::SearchEvent),
     Ban(BanWrite),
+    /// `(retention_days, now, ack)`.
+    Maintenance(
+        u32,
+        i64,
+        tokio::sync::oneshot::Sender<Result<maintenance::Report, String>>,
+    ),
     Flush(tokio::sync::oneshot::Sender<()>),
     Shutdown(tokio::sync::oneshot::Sender<()>),
 }
@@ -231,6 +240,11 @@ impl Store {
         }
     }
 
+    /// Offer a search event. Fire and forget, like request records.
+    pub(crate) fn offer_search(&self, event: searches::SearchEvent) -> bool {
+        self.offer(WriteOp::Search(event))
+    }
+
     /// Count a hit against a ban without waiting for it to be written.
     pub(crate) fn offer_ban_hit(&self, id: i64) {
         self.offer(WriteOp::Ban(BanWrite::Hit(id)));
@@ -324,6 +338,29 @@ fn open_connection(path: &Path) -> Result<Connection, AppError> {
     Ok(conn)
 }
 
+/// Rows waiting to be written. Two kinds, committed together: a page view and the search that
+/// led to it belong in the same transaction.
+#[derive(Default)]
+struct Pending {
+    requests: Vec<RequestLog>,
+    searches: Vec<searches::SearchEvent>,
+}
+
+impl Pending {
+    fn len(&self) -> usize {
+        self.requests.len() + self.searches.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.requests.is_empty() && self.searches.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.requests.clear();
+        self.searches.clear();
+    }
+}
+
 fn writer_loop(
     conn: &mut Connection,
     rx: &Receiver<WriteOp>,
@@ -332,40 +369,43 @@ fn writer_loop(
     batch_wait: Duration,
     geo: Option<&Geo>,
 ) {
-    let mut batch: Vec<RequestLog> = Vec::with_capacity(batch_max);
+    let mut pending = Pending {
+        requests: Vec::with_capacity(batch_max),
+        searches: Vec::new(),
+    };
 
     loop {
-        // Block for the first record; this thread has nothing else to do.
+        // Block for the first item; this thread has nothing else to do.
         match rx.recv() {
             Ok(op) => {
-                if !accept(op, conn, counters, &mut batch, geo) {
+                if !accept(op, conn, counters, &mut pending, geo) {
                     return;
                 }
             }
             // Every sender is gone: commit what we have and stop.
             Err(_) => {
-                commit(conn, counters, &mut batch, geo);
+                commit(conn, counters, &mut pending, geo);
                 return;
             }
         }
 
         // Drain whatever queued while we were writing, so a burst becomes one transaction.
-        while batch.len() < batch_max {
+        while pending.len() < batch_max {
             match rx.recv_timeout(batch_wait) {
                 Ok(op) => {
-                    if !accept(op, conn, counters, &mut batch, geo) {
+                    if !accept(op, conn, counters, &mut pending, geo) {
                         return;
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => break,
                 Err(RecvTimeoutError::Disconnected) => {
-                    commit(conn, counters, &mut batch, geo);
+                    commit(conn, counters, &mut pending, geo);
                     return;
                 }
             }
         }
 
-        commit(conn, counters, &mut batch, geo);
+        commit(conn, counters, &mut pending, geo);
     }
 }
 
@@ -374,23 +414,29 @@ fn accept(
     op: WriteOp,
     conn: &mut Connection,
     counters: &Counters,
-    batch: &mut Vec<RequestLog>,
+    pending: &mut Pending,
     geo: Option<&Geo>,
 ) -> bool {
     match op {
-        WriteOp::Request(log) => batch.push(log),
+        WriteOp::Request(log) => pending.requests.push(log),
+        WriteOp::Search(event) => pending.searches.push(event),
+        // A barrier must not be acknowledged before everything ahead of it is committed.
+        WriteOp::Flush(ack) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(());
+        }
         WriteOp::Ban(BanWrite::Insert(ban, ack)) => {
             // Commit the pending records first so the ban's ordering relative to them is
             // observable; an admin who bans an address can then read the rows that caused it.
-            commit(conn, counters, batch, geo);
+            commit(conn, counters, pending, geo);
             let _ = ack.send(bans::insert(conn, &ban).map_err(|error| error.to_string()));
         }
         WriteOp::Ban(BanWrite::Delete(id, ack)) => {
-            commit(conn, counters, batch, geo);
+            commit(conn, counters, pending, geo);
             let _ = ack.send(bans::delete(conn, id).map_err(|error| error.to_string()));
         }
         WriteOp::Ban(BanWrite::Purge(ack)) => {
-            commit(conn, counters, batch, geo);
+            commit(conn, counters, pending, geo);
             let now = crate::clock::now_unix();
             let _ = ack.send(bans::purge_expired(conn, now).map_err(|error| error.to_string()));
         }
@@ -399,13 +445,18 @@ fn accept(
                 tracing::warn!(%error, id, "could not record a ban hit");
             }
         }
-        // A barrier must not be acknowledged before everything ahead of it is committed.
-        WriteOp::Flush(ack) => {
-            commit(conn, counters, batch, geo);
-            let _ = ack.send(());
+        // Rollups read the rows, write aggregates and delete the rows: all of it has to happen
+        // on the writer, or it would race the very writes it is summarising.
+        WriteOp::Maintenance(retention_days, now, ack) => {
+            commit(conn, counters, pending, geo);
+            let report = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                maintenance::maintain(conn, retention_days, now)
+            }))
+            .unwrap_or_default();
+            let _ = ack.send(Ok(report));
         }
         WriteOp::Shutdown(ack) => {
-            commit(conn, counters, batch, geo);
+            commit(conn, counters, pending, geo);
             checkpoint(conn);
             let _ = ack.send(());
             return false;
@@ -415,20 +466,15 @@ fn accept(
     true
 }
 
-fn commit(
-    conn: &mut Connection,
-    counters: &Counters,
-    batch: &mut Vec<RequestLog>,
-    geo: Option<&Geo>,
-) {
-    if batch.is_empty() {
+fn commit(conn: &mut Connection, counters: &Counters, pending: &mut Pending, geo: Option<&Geo>) {
+    if pending.is_empty() {
         return;
     }
 
     // Once per batch, not once per row: the writer holds no lock between batches, and a
     // memory-mapped lookup is cheap enough that batching it is about tidiness, not speed.
     if let Some(geo) = geo {
-        for log in batch.iter_mut() {
+        for log in pending.requests.iter_mut() {
             if log.country.is_none() {
                 if let Some(ip) = log.ip.as_deref().and_then(|ip| ip.parse().ok()) {
                     log.country = geo.country(ip);
@@ -437,19 +483,22 @@ fn commit(
         }
     }
 
-    match request::insert(conn, batch) {
+    let result = request::insert(conn, &pending.requests)
+        .and_then(|()| searches::insert(conn, &pending.searches));
+
+    match result {
         Ok(()) => {
             counters
                 .rows
-                .fetch_add(batch.len() as u64, Ordering::Relaxed);
+                .fetch_add(pending.len() as u64, Ordering::Relaxed);
             counters.commits.fetch_add(1, Ordering::Relaxed);
         }
         // Losing a batch must not kill the writer: the next batch may well succeed, and a
         // dead writer means no analytics for the rest of the process's life.
-        Err(error) => tracing::error!(%error, rows = batch.len(), "could not write a log batch"),
+        Err(error) => tracing::error!(%error, rows = pending.len(), "could not write a batch"),
     }
 
-    batch.clear();
+    pending.clear();
 }
 
 /// Fold the WAL back into the main file so a backup or a file copy sees one consistent file,

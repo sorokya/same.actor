@@ -1239,3 +1239,28 @@ async fn an_automatic_rule_bans_a_client_that_keeps_failing() {
         "an automatic ban must expire on its own; a machine should not be able to ban forever"
     );
 }
+
+/// A search is recorded as an event, not just as a request row: the term and its result count
+/// are what trending and the zero-result report read.
+#[tokio::test]
+async fn a_search_is_recorded_with_its_term_and_result_count() {
+    let h = harness(100).await;
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=The%20Matrix")).await;
+    assert_eq!(status, StatusCode::OK);
+
+    h.store.flush().await.expect("flush");
+    let searches = h.store.recent_searches(10).await.expect("read");
+
+    assert_eq!(searches.len(), 1);
+    assert_eq!(searches[0].term, "The Matrix");
+    assert_eq!(searches[0].term_norm, "the matrix");
+    assert_eq!(searches[0].mode, "title");
+    assert!(searches[0].results > 0);
+
+    // The address stays on the request row only; this table deliberately has no copy of it.
+    assert!(
+        searches[0].term != CLIENT_IP,
+        "a search row must not carry the address"
+    );
+}
