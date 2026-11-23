@@ -46,6 +46,9 @@ ENV STATIC_DIR=/srv/dist \
 USER 10001
 EXPOSE 3001
 
+# Build with `--format docker` if you want the HEALTHCHECK below preserved: OCI images have
+# no healthcheck field, so podman/buildah silently drops it when building the default OCI
+# format. Docker and docker/build-push-action use the Docker format and keep it.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
     CMD curl -fsS http://127.0.0.1:3001/healthz || exit 1
 
