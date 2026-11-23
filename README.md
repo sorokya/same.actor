@@ -198,11 +198,17 @@ themselves are never rate limited — a human must always be able to open a link
 ## Tests
 
 ```sh
+./scripts/check.sh              # every gate, each reported separately
+./scripts/check.sh backend      # rustfmt, clippy, tests
+./scripts/check.sh frontend     # biome, tsc, build
+
 ./scripts/cargo.sh cargo test     # unit + HTTP-level tests against a stub TMDB
 ./scripts/cargo.sh cargo clippy --all-targets -- -D warnings
-./scripts/node.sh npm run lint    # biome
-./scripts/node.sh npm run typecheck
 ```
+
+`check.sh` exists because chaining these with `&&` is a trap: when `cargo fmt --check` fails
+it short-circuits everything after it, so clippy quietly never runs against the code you just
+wrote — which is exactly how two lints reached CI with "clippy clean" in the commit message.
 
 The HTTP tests cover the failure modes that broke the previous version: a selection kind that
 is not in the enum never reaches a URL, a single selection is a 422 rather than a crash, and

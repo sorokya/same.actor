@@ -62,10 +62,11 @@ fn fonts() -> Arc<Database> {
 }
 
 fn options() -> usvg::Options<'static> {
-    let mut options = usvg::Options::default();
-    options.fontdb = fonts();
-    options.font_family = "DejaVu Sans".to_owned();
-    options
+    usvg::Options {
+        fontdb: fonts(),
+        font_family: "DejaVu Sans".to_owned(),
+        ..Default::default()
+    }
 }
 
 /// One entry in the card's list of selections.

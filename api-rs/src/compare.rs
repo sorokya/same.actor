@@ -13,6 +13,11 @@ use crate::error::AppError;
 use crate::intersect::{intersect_people, intersect_titles, PersonClaim, TitleClaim};
 use crate::tmdb::Tmdb;
 
+/// One credit task's result: the position it was requested at, the resolved label, and the
+/// credits themselves. This shape is shared by both fetchers and appears in three
+/// signatures, so it gets a name.
+type Fetched<C> = (usize, SelectionMeta, Vec<C>);
+
 pub async fn compare(
     tmdb: &Arc<Tmdb>,
     mode: Mode,
@@ -71,7 +76,7 @@ async fn fetch_filmographies(
 /// A panicking task becomes a `JoinError` and therefore a 500 for that one request rather
 /// than an aborted process — the structural fix for the review's C2.
 async fn collect<C: Send + 'static>(
-    mut tasks: JoinSet<Result<(usize, SelectionMeta, Vec<C>), AppError>>,
+    mut tasks: JoinSet<Result<Fetched<C>, AppError>>,
     expected: usize,
 ) -> Result<(Vec<SelectionMeta>, Vec<(u32, Vec<C>)>), AppError> {
     let mut fetched = Vec::with_capacity(expected);
