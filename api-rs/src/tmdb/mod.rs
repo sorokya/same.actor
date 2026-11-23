@@ -455,6 +455,7 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: Duration::from_secs(1),
+            admin_token: None,
             autoban_requests: 0,
             autoban_errors: 0,
             autoban_window: Duration::from_secs(60),

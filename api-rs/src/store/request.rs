@@ -151,7 +151,7 @@ pub(super) fn insert(conn: &mut Connection, batch: &[RequestLog]) -> rusqlite::R
 const SELECT: &str = "SELECT id, ts, duration_ms, ip, session, ua, method, path, status, \
                       code, message, kind, country FROM requests ORDER BY id DESC LIMIT ?1";
 
-fn row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RequestRow> {
+pub(crate) fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RequestRow> {
     Ok(RequestRow {
         id: row.get(0)?,
         ts: row.get(1)?,
@@ -177,7 +177,7 @@ impl Store {
 
         self.read(move |conn| {
             let mut stmt = conn.prepare(SELECT)?;
-            let rows = stmt.query_map([limit], row)?;
+            let rows = stmt.query_map([limit], from_row)?;
             rows.collect()
         })
         .await

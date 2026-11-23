@@ -16,6 +16,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
+pub mod admin;
 pub mod bans;
 pub mod clock;
 pub mod compare;
@@ -74,8 +75,25 @@ pub fn build_app(state: AppState) -> Router {
         .route("/person/{picks}", get(routes::og::page_person))
         .with_state(state.clone());
 
+    // The admin API is mounted unconditionally and guards itself: when ADMIN_TOKEN is unset it
+    // answers 404, which is the same answer as a route that does not exist. Not mounting it
+    // would let the SPA fallback answer `/api/admin/...` with an HTML page and a 200.
+    // The login route is outside the guard; everything else is inside it. When ADMIN_TOKEN is
+    // unset the guard answers 404 for the whole subtree, which is the same answer as a route
+    // that does not exist — not mounting it at all would let the SPA fallback answer with an
+    // HTML page and a 200.
+    let admin = admin::open_router()
+        .merge(
+            admin::guarded_router().layer(middleware::from_fn_with_state(
+                state.clone(),
+                admin::authorize,
+            )),
+        )
+        .with_state(state.clone());
+
     let mut app = Router::new()
         .route("/healthz", get(routes::healthz))
+        .nest("/api/admin", admin)
         .nest("/api", api)
         .merge(share_card)
         .merge(comparison_page);

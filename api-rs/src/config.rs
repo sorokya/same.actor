@@ -56,6 +56,9 @@ pub struct Config {
     pub autoban_window: Duration,
     /// How long an automatic ban lasts.
     pub autoban_ban_secs: u64,
+    /// Admin API token. Unset means the admin API is disabled and answers 404 — a forgotten env
+    /// var must not mean an open dashboard.
+    pub admin_token: Option<String>,
     /// Honour `X-Forwarded-For` for the client IP. Only enable when the app is actually
     /// behind a proxy you control — otherwise the header is trivially spoofed and the rate
     /// limiter becomes useless.
@@ -123,6 +126,10 @@ impl Config {
             autoban_errors: env_num("AUTOBAN_ERRORS", 0) as u32,
             autoban_window: env_secs("AUTOBAN_WINDOW_SECS", 60),
             autoban_ban_secs: env_num("AUTOBAN_BAN_SECS", 3600),
+            admin_token: env::var("ADMIN_TOKEN")
+                .ok()
+                .map(|token| token.trim().to_owned())
+                .filter(|token| !token.is_empty()),
             trust_forwarded_for: env_bool("TRUST_FORWARDED_FOR", false),
         })
     }

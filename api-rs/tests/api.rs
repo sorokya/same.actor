@@ -254,6 +254,7 @@ async fn harness_with<F: FnOnce(&mut Config)>(rate_limit: u32, tweak: F) -> Harn
         cache_capacity: 100,
         rate_limit,
         rate_window: Duration::from_secs(60),
+        admin_token: None,
         autoban_requests: 0,
         autoban_errors: 0,
         autoban_window: Duration::from_secs(60),
@@ -1263,4 +1264,338 @@ async fn a_search_is_recorded_with_its_term_and_result_count() {
         searches[0].term != CLIENT_IP,
         "a search row must not carry the address"
     );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Admin API
+// ---------------------------------------------------------------------------------------------
+
+const ADMIN_TOKEN: &str = "test-admin-token-2b7f";
+
+fn with_bearer(request: Request<Body>, token: &str) -> Request<Body> {
+    let (mut parts, body) = request.into_parts();
+    parts.headers.insert(
+        header::AUTHORIZATION,
+        format!("Bearer {token}").parse().expect("auth header"),
+    );
+    Request::from_parts(parts, body)
+}
+
+fn admin_get(path: &str) -> Request<Body> {
+    with_bearer(with_client(get_path_raw(path)), ADMIN_TOKEN)
+}
+
+fn get_path_raw(path: &str) -> Request<Body> {
+    Request::builder().uri(path).body(Body::empty()).unwrap()
+}
+
+async fn with_admin() -> Harness {
+    harness_with(100, |config| {
+        config.admin_token = Some(ADMIN_TOKEN.to_owned())
+    })
+    .await
+}
+
+#[tokio::test]
+async fn the_admin_api_refuses_a_request_with_no_credential() {
+    let h = with_admin().await;
+
+    let (status, _, body) = call(&h.app, with_client(get_path_raw("/api/admin/overview"))).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    assert_eq!(error_code(&body), "unauthorized");
+}
+
+#[tokio::test]
+async fn the_admin_api_refuses_the_wrong_token() {
+    let h = with_admin().await;
+
+    let (status, _, _) = call(
+        &h.app,
+        with_bearer(
+            with_client(get_path_raw("/api/admin/overview")),
+            "not-the-token",
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// A forgotten env var must not mean an open dashboard — and must not look like a route that
+/// exists either.
+#[tokio::test]
+async fn an_unset_admin_token_makes_the_whole_subtree_not_found() {
+    let h = harness(100).await;
+
+    for path in ["/api/admin/overview", "/api/admin/logs", "/api/admin/bans"] {
+        let (status, _, _) = call(&h.app, with_bearer(with_client(get_path_raw(path)), "")).await;
+        assert_eq!(
+            status,
+            StatusCode::NOT_FOUND,
+            "{path} should not exist when the admin API is disabled"
+        );
+    }
+}
+
+#[tokio::test]
+async fn a_bearer_token_reaches_the_dashboard_data() {
+    let h = with_admin().await;
+
+    let (status, headers, body) = call(&h.app, admin_get("/api/admin/overview?window=24h")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let cache = headers
+        .get(header::CACHE_CONTROL)
+        .and_then(|value| value.to_str().ok())
+        .unwrap_or_default();
+    assert_eq!(cache, "no-store", "admin data must never be cached");
+
+    assert_eq!(body["counts"]["requests"].as_i64(), Some(0));
+    assert_eq!(body["window"], "24h");
+}
+
+#[tokio::test]
+async fn the_token_can_be_exchanged_for_a_cookie() {
+    let h = with_admin().await;
+
+    let (status, headers, _) = call(
+        &h.app,
+        with_client(
+            Request::builder()
+                .method("POST")
+                .uri("/api/admin/session")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(format!("{{\"token\":\"{ADMIN_TOKEN}\"}}")))
+                .unwrap(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+
+    let cookie = headers
+        .get(header::SET_COOKIE)
+        .expect("a session cookie")
+        .to_str()
+        .unwrap()
+        .to_owned();
+
+    assert!(cookie.starts_with("sa_admin="));
+    assert!(
+        cookie.contains("HttpOnly"),
+        "the token must not be readable by script"
+    );
+    assert!(cookie.contains("SameSite=Strict"));
+    assert!(
+        !cookie.contains(ADMIN_TOKEN),
+        "the cookie must hold a session id, never the token itself"
+    );
+
+    // And that cookie is accepted.
+    let id = cookie.split(';').next().unwrap().to_owned();
+    let (status, _, _) = call(
+        &h.app,
+        Request::builder()
+            .uri("/api/admin/health")
+            .header(header::COOKIE, id)
+            .body(Body::empty())
+            .unwrap(),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn a_wrong_token_is_refused_at_the_login() {
+    let h = with_admin().await;
+
+    let (status, _, body) = call(
+        &h.app,
+        with_client(
+            Request::builder()
+                .method("POST")
+                .uri("/api/admin/session")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{\"token\":\"wrong\"}"))
+                .unwrap(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(error_code(&body), "validation_error");
+    assert!(
+        body.to_string().contains("not correct"),
+        "the refusal should be plain about what happened"
+    );
+}
+
+/// The token is a credential. It must not end up in the log it is used to read.
+#[tokio::test]
+async fn the_admin_token_never_reaches_the_log() {
+    let h = with_admin().await;
+
+    let _ = call(&h.app, admin_get("/api/admin/overview")).await;
+    let _ = call(
+        &h.app,
+        with_bearer(with_client(get_path_raw("/api/admin/logs")), "wrong-token"),
+    )
+    .await;
+
+    h.store.flush().await.expect("flush");
+    let rows = h.store.recent_requests(50).await.expect("read");
+
+    assert!(!rows.is_empty());
+    for row in &rows {
+        let haystack = format!(
+            "{} {} {} {}",
+            row.path,
+            row.ua.clone().unwrap_or_default(),
+            row.message.clone().unwrap_or_default(),
+            row.session.clone().unwrap_or_default()
+        );
+        assert!(
+            !haystack.contains(ADMIN_TOKEN) && !haystack.contains("wrong-token"),
+            "a token leaked into the log: {haystack}"
+        );
+        assert_eq!(row.kind, "admin", "admin traffic is classified as such");
+    }
+}
+
+#[tokio::test]
+async fn a_ban_can_be_created_listed_and_removed_through_the_api() {
+    let h = with_admin().await;
+
+    // A ban that is not an address or a range must be refused, not stored: it would show in the
+    // list while matching nothing.
+    let (status, _, _) = call(
+        &h.app,
+        with_bearer(
+            with_client(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/admin/bans")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from("{\"target\":\"everything\"}"))
+                    .unwrap(),
+            ),
+            ADMIN_TOKEN,
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // A real one.
+    let (status, _, body) = call(
+        &h.app,
+        with_bearer(
+            with_client(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/admin/bans")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(
+                        r#"{"target":"203.0.113.0/24","reason":"scraping","expires_in_secs":600}"#,
+                    ))
+                    .unwrap(),
+            ),
+            ADMIN_TOKEN,
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::CREATED);
+    let id = body["id"].as_i64().expect("an id");
+
+    // It is listed.
+    let (status, _, body) = call(&h.app, admin_get("/api/admin/bans")).await;
+    assert_eq!(status, StatusCode::OK);
+    let bans = body.as_array().expect("an array");
+    assert_eq!(bans.len(), 1);
+    assert_eq!(bans[0]["kind"], "cidr");
+    assert_eq!(bans[0]["created_by"], "admin");
+    assert!(bans[0]["expires_ts"].as_i64().is_some());
+
+    // And it is enforced immediately, on this very client.
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(
+        status,
+        StatusCode::FORBIDDEN,
+        "a ban created through the API must be live on the next request, not at the next refresh"
+    );
+
+    // Removing it lets the client back in.
+    let (status, _, _) = call(
+        &h.app,
+        with_bearer(
+            with_client(
+                Request::builder()
+                    .method("DELETE")
+                    .uri(format!("/api/admin/bans/{id}"))
+                    .body(Body::empty())
+                    .unwrap(),
+            ),
+            ADMIN_TOKEN,
+        ),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn the_log_endpoint_filters() {
+    let h = with_admin().await;
+
+    let _ = call(&h.app, get_search("mode=title&term=matrix")).await;
+    h.store.flush().await.expect("flush");
+
+    let (status, _, body) = call(&h.app, admin_get("/api/admin/logs?kind=api&limit=10")).await;
+    assert_eq!(status, StatusCode::OK);
+    let rows = body["rows"].as_array().expect("rows");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0]["path"], "/api/search");
+
+    // A filter that matches nothing returns nothing, rather than everything.
+    let (_, _, body) = call(&h.app, admin_get("/api/admin/logs?kind=page")).await;
+    assert!(body["rows"].as_array().unwrap().is_empty());
+
+    // A bad window is an error, not a silent default.
+    let (status, _, _) = call(&h.app, admin_get("/api/admin/overview?window=forever")).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn the_stats_endpoints_answer_their_own_shapes() {
+    let h = with_admin().await;
+    let _ = call(&h.app, get_search("mode=title&term=matrix")).await;
+    h.store.flush().await.expect("flush");
+
+    // Objects with a named field.
+    for (path, key) in [
+        (
+            "/api/admin/stats/timeseries?metric=requests&window=7d",
+            "points",
+        ),
+        ("/api/admin/stats/geo?days=7", "countries"),
+        ("/api/admin/stats/searches?window=7d", "top"),
+        ("/api/admin/health", "db_bytes"),
+    ] {
+        let (status, _, body) = call(&h.app, admin_get(path)).await;
+        assert_eq!(status, StatusCode::OK, "{path} -> {body}");
+        assert!(body.get(key).is_some(), "{path} is missing {key}: {body}");
+    }
+
+    // Bare arrays.
+    for path in [
+        "/api/admin/stats/comparisons",
+        "/api/admin/suspicious?window=24h",
+    ] {
+        let (status, _, body) = call(&h.app, admin_get(path)).await;
+        assert_eq!(status, StatusCode::OK, "{path} -> {body}");
+        assert!(body.is_array(), "{path} should be a list: {body}");
+    }
 }

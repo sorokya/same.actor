@@ -15,7 +15,13 @@ use crate::state::AppState;
 /// come back in a second. `/healthz` is exempt — a ban must never be able to make the container
 /// look unhealthy.
 pub async fn enforce_bans(State(state): State<AppState>, request: Request, next: Next) -> Response {
-    if request.uri().path() == "/healthz" {
+    let path = request.uri().path();
+
+    // Two exemptions, for different reasons. `/healthz` because a ban must never be able to make
+    // the container look unhealthy. `/api/admin` because an operator who bans their own address
+    // would otherwise lock themselves out of the only screen that can undo it — the admin
+    // credential is the gate there, and it is a stronger one than an address.
+    if path == "/healthz" || path.starts_with("/api/admin") {
         return next.run(request).await;
     }
 

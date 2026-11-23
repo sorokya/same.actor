@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use moka::future::Cache;
 
+use crate::admin::AdminAuth;
 use crate::bans::{AutoBan, BanCache};
 use crate::config::Config;
 use crate::error::AppError;
@@ -33,6 +34,8 @@ pub struct AppState {
     /// Automatic-ban rules. Disabled unless the thresholds are configured.
     pub autoban_rate: Arc<AutoBan>,
     pub autoban_errors: Arc<AutoBan>,
+    /// Admin credentials. Disabled when `ADMIN_TOKEN` is unset.
+    pub admin: Arc<AdminAuth>,
 }
 
 impl AppState {
@@ -63,6 +66,11 @@ impl AppState {
                 .filter(|html| html.trim().len() > 32)
                 .map(Arc::new);
 
+        let admin = Arc::new(AdminAuth::new(config.admin_token.clone()));
+        if !admin.enabled() {
+            tracing::info!("ADMIN_TOKEN is not set; the admin API is disabled");
+        }
+
         let bans = Arc::new(BanCache::new());
         let autoban_rate = Arc::new(AutoBan::new(config.autoban_requests, config.autoban_window));
         let autoban_errors = Arc::new(AutoBan::new(config.autoban_errors, config.autoban_window));
@@ -81,6 +89,7 @@ impl AppState {
             bans,
             autoban_rate,
             autoban_errors,
+            admin,
         })
     }
 }
@@ -109,6 +118,7 @@ mod tests {
             cache_capacity: 10,
             rate_limit: 10,
             rate_window: std::time::Duration::from_secs(1),
+            admin_token: None,
             autoban_requests: 0,
             autoban_errors: 0,
             autoban_window: std::time::Duration::from_secs(60),

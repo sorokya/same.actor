@@ -87,6 +87,7 @@ pub(super) fn run(
 
         let rows = roll_requests(&tx, &day, start, end)?;
         roll_searches(&tx, &day, start, end)?;
+        roll_totals(&tx, &day, start, end)?;
         let deleted = tx.execute(
             "DELETE FROM requests WHERE ts >= ?1 AND ts < ?2",
             params![start, end],
@@ -171,6 +172,36 @@ fn roll_requests(conn: &Connection, day: &str, start: i64, end: i64) -> rusqlite
     }
 
     Ok(total)
+}
+
+/// The day's totals, with visitors counted once over the whole day rather than summed from
+/// per-group distinct counts.
+fn roll_totals(conn: &Connection, day: &str, start: i64, end: i64) -> rusqlite::Result<()> {
+    let (requests, errors, visitors): (i64, i64, i64) = conn.query_row(
+        "SELECT COUNT(*), SUM(status >= 400), COUNT(DISTINCT session)
+         FROM requests WHERE ts >= ?1 AND ts < ?2",
+        params![start, end],
+        |row| Ok((row.get(0)?, row.get(1).unwrap_or(0), row.get(2)?)),
+    )?;
+
+    let searches: i64 = conn.query_row(
+        "SELECT COUNT(*) FROM searches WHERE ts >= ?1 AND ts < ?2",
+        params![start, end],
+        |row| row.get(0),
+    )?;
+
+    conn.execute(
+        "INSERT INTO daily_totals (day, requests, errors, visitors, searches)
+         VALUES (?1, ?2, ?3, ?4, ?5)
+         ON CONFLICT(day) DO UPDATE SET
+             requests = excluded.requests,
+             errors   = excluded.errors,
+             visitors = excluded.visitors,
+             searches = excluded.searches",
+        params![day, requests, errors, visitors, searches],
+    )?;
+
+    Ok(())
 }
 
 fn roll_searches(conn: &Connection, day: &str, start: i64, end: i64) -> rusqlite::Result<()> {

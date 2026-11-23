@@ -10,7 +10,23 @@ use rusqlite::Connection;
 use crate::error::AppError;
 
 /// Index 0 becomes `user_version = 1`, and so on.
-const MIGRATIONS: &[&str] = &[V1];
+const MIGRATIONS: &[&str] = &[V1, V2];
+
+/// True per-day totals.
+///
+/// `daily_requests` is grouped by kind, country and status class, so its `sessions` column is a
+/// distinct count *within each group* — summing those overcounts anyone who made two kinds of
+/// request. Visitor counts have to be counted once, over the whole day, and that is what this
+/// row is.
+const V2: &str = r#"
+CREATE TABLE daily_totals (
+  day      TEXT PRIMARY KEY,
+  requests INTEGER NOT NULL,
+  errors   INTEGER NOT NULL,
+  visitors INTEGER NOT NULL,
+  searches INTEGER NOT NULL
+) WITHOUT ROWID;
+"#;
 
 /// Everything the plan calls for, created up front.
 ///

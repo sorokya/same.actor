@@ -26,6 +26,7 @@ use crate::geo::Geo;
 pub mod bans;
 pub mod maintenance;
 pub mod migrations;
+pub mod report;
 pub mod request;
 pub mod searches;
 

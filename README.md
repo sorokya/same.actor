@@ -81,6 +81,7 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `LOG_ASSETS` | `false` | Log static assets. Off because one page load would otherwise be five rows. |
 | `GEO_ENABLED` | `true` | Country lookup via DB-IP Lite. Off means no download and a NULL country. |
 | `GEO_DB_PATH` | `data/dbip-country-lite.mmdb` | Where the database is cached. Put it on the same volume as the SQLite file. |
+| `ADMIN_TOKEN` | unset | Admin API token. **Unset means the whole `/api/admin` subtree answers 404** — a forgotten env var must not mean an open dashboard. |
 | `AUTOBAN_REQUESTS` | `0` (off) | Ban an address that trips the rate limit this many times in the window. |
 | `AUTOBAN_ERRORS` | `0` (off) | Ban an address that triggers this many other client errors in the window. |
 | `AUTOBAN_WINDOW_SECS` | `60` | The window those counters use. |
@@ -277,6 +278,41 @@ A banned client gets `403` with the operator's reason and, for a temporary ban, 
 
 Automatic bans are **off by default** and always expire. When enabled they are recorded with
 `created_by = 'auto:<rule>'` so a machine's decisions are distinguishable from a human's.
+
+## Admin API
+
+Everything lives under `/api/admin` and requires `ADMIN_TOKEN`. Two ways to present it:
+
+```sh
+# A script: straight bearer token.
+curl -H "Authorization: Bearer $ADMIN_TOKEN" localhost:3001/api/admin/overview
+
+# The dashboard: exchange it once for an HttpOnly cookie, so the token never sits in the page.
+curl -c jar -X POST localhost:3001/api/admin/session -d '{"token":"…"}' -H 'content-type: application/json'
+```
+
+The cookie holds a random session id, not the token, and ids live in memory — restarting the
+process signs everyone out. `/session` is outside the auth guard, because presenting the token
+is what it does; nesting it behind the guard would make logging in impossible.
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /overview?window=24h\|7d\|30d` | Counts, p95, top paths, top countries, database size. |
+| `GET /logs` | Filters: `ip`, `session`, `country`, `status` (`404` or `4xx`), `kind`, `path` prefix, `q`, cursor `before_id`. |
+| `GET /logs/{id}` | One row in full. |
+| `GET /stats/timeseries?metric=&window=` | `requests`, `errors`, `visitors`, `searches` per day, with no holes. |
+| `GET /stats/geo?days=` | Countries by requests and errors. |
+| `GET /stats/searches?window=` | Top terms **and zero-result terms** — what people wanted and the catalogue lacked. |
+| `GET /stats/comparisons` | Most viewed comparison sets. |
+| `GET /suspicious?window=` | Scored clients, each with the reasons that produced the score. |
+| `GET`/`POST /bans`, `DELETE /bans/{id}` | Manage bans. A target that is neither an address nor a range is refused, because a ban that matches nothing would still appear in the list. |
+| `GET /health` | Rows, commits, dropped records, database size, geo age. |
+
+A ban created through the API is enforced on the next request, not at the next refresh.
+
+`/api/admin` is exempt from ban enforcement: an operator who banned their own address would
+otherwise lock themselves out of the only screen that can undo it. The credential is the gate
+there, and it is the stronger one.
 
 ### Country lookup
 
