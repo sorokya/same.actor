@@ -1,3 +1,84 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* biome-ignore-all lint/complexity/noImportantStyles: the only !important declarations are
+   the prefers-reduced-motion reset, which must beat utilities that ship transitions. */
+@import "tailwindcss";
+
+/* Design tokens. Tailwind 4 reads these as theme values, so they are available both as
+   utilities (bg-ink, text-dim) and as CSS variables (var(--color-ink)). */
+@theme {
+  --color-ink: #0b0b0d;
+  --color-raise: #131316;
+  --color-raise-2: #191920;
+  --color-line: #26262b;
+  --color-line-soft: #1c1c21;
+  --color-paper: #ececed;
+  --color-dim: #98989f;
+  --color-accent: #d9a441;
+  --color-danger: #e0603f;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scrollbar-color: var(--color-line) transparent;
+  }
+
+  body {
+    background: var(--color-ink);
+    color: var(--color-paper);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-ink);
+  }
+
+  /* One focus style for everything interactive. Never removed, only offset. */
+  :focus-visible {
+    outline: 2px solid var(--color-accent);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Small caps label used for every section heading. */
+  .label {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+  }
+
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A hairline that fades out, so section rules don't hit the viewport edge flat. */
+  .rule {
+    height: 1px;
+    background: linear-gradient(
+      to right,
+      var(--color-line) 0%,
+      var(--color-line) 60%,
+      transparent 100%
+    );
+  }
+}

@@ -1,11 +1,29 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
-
 version: 2
+
 updates:
-  - package-ecosystem: "npm"
-    directory: "/" # Location of package manifests
+  # The frontend.
+  - package-ecosystem: 'npm'
+    directory: '/'
     schedule:
-      interval: "daily"
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+
+  # The backend. Previously nothing watched the Rust crate, and nothing watched the old
+  # `api/` directory either — which is why it was still on Express 4.
+  - package-ecosystem: 'cargo'
+    directory: '/api-rs'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 5
+
+  # The base images in the Dockerfile.
+  - package-ecosystem: 'docker'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+
+  # The actions in .github/workflows.
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'

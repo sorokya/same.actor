@@ -1,18 +1,25 @@
 <!doctype html>
 <html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Same Actor? Let's find out</title>
-</head>
-
-<body class="bg-slate-800 text-slate-100">
-  <div id="root"></div>
-  <script type="module" src="/src/main.jsx"></script>
-  <noscript>
-    Sorry! Same.Actor currently requires javascript to run.
-  </noscript>
-</body>
-
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>same.actor — is it the same actor?</title>
+    <meta
+      name="description"
+      content="Pick two to five films, shows, or actors and see exactly who or what they share."
+    />
+    <meta name="theme-color" content="#0b0b0d" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="/avatar.png" />
+    <link rel="preconnect" href="https://image.tmdb.org" />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+    <noscript>
+      <p style="font-family: sans-serif; padding: 2rem">
+        same.actor needs JavaScript to compare credits. There is no server-rendered fallback.
+      </p>
+    </noscript>
+  </body>
 </html>
