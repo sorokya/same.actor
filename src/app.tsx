@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { FaTrash } from 'react-icons/fa';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { CheckIcon, ShareIcon, TrashIcon } from './components/icons';
 import { ResultMatrix } from './components/result-matrix';
 import { SearchPanel } from './components/search-panel';
 import { SelectionChips } from './components/selection-chips';
@@ -17,6 +17,7 @@ import {
   type SelectionMeta,
   type TitleMatch,
 } from './lib/types';
+import type { NameFor } from './lib/url';
 
 type ResultsState =
   | { status: 'idle' }
@@ -40,18 +41,23 @@ const COPY: Record<Mode, { heading: string; sub: string }> = {
 };
 
 export function App() {
-  const [{ mode, picks }, setUrlState] = useUrlState();
+  const [{ mode, picks }, navigate, replaceUrl] = useUrlState();
   const [term, setTerm] = useState('');
   const [results, setResults] = useState<ResultsState>({ status: 'idle' });
+  const [shared, setShared] = useState<'idle' | 'copied' | 'failed'>('idle');
 
   const searchState = useSearch(mode, term);
   const inFlight = useRef<AbortController | null>(null);
   /** Search results the user has clicked, so chips have a label before the server replies. */
   const known = useRef(new Map<number, SearchResult>());
+  /** id → display name, for writing readable URLs. */
+  const names = useRef(new Map<number, string>());
 
   useEffect(() => {
     return () => inFlight.current?.abort();
   }, []);
+
+  const nameFor: NameFor = useCallback((pick: Selection) => names.current.get(pick.id) ?? null, []);
 
   const runFindOut = useCallback(() => {
     if (picks.length < MIN_SELECTIONS) return;
@@ -90,49 +96,12 @@ export function App() {
     runFindOut();
   }, [picks.length, runFindOut]);
 
-  const addPick = useCallback(
-    (result: SearchResult) => {
-      known.current.set(result.id, result);
-      setTerm('');
-
-      if (picks.some((pick) => pick.id === result.id)) return;
-      if (picks.length >= MAX_SELECTIONS) return;
-
-      // The effect above re-runs the comparison; no local results bookkeeping needed.
-      setUrlState({ mode, picks: [...picks, { id: result.id, kind: result.kind }] });
-    },
-    [mode, picks, setUrlState],
-  );
-
-  const removePick = useCallback(
-    (selection: Selection) => {
-      setUrlState({ mode, picks: picks.filter((pick) => pick.id !== selection.id) });
-    },
-    [mode, picks, setUrlState],
-  );
-
-  const changeMode = useCallback(
-    (next: Mode) => {
-      if (next === mode) return;
-      setTerm('');
-      setResults({ status: 'idle' });
-      setUrlState({ mode: next, picks: [] });
-    },
-    [mode, setUrlState],
-  );
-
-  const clearAll = useCallback(() => {
-    setTerm('');
-    setResults({ status: 'idle' });
-    setUrlState({ mode, picks: [] });
-  }, [mode, setUrlState]);
-
   const chipMeta: SelectionMeta[] =
     results.status === 'ok'
       ? results.selections
       : picks.flatMap((pick) => {
           const found = known.current.get(pick.id);
-          if (!found) return [];
+          if (found === undefined) return [];
           return [
             {
               id: found.id,
@@ -144,14 +113,97 @@ export function App() {
           ];
         });
 
+  // Once names are known, upgrade `/title/movie-603,movie-604` to
+  // `/title/movie-603-the-matrix,movie-604-the-matrix-reloaded` in place, and keep the tab
+  // title in step so a shared link reads sensibly in history.
+  const labels = chipMeta.map((entry) => `${entry.id}:${entry.name}`).join('|');
+
+  // Keyed on `labels`, the stable string projection of chipMeta; depending on the array
+  // identity would re-run this on every render.
+  useEffect(() => {
+    names.current = new Map(chipMeta.map((entry) => [entry.id, entry.name]));
+
+    if (picks.length > 0) {
+      replaceUrl({ mode, picks }, (pick) => names.current.get(pick.id) ?? null);
+    }
+
+    document.title =
+      chipMeta.length > 1
+        ? `${chipMeta.map((entry) => entry.name).join(' vs ')} — same.actor`
+        : 'same.actor — is it the same actor?';
+  }, [labels, mode, picks, replaceUrl]);
+
+  const addPick = useCallback(
+    (result: SearchResult) => {
+      known.current.set(result.id, result);
+      setTerm('');
+
+      if (picks.some((pick) => pick.id === result.id)) return;
+      if (picks.length >= MAX_SELECTIONS) return;
+
+      navigate({ mode, picks: [...picks, { id: result.id, kind: result.kind }] }, nameFor);
+    },
+    [mode, picks, navigate, nameFor],
+  );
+
+  const removePick = useCallback(
+    (selection: Selection) => {
+      navigate({ mode, picks: picks.filter((pick) => pick.id !== selection.id) }, nameFor);
+    },
+    [mode, picks, navigate, nameFor],
+  );
+
+  const changeMode = useCallback(
+    (next: Mode) => {
+      if (next === mode) return;
+      setTerm('');
+      setResults({ status: 'idle' });
+      navigate({ mode: next, picks: [] });
+    },
+    [mode, navigate],
+  );
+
+  const clearAll = useCallback(() => {
+    setTerm('');
+    setResults({ status: 'idle' });
+    navigate({ mode, picks: [] });
+  }, [mode, navigate]);
+
+  const share = useCallback(async () => {
+    const url = window.location.href;
+
+    // Mobile browsers get the real share sheet; that is the point of the button there.
+    if (typeof navigator.share === 'function') {
+      try {
+        await navigator.share({ title: document.title, url });
+        return;
+      } catch (error) {
+        // Dismissing the sheet is not a failure worth reporting.
+        if (error instanceof DOMException && error.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      setShared('copied');
+      window.setTimeout(() => setShared('idle'), 2000);
+    } catch {
+      setShared('failed');
+      window.setTimeout(() => setShared('idle'), 4000);
+    }
+  }, []);
+
   const ready = picks.length >= MIN_SELECTIONS;
   const copy = COPY[mode];
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="border-b border-line">
+      <header className="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
         <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3">
-          <a href="/" className="font-mono text-[13px] uppercase tracking-[0.2em] text-paper">
+          <a
+            href="/"
+            className="font-mono text-[13px] uppercase tracking-[0.2em] text-paper transition-colors hover:text-accent"
+          >
             same<span className="text-accent">.</span>actor
           </a>
           <ModeSwitch mode={mode} onChange={changeMode} />
@@ -159,12 +211,25 @@ export function App() {
       </header>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-10 pb-24">
-        <h1 className="text-[clamp(1.5rem,4vw,2rem)] leading-tight font-normal tracking-tight text-paper">
-          {copy.heading}
-        </h1>
-        <p className="mt-2 max-w-lg text-sm leading-relaxed text-dim">{copy.sub}</p>
+        <div className="relative">
+          {/* The only purely decorative colour on the page: a warm wash behind the heading.
+              Everything else is a hue attached to a specific selection. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-20 -left-28 h-56 w-[26rem] rounded-full bg-[#e8b14b]/10 blur-3xl"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -top-10 right-0 h-40 w-64 rounded-full bg-[#3ecfc0]/10 blur-3xl"
+          />
 
-        <div className="mt-8">
+          <h1 className="relative text-[clamp(1.6rem,4vw,2.1rem)] leading-tight font-normal tracking-tight text-paper">
+            {copy.heading}
+          </h1>
+          <p className="relative mt-2 max-w-lg text-sm leading-relaxed text-dim">{copy.sub}</p>
+        </div>
+
+        <div className="relative mt-8">
           <SearchPanel
             mode={mode}
             term={term}
@@ -180,18 +245,26 @@ export function App() {
 
           <div className="flex flex-wrap items-center gap-3">
             {picks.length > 0 ? (
-              <Button variant="danger" onClick={clearAll}>
-                <FaTrash size={10} aria-hidden="true" />
-                Clear
-              </Button>
+              <>
+                <Button variant="ghost" onClick={share}>
+                  {shared === 'copied' ? <CheckIcon size={13} /> : <ShareIcon size={13} />}
+                  {shared === 'copied' ? 'Link copied' : 'Share'}
+                </Button>
+                <Button variant="danger" onClick={clearAll}>
+                  <TrashIcon size={13} />
+                  Clear
+                </Button>
+              </>
             ) : null}
 
-            {!ready ? (
-              <span className="label">
-                {picks.length === 0
-                  ? 'Nothing selected yet'
-                  : `${MIN_SELECTIONS - picks.length} more to compare`}
+            {shared === 'failed' ? (
+              <span className="label text-danger" role="status">
+                Copy failed — use the address bar
               </span>
+            ) : null}
+
+            {!ready && picks.length > 0 ? (
+              <span className="label">Add one more to compare</span>
             ) : null}
           </div>
         </div>

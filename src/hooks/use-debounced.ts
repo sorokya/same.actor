@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState } from 'preact/hooks';
 
 /** Debounce a value. Replaces `@uidotdev/usehooks` for the one hook this app used. */
 export function useDebounced<T>(value: T, delayMs: number): T {

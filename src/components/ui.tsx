@@ -1,13 +1,13 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
-import { FaSpinner } from 'react-icons/fa';
+import type { ComponentChildren, ComponentProps } from 'preact';
 import type { Mode } from '../lib/types';
+import { SpinnerIcon } from './icons';
 
 type Variant = 'primary' | 'ghost' | 'danger';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonProps extends ComponentProps<'button'> {
   variant?: Variant;
   busy?: boolean;
-  children: ReactNode;
+  children: ComponentChildren;
 }
 
 const VARIANTS: Record<Variant, string> = {
@@ -33,7 +33,7 @@ export function Button({
       disabled={props.disabled === true || busy}
       className={`inline-flex items-center justify-center gap-2 rounded px-4 py-2 text-sm font-medium transition-colors ${VARIANTS[variant]} ${className}`}
     >
-      {busy ? <FaSpinner className="animate-spin" aria-hidden="true" /> : null}
+      {busy ? <SpinnerIcon className="animate-spin" aria-hidden="true" /> : null}
       {children}
     </button>
   );
@@ -66,7 +66,9 @@ export function ModeSwitch({ mode, onChange }: ModeSwitchProps) {
             name="compare-mode"
             value={option.value}
             checked={mode === option.value}
-            onChange={() => onChange(option.value)}
+            // Radios fire `input` as well as `change`; using onInput keeps every handler in
+            // this app on the same event.
+            onInput={() => onChange(option.value)}
             className="peer sr-only"
           />
           <span className="block rounded-full px-3 py-1 font-mono text-[11px] tracking-[0.12em] uppercase text-dim transition-colors peer-checked:bg-paper peer-checked:text-ink peer-hover:text-paper peer-checked:peer-hover:text-ink peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-accent">

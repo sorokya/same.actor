@@ -1,7 +1,8 @@
-import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react';
-import { FaSearch, FaTimes } from 'react-icons/fa';
+import type { TargetedKeyboardEvent } from 'preact';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { MIN_TERM_LENGTH, type SearchState } from '../hooks/use-search';
 import type { Mode, SearchResult } from '../lib/types';
+import { CloseIcon, SearchIcon } from './icons';
 import { Poster } from './poster';
 
 interface SearchPanelProps {
@@ -51,7 +52,7 @@ export function SearchPanel({ mode, term, onTermChange, state, onPick, canAdd }:
     options[clamped]?.focus();
   };
 
-  const onInputKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+  const onInputKeyDown = (event: TargetedKeyboardEvent<HTMLInputElement>) => {
     if (event.key === 'ArrowDown' && results.length > 0) {
       event.preventDefault();
       focusOption(0);
@@ -69,7 +70,7 @@ export function SearchPanel({ mode, term, onTermChange, state, onPick, canAdd }:
     }
   };
 
-  const onOptionKeyDown = (index: number) => (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+  const onOptionKeyDown = (index: number) => (event: TargetedKeyboardEvent<HTMLButtonElement>) => {
     if (event.key === 'ArrowDown') {
       event.preventDefault();
       focusOption(index + 1);
@@ -94,7 +95,7 @@ export function SearchPanel({ mode, term, onTermChange, state, onPick, canAdd }:
   return (
     <div className="relative">
       <div className="relative flex items-center">
-        <FaSearch
+        <SearchIcon
           aria-hidden="true"
           className="pointer-events-none absolute left-3.5 text-dim"
           size={13}
@@ -103,14 +104,17 @@ export function SearchPanel({ mode, term, onTermChange, state, onPick, canAdd }:
           ref={inputRef}
           type="search"
           value={term}
-          onChange={(event) => onTermChange(event.target.value)}
+          // `onInput`, not `onChange`: core Preact binds `onChange` to the DOM `change`
+          // event, which only fires on blur or Enter. React aliases onChange to input;
+          // Preact does not, and the difference is invisible until typing does nothing.
+          onInput={(event) => onTermChange(event.currentTarget.value)}
           onKeyDown={onInputKeyDown}
           placeholder={PLACEHOLDER[mode]}
           aria-label={PLACEHOLDER[mode]}
           aria-describedby="search-hint"
           maxLength={100}
           autoComplete="off"
-          spellCheck={false}
+          spellcheck={false}
           // The visible label is the placeholder; the hint below carries the rest.
           className="w-full rounded-md border border-line bg-raise py-3 pr-10 pl-9 text-[15px] text-paper placeholder:text-dim/80 focus:border-line focus:bg-raise-2 [&::-webkit-search-cancel-button]:hidden"
         />
@@ -211,7 +215,7 @@ export function SearchPanel({ mode, term, onTermChange, state, onPick, canAdd }:
 
           <div className="hidden border-t border-line-soft px-3 py-2 sm:block">
             <p className="label flex items-center gap-1.5">
-              <FaTimes size={9} aria-hidden="true" /> esc to close · ↑ ↓ to move
+              <CloseIcon size={9} aria-hidden="true" /> esc to close · ↑ ↓ to move
             </p>
           </div>
         </div>

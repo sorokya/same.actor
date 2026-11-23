@@ -30,6 +30,9 @@ moka = { version = "0.12", features = ["future"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
+resvg = "0.50"
+tiny-skia = "0.12"
+fontdb = "0.24"
 
 [dev-dependencies]
 http-body-util = "0.1"

@@ -3,7 +3,8 @@
 Is that the same actor from another movie you remember? Pick two to five films, shows, or
 people and see exactly what they share.
 
-One Rust binary serves the API and the single-page app on one origin at one version.
+One Rust binary serves the API, the single-page Preact app, and the share cards, on one
+origin at one version.
 
 ## How it works
 
@@ -13,6 +14,11 @@ selected titles is a match; a title crediting at least two of the selected peopl
 No database, no accounts, no state beyond a short-lived cache.
 
 `GET /api/search` proxies TMDB's search, filtered to titles or people depending on `mode`.
+
+Comparisons are addresses: `/title/movie-603-the-matrix,movie-604-the-matrix-reloaded`. Open
+one and the server renders `<title>`, `og:` and `twitter:` tags for it and points `og:image`
+at a 1200×630 PNG it rasterises on demand, so a link to a comparison unfurls into a card
+instead of a bare URL.
 
 ## Running it
 
@@ -69,6 +75,7 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `TMDB_BASE` | `https://api.themoviedb.org/3` | Override for the stub or a proxy. |
 | `IMAGE_BASE` | `https://image.tmdb.org/t/p/w342` | Poster/portrait prefix. |
 | `STATIC_DIR` | `dist` | Directory holding the built SPA. API-only if absent. |
+| `PUBLIC_ORIGIN` | `http://localhost:3001` | Absolute origin for `og:url` and `og:image`. **Set this in production** — Open Graph requires absolute URLs and it cannot be inferred behind a proxy. |
 | `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
 | `CACHE_CAPACITY` | `10000` | Cache entry ceiling. |
 | `RATE_LIMIT` | `10` | Requests per window per client IP. |
@@ -97,8 +104,16 @@ POST /api/findout  { "mode": "title"|"person",
 minimum, five maximum. `findout` returns the resolved selections as well as the matches, so a
 shared URL renders its own column headers.
 
-The comparison lives in the URL — `?mode=title&pick=movie:603,tv:1396` — so it survives a
-refresh and can be sent to someone.
+The comparison lives in the URL, so it survives a refresh and can be sent to someone:
+
+```
+/title/movie-603-the-matrix,tv-1396-breaking-bad
+/person/6384-keanu-reeves,530-carrie-anne-moss
+```
+
+The id is authoritative and the slug is decoration, so `/title/movie-603,movie-604` is the
+same page — the client rewrites the address to the slug form once it knows the names. The
+kind is only written in `title` mode, where a selection can be either a film or a show.
 
 ## Layout
 
@@ -107,8 +122,11 @@ api-rs/
   src/
     domain.rs      wire types; Mode and Kind are closed enums, ids are NonZeroU32
     intersect.rs   the comparison itself, pure and unit-tested
+    compare.rs     fetch + intersect, shared by the API and the share cards
+    paths.rs       parsing for /title/… and /person/…, mirroring src/lib/url.ts
+    og.rs          Open Graph card: SVG in, PNG out (resvg, vendored fonts)
     tmdb/          upstream client: URL construction, auth, cache
-    routes/        search, findout, health
+    routes/        search, findout, health, og (card image + meta tags)
     error.rs       one error type, one place that maps it to a response
     ratelimit.rs   per-IP fixed window
   tests/api.rs     HTTP-level tests against a stub TMDB
@@ -116,7 +134,9 @@ src/
   app.tsx          the screen
   lib/api.ts       typed client; failures are values, not nulls
   lib/types.ts     mirrors api-rs/src/domain.rs
-  components/      search panel, chips, result matrix, poster, ui
+  lib/url.ts       URL parsing and formatting (mirrors api-rs/src/paths.rs)
+  lib/palette.ts   one hue per selection, followed from chip to table column
+  components/      search panel, chips, result matrix, poster, icons, ui
 docs/
   REVIEW.md        what was wrong with the previous implementation
   REWRITE-PLAN.md  how and why it was rebuilt
@@ -124,7 +144,36 @@ scripts/
   cargo.sh         run a command in the pinned Rust container
   node.sh          run a command in the pinned Node container
   demo-stub.py     TMDB stand-in for local development
+api-rs/assets/fonts/
+  DejaVu*.ttf      embedded in the binary so share cards render identically everywhere
 ```
+
+## Frontend notes
+
+Preact, not React — with no `preact/compat`, so the bundle is ~38 kB (14 kB gzipped) and
+nothing underneath it imports React. Three behaviours differ from React and cost an
+afternoon if you meet them cold:
+
+- **`onChange` is the DOM `change` event**, not React's input alias. Typing does nothing
+  until blur. Use `onInput`.
+- **Numeric style values get no unit.** `style={{ width: 22 }}` assigns `"22"` to
+  `CSSStyleDeclaration`, which is not a valid width, and the declaration is silently dropped.
+  Write `${22}px`.
+- **No `JSX.TargetedKeyboardEvent` / `JSX.ButtonHTMLAttributes`.** Event and prop types come
+  straight from `preact` (`TargetedKeyboardEvent`, `ComponentProps<'button'>`), and attributes
+  are lowercase (`spellcheck`).
+
+## Share cards
+
+`GET /og/{mode}/{picks}.png` renders 1200×630 with resvg from an SVG built in `og.rs`. Text
+is escaped, long titles are truncated to a width the layout can guarantee, and fonts are
+`include_bytes!`'d so the output does not depend on what the host has installed.
+`./scripts/cargo.sh cargo run --example og-preview -- card.png` writes a sample without
+starting the server.
+
+The image route shares the API's per-IP rate limit, because each uncached card costs two
+upstream calls plus a rasterisation; rendered cards are cached for an hour. The pages
+themselves are never rate limited — a human must always be able to open a link.
 
 ## Tests
 

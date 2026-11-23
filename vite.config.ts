@@ -1,8 +1,8 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
+import preact from '@preact/preset-vite';
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [preact()],
   // Tailwind runs as a PostCSS plugin here; see postcss.config.mjs for why.
   css: {
     transformer: 'postcss',

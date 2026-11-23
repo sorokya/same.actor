@@ -23,6 +23,9 @@ pub struct Config {
     pub tmdb_base: String,
     pub image_base: String,
     pub static_dir: String,
+    /// Absolute origin used for `og:url` and `og:image`. Open Graph requires absolute URLs,
+    /// so this cannot be inferred from the request behind a proxy.
+    pub public_origin: String,
     pub cache_ttl: Duration,
     pub cache_capacity: u64,
     pub rate_limit: u32,
@@ -72,6 +75,7 @@ impl Config {
             tmdb_base: env_str("TMDB_BASE", "https://api.themoviedb.org/3"),
             image_base: env_str("IMAGE_BASE", "https://image.tmdb.org/t/p/w342"),
             static_dir: env_str("STATIC_DIR", "dist"),
+            public_origin: env_str("PUBLIC_ORIGIN", "http://localhost:3001"),
             cache_ttl: env_secs("CACHE_TTL_SECS", 600),
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,

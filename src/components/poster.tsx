@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { FaFilm, FaUser } from 'react-icons/fa';
+import { useState } from 'preact/hooks';
+import { FilmIcon, UserIcon } from './icons';
 
 export interface PosterProps {
   /** `null` when TMDB has no artwork. The placeholder is ours, not a fake URL. */
@@ -26,10 +26,13 @@ export function Poster({ src, alt, shape = 'poster', width, height, className = 
   const show = src !== null && src !== '' && failedSrc !== src;
   const radius = shape === 'avatar' ? 'rounded-full' : 'rounded-[3px]';
 
+  // Units are explicit because Preact 11 removed the automatic `px` it used to append to
+  // numeric style values: `{ width: 22 }` is assigned verbatim to CSSStyleDeclaration, "22"
+  // is not a valid width, and the declaration is then dropped without any warning.
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden border border-line-soft bg-raise-2 ${radius} ${className}`}
-      style={{ width, height }}
+      style={{ width: `${width}px`, height: `${height}px` }}
     >
       {show ? (
         <img
@@ -45,9 +48,9 @@ export function Poster({ src, alt, shape = 'poster', width, height, className = 
       ) : (
         <span aria-hidden="true" className="text-dim/60">
           {shape === 'avatar' ? (
-            <FaUser size={Math.round(width * 0.42)} />
+            <UserIcon size={Math.round(width * 0.42)} />
           ) : (
-            <FaFilm size={Math.round(width * 0.45)} />
+            <FilmIcon size={Math.round(width * 0.45)} />
           )}
         </span>
       )}

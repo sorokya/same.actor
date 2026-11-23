@@ -1,3 +1,4 @@
+import { tintFor } from '../lib/palette';
 import type { Mode, PersonMatch, SelectionMeta, TitleMatch } from '../lib/types';
 import { Poster } from './poster';
 
@@ -81,38 +82,47 @@ export function ResultMatrix({ mode, selections, matches }: ResultMatrixProps) {
                     or below them. */}
                 <span className="label">{rowHeading}</span>
               </th>
-              {selections.map((selection) => (
-                <th
-                  key={selection.id}
-                  scope="col"
-                  className="min-w-[9rem] border-l border-line-soft px-3 py-2 text-left align-top font-normal"
-                >
-                  {/* Poster stacked above the label, not beside it: the label's left edge
+              {selections.map((selection, index) => {
+                // Same hue as the chip above: the column is identifiable by colour, which
+                // matters once there are five of them.
+                const tint = tintFor(index);
+                return (
+                  <th
+                    key={selection.id}
+                    scope="col"
+                    className={`min-w-[9rem] border-l border-line-soft px-3 pt-2 pb-2 text-left align-top font-normal ${tint.soft}`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`mb-1.5 block h-[2px] w-8 rounded-full ${tint.bar}`}
+                    />
+                    {/* Poster stacked above the label, not beside it: the label's left edge
                       then sits exactly above the cell text, so the column reads as one
                       block instead of two offset ones. */}
-                  <a
-                    href={tmdbHref(selection.kind, selection.id)}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="block hover:underline"
-                  >
-                    <Poster
-                      src={selection.image}
-                      alt=""
-                      shape={selection.kind === 'person' ? 'avatar' : 'poster'}
-                      width={selection.kind === 'person' ? 26 : 20}
-                      height={26}
-                      className="mb-1.5"
-                    />
-                    <span className="block truncate text-xs text-paper">{selection.name}</span>
-                    {selection.year !== null ? (
-                      <span className="tnum block font-mono text-[11px] text-dim">
-                        {selection.year}
-                      </span>
-                    ) : null}
-                  </a>
-                </th>
-              ))}
+                    <a
+                      href={tmdbHref(selection.kind, selection.id)}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="block hover:underline"
+                    >
+                      <Poster
+                        src={selection.image}
+                        alt=""
+                        shape={selection.kind === 'person' ? 'avatar' : 'poster'}
+                        width={selection.kind === 'person' ? 26 : 20}
+                        height={26}
+                        className="mb-1.5"
+                      />
+                      <span className="block truncate text-xs text-paper">{selection.name}</span>
+                      {selection.year !== null ? (
+                        <span className={`tnum block font-mono text-[11px] ${tint.text}`}>
+                          {selection.year}
+                        </span>
+                      ) : null}
+                    </a>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
 

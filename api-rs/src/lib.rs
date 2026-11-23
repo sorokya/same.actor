@@ -16,11 +16,14 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
+pub mod compare;
 pub mod config;
 pub mod domain;
 pub mod error;
 pub mod extract;
 pub mod intersect;
+pub mod og;
+pub mod paths;
 pub mod ratelimit;
 pub mod routes;
 pub mod state;
@@ -41,9 +44,28 @@ pub fn build_app(state: AppState) -> Router {
         ))
         .with_state(state.clone());
 
+    // Share cards are the most expensive thing here to produce (two upstream calls plus a
+    // raster), so they get the same per-IP budget as the API. The pages themselves are never
+    // rate limited: a human must be able to open a link.
+    let share_card = Router::new()
+        .route("/og/{mode}/{picks}", get(routes::og::image))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            routes::enforce_rate_limit,
+        ))
+        .with_state(state.clone());
+
+    // Comparison pages, for humans and crawlers alike; Open Graph tags are injected.
+    let comparison_page = Router::new()
+        .route("/title/{picks}", get(routes::og::page_title))
+        .route("/person/{picks}", get(routes::og::page_person))
+        .with_state(state.clone());
+
     let mut app = Router::new()
         .route("/healthz", get(routes::healthz))
-        .nest("/api", api);
+        .nest("/api", api)
+        .merge(share_card)
+        .merge(comparison_page);
 
     let static_dir = PathBuf::from(&state.config.static_dir);
     if static_dir.is_dir() {

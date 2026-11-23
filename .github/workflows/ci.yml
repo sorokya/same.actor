@@ -36,7 +36,7 @@ jobs:
         run: cargo test
 
   frontend:
-    name: Frontend (TypeScript)
+    name: Frontend (Preact/TypeScript)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

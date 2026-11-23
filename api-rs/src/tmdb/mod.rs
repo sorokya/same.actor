@@ -394,6 +394,7 @@ mod tests {
             tmdb_base: "https://api.themoviedb.org/3".into(),
             image_base: "https://image.tmdb.org/t/p/w342".into(),
             static_dir: "dist".into(),
+            public_origin: "http://localhost:3001".into(),
             cache_ttl: Duration::from_secs(60),
             cache_capacity: 10,
             rate_limit: 10,

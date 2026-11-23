@@ -186,13 +186,24 @@ async fn harness(rate_limit: u32) -> Harness {
         axum::serve(listener, stub_app).await.unwrap();
     });
 
+    // A minimal SPA shell carrying the Open Graph markers, so page rendering can be tested
+    // without a real build.
+    let static_dir = std::env::temp_dir().join(format!("same-actor-test-{}", std::process::id()));
+    std::fs::create_dir_all(&static_dir).unwrap();
+    std::fs::write(
+        static_dir.join("index.html"),
+        r#"<!doctype html><html><head><!--og:start--><title>default</title><!--og:end--></head><body><div id="root"></div></body></html>"#,
+    )
+    .unwrap();
+
     let config = Config {
         bind: "127.0.0.1:0".parse().unwrap(),
         tmdb_token: "test-token".into(),
         tmdb_auth: TmdbAuth::Bearer,
         tmdb_base: format!("http://{addr}/3"),
         image_base: "https://image.tmdb.org/t/p/w342".into(),
-        static_dir: "no-such-directory".into(),
+        static_dir: static_dir.to_string_lossy().into_owned(),
+        public_origin: "https://same.test".into(),
         cache_ttl: Duration::from_secs(60),
         cache_capacity: 100,
         rate_limit,
@@ -236,6 +247,18 @@ fn get_search(query: &str) -> Request<Body> {
         .uri(format!("/api/search?{query}"))
         .body(Body::empty())
         .unwrap()
+}
+
+async fn call_raw(app: &Router, request: Request<Body>) -> (StatusCode, HeaderMap, Vec<u8>) {
+    let response = app.clone().oneshot(request).await.unwrap();
+    let status = response.status();
+    let headers = response.headers().clone();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    (status, headers, bytes.to_vec())
+}
+
+fn get_path(path: &str) -> Request<Body> {
+    Request::builder().uri(path).body(Body::empty()).unwrap()
 }
 
 fn get_healthz() -> Request<Body> {
@@ -616,4 +639,116 @@ async fn errors_are_always_json() {
             "missing error envelope: {body}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------
+// Open Graph
+// ---------------------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_comparison_page_carries_its_own_open_graph_tags() {
+    let h = harness(100).await;
+    let (status, headers, body) = call(&h.app, get_path("/title/movie-603,movie-604")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        headers.get(header::CONTENT_TYPE).unwrap(),
+        "text/html; charset=utf-8"
+    );
+
+    let html = body.as_str().expect("html body");
+
+    assert!(
+        html.contains(r#"<meta property="og:title" content="The Matrix vs The Matrix Reloaded — same.actor" />"#),
+        "og:title missing or wrong:\n{html}"
+    );
+    assert!(
+        html.contains(r#"<meta property="og:image" content="https://same.test/og/title/movie-603,movie-604.png" />"#),
+        "og:image missing or wrong:\n{html}"
+    );
+    assert!(html.contains(r#"<meta name="twitter:card" content="summary_large_image" />"#));
+    assert!(html.contains("credited in at least two"));
+
+    // Exactly one <title>: the default must be replaced, not appended to.
+    assert_eq!(
+        html.matches("<title>").count(),
+        1,
+        "duplicate <title>:\n{html}"
+    );
+    assert!(!html.contains("<title>default</title>"));
+}
+
+#[tokio::test]
+async fn the_share_card_is_served_as_a_png() {
+    let h = harness(100).await;
+    let (status, headers, body) =
+        call_raw(&h.app, get_path("/og/title/movie-603,movie-604.png")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(headers.get(header::CONTENT_TYPE).unwrap(), "image/png");
+    assert_eq!(&body[..8], b"\x89PNG\r\n\x1a\n", "not a PNG");
+
+    // IHDR carries the dimensions the meta tags advertise.
+    let width = u32::from_be_bytes([body[16], body[17], body[18], body[19]]);
+    let height = u32::from_be_bytes([body[20], body[21], body[22], body[23]]);
+    assert_eq!((width, height), (1200, 630));
+}
+
+#[tokio::test]
+async fn the_card_is_cached_and_the_second_request_does_not_refetch() {
+    let h = harness(100).await;
+
+    call_raw(&h.app, get_path("/og/title/movie-603,movie-604.png")).await;
+    let after_first = h.hits.load(Ordering::SeqCst);
+    assert!(after_first > 0, "the first request must hit the stub");
+
+    call_raw(&h.app, get_path("/og/title/movie-603,movie-604.png")).await;
+    assert_eq!(
+        h.hits.load(Ordering::SeqCst),
+        after_first,
+        "the second card request must come from the cache"
+    );
+}
+
+#[tokio::test]
+async fn a_short_selector_gets_the_plain_page_not_tags() {
+    let h = harness(100).await;
+    let (status, _, body) = call(&h.app, get_path("/title/movie-603")).await;
+
+    assert_eq!(status, StatusCode::OK);
+    let html = body.as_str().unwrap();
+    assert!(
+        html.contains("<title>default</title>"),
+        "default title should survive"
+    );
+    assert!(!html.contains("og:image"));
+}
+
+#[tokio::test]
+async fn an_unknown_mode_is_not_a_page() {
+    let h = harness(100).await;
+    let (status, _, _) = call(&h.app, get_path("/nonsense/movie-603,movie-604")).await;
+    // Not a route of ours, so it falls through to the SPA fallback: still a page, but the
+    // static handler owns it rather than the Open Graph renderer.
+    assert!(status == StatusCode::OK || status == StatusCode::NOT_FOUND);
+
+    let (status, _, _) = call(&h.app, get_path("/og/nonsense/movie-603")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn a_single_pick_has_no_card() {
+    let h = harness(100).await;
+    let (status, _, _) = call_raw(&h.app, get_path("/og/title/movie-603.png")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn html_escaping_survives_a_hostile_path() {
+    let h = harness(100).await;
+    // Not a valid pick, so the page is served plain — the point is that nothing is echoed.
+    let (status, _, body) = call(&h.app, get_path("/title/movie-603%3Cscript%3E")).await;
+    assert_eq!(status, StatusCode::OK);
+    let html = body.as_str().unwrap();
+    assert!(!html.contains("<script>alert"));
 }

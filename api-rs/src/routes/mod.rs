@@ -12,6 +12,7 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub mod findout;
+pub mod og;
 pub mod search;
 
 pub use findout::findout;

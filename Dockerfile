@@ -25,6 +25,8 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
     && cargo build --release \
     && rm -rf src
 COPY api-rs/src ./src
+# Embedded with include_bytes! for the Open Graph renderer.
+COPY api-rs/assets ./assets
 COPY api-rs/tests ./tests
 RUN touch src/main.rs && cargo build --release
 

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'preact/hooks';
 import { describe, search } from '../lib/api';
 import type { Mode, SearchResult } from '../lib/types';
 import { useDebounced } from './use-debounced';
