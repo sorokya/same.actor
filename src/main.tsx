@@ -1,4 +1,5 @@
 import { Component, type ComponentChildren, render } from 'preact';
+import { AdminRoot } from './admin/root';
 import { App } from './app';
 import './index.css';
 
@@ -55,9 +56,9 @@ class ErrorBoundary extends Component<{ children: ComponentChildren }, BoundaryS
 const container = document.getElementById('root');
 if (!container) throw new Error('#root is missing from index.html');
 
-render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>,
-  container,
-);
+// One binary, two surfaces. `/admin` is a separate entry point because it is a separate job:
+// the comparison tool is what a visitor opens, and nothing about it should wait on, or pay for,
+// the dashboard's chunk.
+const isAdmin = window.location.pathname.startsWith('/admin');
+
+render(<ErrorBoundary>{isAdmin ? <AdminRoot /> : <App />}</ErrorBoundary>, container);

@@ -576,6 +576,29 @@ impl Store {
 
         let raw = self
             .read(move |conn| {
+                // The id-walking signal has to be measured *within a session*. Comparing session
+                // counts to path counts looked reasonable and was useless: a client that does
+                // not keep its cookie gets a fresh session per request, which made the two
+                // numbers move together and hid the behaviour entirely.
+                let mut deepest_map: std::collections::HashMap<String, i64> =
+                    std::collections::HashMap::new();
+                let mut deepest_stmt = conn.prepare(
+                    "SELECT ip, MAX(paths) AS deepest FROM (
+                         SELECT ip, session, COUNT(DISTINCT path) AS paths
+                         FROM requests
+                         WHERE ts >= ?1 AND ip IS NOT NULL AND session IS NOT NULL
+                           AND kind != 'asset'
+                         GROUP BY ip, session
+                     ) GROUP BY ip",
+                )?;
+                for row in deepest_stmt.query_map(params![since], |row| {
+                    Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
+                })? {
+                    let (ip, paths) = row?;
+                    deepest_map.insert(ip, paths);
+                }
+                drop(deepest_stmt);
+
                 let mut stmt = conn.prepare(
                     "SELECT ip, COUNT(*) AS requests,
                             SUM(status >= 400) AS errors,
@@ -603,10 +626,16 @@ impl Store {
                         no_ua: row.get(6).unwrap_or(0),
                         first_seen: row.get(7)?,
                         last_seen: row.get(8)?,
+                        deepest_session: 0,
                     })
                 })?;
 
-                rows.collect::<rusqlite::Result<Vec<_>>>()
+                let mut rows: Vec<RawSuspicion> = rows.collect::<rusqlite::Result<_>>()?;
+                for row in &mut rows {
+                    row.deepest_session = deepest_map.get(&row.ip).copied().unwrap_or(0);
+                }
+
+                Ok(rows)
             })
             .await?;
 
@@ -624,6 +653,8 @@ struct RawSuspicion {
     no_ua: i64,
     first_seen: i64,
     last_seen: i64,
+    /// The most distinct paths any single session from this address asked for.
+    deepest_session: i64,
 }
 
 /// Turn per-address aggregates into a ranked list with reasons.
@@ -658,12 +689,12 @@ fn score(rows: Vec<RawSuspicion>, limit: u32) -> Vec<Suspicion> {
                 ));
             }
 
-            // Walking an id space: many distinct paths from few sessions.
-            if row.paths > 50 && row.sessions <= row.paths / 10 {
+            // Walking an id space: one session asking for many distinct paths.
+            if row.deepest_session > 50 {
                 score += 3;
                 reasons.push(format!(
-                    "{} distinct paths from {} sessions — id walking",
-                    row.paths, row.sessions
+                    "{} distinct paths in a single session — id walking",
+                    row.deepest_session
                 ));
             }
 
@@ -730,6 +761,17 @@ mod tests {
             no_ua: 0,
             first_seen: 0,
             last_seen: 1,
+            deepest_session: 1,
+        }
+    }
+
+    fn walker(ip: &str, deepest_session: i64) -> RawSuspicion {
+        RawSuspicion {
+            deepest_session,
+            requests: 400,
+            errors: 380,
+            paths: 400,
+            ..raw(ip, 400, 380, 400, 2)
         }
     }
 
@@ -741,8 +783,8 @@ mod tests {
                 raw("198.51.100.1", 5, 0, 3, 1),
                 raw("198.51.100.2", 4, 0, 2, 1),
                 raw("198.51.100.3", 6, 0, 4, 1),
-                // One client walking ids.
-                raw("203.0.113.9", 400, 380, 400, 2),
+                // One client walking ids in a single session.
+                walker("203.0.113.9", 380),
             ],
             10,
         );
@@ -767,6 +809,25 @@ mod tests {
         assert!(
             !scored.iter().any(|row| row.ip == "198.51.100.1"),
             "an honest visitor must not appear at all"
+        );
+    }
+
+    /// A client that drops its cookie gets a new session per request. Counting sessions against
+    /// paths hid that completely; measuring within a session does not.
+    #[test]
+    fn session_churn_does_not_hide_id_walking() {
+        let mut noisy = walker("203.0.113.9", 300);
+        noisy.sessions = 300; // one session per request, as a cookie-less scraper looks
+        noisy.paths = 300;
+
+        let scored = score(vec![noisy, raw("198.51.100.1", 5, 0, 3, 1)], 10);
+        assert!(
+            scored[0]
+                .reasons
+                .iter()
+                .any(|reason| reason.contains("id walking")),
+            "reasons: {:?}",
+            scored[0].reasons
         );
     }
 
