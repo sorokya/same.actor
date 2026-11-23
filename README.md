@@ -315,8 +315,27 @@ scale is an actor appearing in **two or more** of the list, which is what the jo
 per refresh and stores alongside the list. Rows link to `themoviedb.org/person/{id}`; this site
 has no person pages.
 
+The page is a poster shelf rather than a numbered text list, and the synergy rows carry the
+actor's portrait — "the same face again" is a recognition, not something a column of names
+conveys. Both the shelf and the rows are links to TMDB, as is every title in the comparison
+results and every selected chip.
+
 `TMDB_REGION` (default `US`) is required by the two date-scoped lists — "upcoming" means nothing
 without a region. Only those two send it.
+
+## Navigation
+
+One header, `src/components/site-header.tsx`, used by the comparison tool, the lists, and the
+dashboard. Each surface supplies its own tabs; the chrome is shared, which is the only way three
+independently written headers stop drifting apart.
+
+The tabs are all links (`Titles`, `People`, then the five lists), including the two that used to
+be a radio group. Mode already cleared the selection when it changed, so a link behaves
+identically — and a link works before any JavaScript has run, which is the direction the front
+end is heading. List labels are deliberately short (`Films`, `Upcoming`): the full names
+(`Top films`, `Coming soon`) do not fit seven tabs across, and a clipped last label reads as
+broken rather than scrollable. On a phone the strip scrolls horizontally and the active tab is
+scrolled into view.
 
 ## Admin API
 

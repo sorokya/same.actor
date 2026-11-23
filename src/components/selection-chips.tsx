@@ -30,14 +30,23 @@ export function SelectionChips({ selections, meta, onRemove }: SelectionChipsPro
           const tint = tintFor(index);
 
           return (
-            <li key={selection.id} className="contents">
-              <button
-                type="button"
-                onClick={() => onRemove(selection)}
-                title={label === null ? `Remove #${selection.id}` : `Remove ${label}`}
-                className={`group inline-flex max-w-full items-center gap-2.5 overflow-hidden rounded border bg-raise py-1 pr-2 text-left transition-colors hover:bg-raise-2 ${tint.chip}`}
+            <li
+              key={selection.id}
+              className={`inline-flex max-w-full items-center gap-2.5 overflow-hidden rounded border bg-raise py-1 pr-2 transition-colors hover:bg-raise-2 ${tint.chip}`}
+            >
+              <span aria-hidden="true" className={`h-9 w-[3px] shrink-0 ${tint.bar}`} />
+
+              {/* The artwork opens the entity on TMDB. A link rather than part of the button:
+                  nesting one interactive element inside another is invalid, and the name
+                  beside it already does the removing. */}
+              <a
+                href={`https://www.themoviedb.org/${selection.kind}/${selection.id}`}
+                target="_blank"
+                rel="noreferrer noopener"
+                aria-label={`Open ${label ?? `#${selection.id}`} on TMDB`}
+                title={`Open ${label ?? `#${selection.id}`} on TMDB`}
+                className="my-0.5 shrink-0 rounded-[3px] outline-offset-2 transition-shadow hover:ring-1 hover:ring-accent/50"
               >
-                <span aria-hidden="true" className={`h-9 w-[3px] shrink-0 ${tint.bar}`} />
                 {/* Artwork is the point of a film comparison, so it gets enough size to be
                     recognisable rather than a 22px thumbnail. */}
                 <Poster
@@ -46,8 +55,15 @@ export function SelectionChips({ selections, meta, onRemove }: SelectionChipsPro
                   shape={selection.kind === 'person' ? 'avatar' : 'poster'}
                   width={34}
                   height={selection.kind === 'person' ? 34 : 50}
-                  className="my-0.5"
                 />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => onRemove(selection)}
+                title={label === null ? `Remove #${selection.id}` : `Remove ${label}`}
+                className="group flex min-w-0 items-center gap-2 text-left"
+              >
                 <span className="max-w-[13rem] truncate text-[13px] text-paper">
                   {label ?? `#${selection.id}`}
                 </span>

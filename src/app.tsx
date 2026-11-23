@@ -3,8 +3,10 @@ import { CheckIcon, ShareIcon, TrashIcon } from './components/icons';
 import { ResultMatrix } from './components/result-matrix';
 import { SearchPanel } from './components/search-panel';
 import { SelectionChips } from './components/selection-chips';
+import { SiteHeader } from './components/site-header';
+import { SiteNav } from './components/site-nav';
 import { TrendingStrip } from './components/trending-strip';
-import { Button, ModeSwitch } from './components/ui';
+import { Button } from './components/ui';
 import { useSearch } from './hooks/use-search';
 import { useUrlState } from './hooks/use-url-state';
 import { describe, findOut } from './lib/api';
@@ -163,16 +165,6 @@ export function App() {
     [mode, picks, navigate, nameFor],
   );
 
-  const changeMode = useCallback(
-    (next: Mode) => {
-      if (next === mode) return;
-      setTerm('');
-      setResults({ status: 'idle' });
-      navigate({ mode: next, picks: [] });
-    },
-    [mode, navigate],
-  );
-
   const clearAll = useCallback(() => {
     setTerm('');
     setResults({ status: 'idle' });
@@ -208,17 +200,9 @@ export function App() {
 
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-3xl items-center justify-between gap-4 px-4 py-3">
-          <a
-            href="/"
-            className="font-mono text-[13px] uppercase tracking-[0.2em] text-paper transition-colors hover:text-accent"
-          >
-            same<span className="text-accent">.</span>actor
-          </a>
-          <ModeSwitch mode={mode} onChange={changeMode} />
-        </div>
-      </header>
+      <SiteHeader>
+        <SiteNav mode={mode} />
+      </SiteHeader>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-10 pb-24">
         <div className="relative">
@@ -338,25 +322,6 @@ export function App() {
 
       <footer className="border-t border-line">
         <div className="mx-auto w-full max-w-3xl px-4 py-5">
-          <nav aria-label="Browse" className="mb-5">
-            <p className="label mb-2">Browse by list</p>
-            <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
-              {[
-                ['top-movies', 'Top films'],
-                ['top-tv', 'Top shows'],
-                ['new-movies', 'In cinemas'],
-                ['upcoming', 'Coming soon'],
-                ['on-the-air', 'On the air'],
-              ].map(([slug, label]) => (
-                <li key={slug}>
-                  <a href={`/discover/${slug}`} className="text-xs text-dim hover:text-paper">
-                    {label}
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-
           {/* TMDB's attribution terms require their logo, the notice below, and both to sit
               in a Credits-type section — and the logo to be less prominent than our own
               mark. The wordmark above is 13px; this sits at 10px and lower contrast. */}

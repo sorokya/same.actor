@@ -30,6 +30,9 @@ pub struct DiscoverPage {
     pub slug: &'static str,
     pub heading: &'static str,
     pub blurb: &'static str,
+    /// `movie` or `tv`, so the client can build a correct TMDB link without guessing from the
+    /// list's name.
+    pub kind: &'static str,
     pub refreshed_ts: i64,
     pub items: Vec<Item>,
     pub synergy: Vec<SynergyRow>,
@@ -78,6 +81,11 @@ pub async fn show(
         slug: spec.slug,
         heading: spec.heading,
         blurb: spec.blurb,
+        kind: match spec.kind {
+            crate::domain::Kind::Movie => "movie",
+            crate::domain::Kind::Tv => "tv",
+            crate::domain::Kind::Person => "person",
+        },
         refreshed_ts: stored.fetched_ts,
         items,
         synergy,

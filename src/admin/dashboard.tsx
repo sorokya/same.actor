@@ -8,6 +8,7 @@
 
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
+import { SiteHeader } from '../components/site-header';
 import {
   AdminError,
   admin,
@@ -75,67 +76,66 @@ export function AdminDashboard() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <header className="mb-6 flex flex-wrap items-baseline justify-between gap-3 border-b border-line pb-3">
-        <div className="flex items-baseline gap-3">
-          <a href="/" className="text-sm font-medium tracking-tight text-paper">
-            same<span className="text-accent">.</span>actor
-          </a>
-          <span className="label">admin</span>
+    <>
+      <SiteHeader width="max-w-5xl">
+        <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-4 gap-y-1">
+          <nav aria-label="Sections" className="flex flex-wrap items-center gap-0.5">
+            {TABS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setTab(entry.id)}
+                aria-current={tab === entry.id ? 'page' : undefined}
+                className={`rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors ${
+                  tab === entry.id
+                    ? 'bg-paper text-ink'
+                    : 'text-dim hover:bg-raise hover:text-paper'
+                }`}
+              >
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* No text label: "24h 7d 30d" explains itself, and a bare "window" beside the tab row
+              read as another tab. */}
+          <fieldset className="m-0 flex items-center gap-1 border-0 p-0">
+            <legend className="sr-only">Time window</legend>
+            {WINDOWS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setWindow(option)}
+                aria-pressed={window === option}
+                className={`rounded-full border px-2 py-0.5 font-mono text-[11px] ${
+                  window === option
+                    ? 'border-accent/60 text-accent'
+                    : 'border-line text-dim hover:text-paper'
+                }`}
+              >
+                {option}
+              </button>
+            ))}
+          </fieldset>
         </div>
+      </SiteHeader>
 
-        <nav className="flex flex-wrap gap-1" aria-label="Sections">
-          {TABS.map((entry) => (
-            <button
-              key={entry.id}
-              type="button"
-              onClick={() => setTab(entry.id)}
-              aria-current={tab === entry.id ? 'page' : undefined}
-              className={`rounded px-2.5 py-1 text-xs transition-colors ${
-                tab === entry.id
-                  ? 'bg-raise-2 text-paper'
-                  : 'text-dim hover:bg-raise hover:text-paper'
-              }`}
-            >
-              {entry.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <span className="label">window</span>
-          {WINDOWS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => setWindow(option)}
-              aria-pressed={window === option}
-              className={`rounded border px-2 py-0.5 font-mono text-[11px] ${
-                window === option
-                  ? 'border-accent/60 text-accent'
-                  : 'border-line text-dim hover:text-paper'
-              }`}
-            >
-              {option}
-            </button>
-          ))}
-        </div>
-      </header>
-
-      {tab === 'overview' && <OverviewTab window={window} />}
-      {tab === 'logs' && <LogsTab initialIp={ipFilter} window={window} />}
-      {tab === 'suspicious' && (
-        <SuspiciousTab
-          window={window}
-          onInspect={(ip) => {
-            setIpFilter(ip);
-            setTab('logs');
-          }}
-        />
-      )}
-      {tab === 'bans' && <BansTab />}
-      {tab === 'health' && <HealthTab />}
-    </div>
+      <main className="mx-auto w-full max-w-5xl px-4 py-6">
+        {tab === 'overview' && <OverviewTab window={window} />}
+        {tab === 'logs' && <LogsTab initialIp={ipFilter} window={window} />}
+        {tab === 'suspicious' && (
+          <SuspiciousTab
+            window={window}
+            onInspect={(ip) => {
+              setIpFilter(ip);
+              setTab('logs');
+            }}
+          />
+        )}
+        {tab === 'bans' && <BansTab />}
+        {tab === 'health' && <HealthTab />}
+      </main>
+    </>
   );
 }
 

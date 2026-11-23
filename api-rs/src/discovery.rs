@@ -108,6 +108,10 @@ pub struct Item {
 pub struct SynergyRow {
     pub person_id: u32,
     pub name: String,
+    /// Portrait, when TMDB has one. A table of names is a lot less scannable than a table of
+    /// faces, and the face is what makes "the same actor again" obvious.
+    #[serde(default)]
+    pub image: Option<String>,
     /// How many of the list's titles they appear in.
     pub count: usize,
     /// The titles, so the row explains itself.
@@ -118,36 +122,52 @@ pub struct SynergyRow {
 /// titles, which at twenty titles is a long list and not a discovery.
 const MAX_SYNERGY_ROWS: usize = 250;
 
+/// One credited person during a refresh.
+#[derive(Debug, Clone)]
+pub struct Credit {
+    pub id: u32,
+    pub name: String,
+    /// Portrait, when TMDB had one.
+    pub image: Option<String>,
+}
+
 /// Build the "appears in two or more" table.
 ///
 /// Pure, so it can be tested without TMDB: the fetch is the boring part, this is the part with a
 /// decision in it.
-pub fn synergy(per_title: &[(String, Vec<(u32, String)>)]) -> Vec<SynergyRow> {
-    let mut people: HashMap<u32, (String, Vec<String>)> = HashMap::new();
+pub fn synergy(per_title: &[(String, Vec<Credit>)]) -> Vec<SynergyRow> {
+    let mut people: HashMap<u32, (String, Option<String>, Vec<String>)> = HashMap::new();
 
     for (title, cast) in per_title {
         // One person can be credited twice in the same title (two roles, or a documentary
         // appearance); that is still one title.
-        let mut seen_here: HashMap<u32, &str> = HashMap::new();
-        for (id, name) in cast {
-            seen_here.entry(*id).or_insert(name.as_str());
+        let mut seen_here: HashMap<u32, (&str, Option<String>)> = HashMap::new();
+        for credit in cast {
+            seen_here
+                .entry(credit.id)
+                .or_insert_with(|| (credit.name.as_str(), credit.image.clone()));
         }
 
-        for (id, name) in seen_here {
-            people
+        for (id, (name, image)) in seen_here {
+            let entry = people
                 .entry(id)
-                .or_insert_with(|| (name.to_owned(), Vec::new()))
-                .1
-                .push(title.clone());
+                .or_insert_with(|| (name.to_owned(), image.clone(), Vec::new()));
+            // The first title that had a portrait wins; a later title without one must not
+            // blank out a face we already have.
+            if entry.1.is_none() {
+                entry.1 = image;
+            }
+            entry.2.push(title.clone());
         }
     }
 
     let mut rows: Vec<SynergyRow> = people
         .into_iter()
-        .filter(|(_, (_, titles))| titles.len() >= 2)
-        .map(|(person_id, (name, titles))| SynergyRow {
+        .filter(|(_, (_, _, titles))| titles.len() >= 2)
+        .map(|(person_id, (name, image, titles))| SynergyRow {
             person_id,
             name,
+            image,
             count: titles.len(),
             titles,
         })
@@ -216,7 +236,11 @@ pub async fn refresh_one(
                 Ok((_, cast)) => Some((
                     name,
                     cast.into_iter()
-                        .map(|claim| (claim.id, claim.name))
+                        .map(|claim| Credit {
+                            id: claim.id,
+                            name: claim.name,
+                            image: claim.image,
+                        })
                         .collect::<Vec<_>>(),
                 )),
                 Err(error) => {
@@ -228,7 +252,7 @@ pub async fn refresh_one(
         });
     }
 
-    let mut per_title: Vec<(String, Vec<(u32, String)>)> = Vec::with_capacity(items.len());
+    let mut per_title: Vec<(String, Vec<Credit>)> = Vec::with_capacity(items.len());
     while let Some(joined) = tasks.join_next().await {
         if let Ok(Some(entry)) = joined {
             per_title.push(entry);
@@ -298,10 +322,14 @@ pub fn spawn_refresher(state: AppState) {
 mod tests {
     use super::*;
 
-    fn cast(people: &[(u32, &str)]) -> Vec<(u32, String)> {
+    fn cast(people: &[(u32, &str)]) -> Vec<Credit> {
         people
             .iter()
-            .map(|(id, name)| (*id, (*name).to_owned()))
+            .map(|(id, name)| Credit {
+                id: *id,
+                name: (*name).to_owned(),
+                image: None,
+            })
             .collect()
     }
 
@@ -375,8 +403,13 @@ mod tests {
     #[test]
     fn the_table_is_capped() {
         // 300 people, each in two of three titles.
-        let cast_all: Vec<(u32, String)> =
-            (0..300).map(|id| (id, format!("Person {id}"))).collect();
+        let cast_all: Vec<Credit> = (0..300)
+            .map(|id| Credit {
+                id,
+                name: format!("Person {id}"),
+                image: None,
+            })
+            .collect();
         let rows = synergy(&[("A".into(), cast_all.clone()), ("B".into(), cast_all)]);
 
         assert_eq!(rows.len(), MAX_SYNERGY_ROWS);
