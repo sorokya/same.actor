@@ -31,10 +31,14 @@ RUN touch src/main.rs && cargo build --release
 # --- runtime ------------------------------------------------------------------------------
 FROM docker.io/library/debian:trixie-slim
 
+# `useradd` without `--system`: a system account must be below SYS_UID_MAX (999), and
+# combining --system with uid 10001 makes useradd warn on every build while writing a
+# system-style shadow entry for a UID that isn't one. An explicit high uid, no home and
+# nologin is what a runtime user actually wants.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd --system --uid 10001 --no-create-home sameactor
+    && useradd --uid 10001 --no-create-home --shell /usr/sbin/nologin sameactor
 
 COPY --from=api /build/target/release/same-actor /usr/local/bin/same-actor
 COPY --from=spa /spa/dist /srv/dist
