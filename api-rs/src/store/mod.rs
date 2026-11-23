@@ -21,6 +21,7 @@ use serde::Serialize;
 use tokio::sync::Semaphore;
 
 use crate::error::AppError;
+use crate::geo::Geo;
 
 pub mod migrations;
 pub mod request;
@@ -42,6 +43,8 @@ pub struct StoreConfig {
     pub batch_wait: Duration,
     /// Read connections kept warm. WAL allows them to read during a write.
     pub read_pool: usize,
+    /// Country lookup, resolved in the writer thread so the request path never pays for it.
+    pub geo: Option<Arc<Geo>>,
 }
 
 impl Default for StoreConfig {
@@ -52,6 +55,7 @@ impl Default for StoreConfig {
             batch_max: 256,
             batch_wait: Duration::from_millis(250),
             read_pool: 4,
+            geo: None,
         }
     }
 }
@@ -132,10 +136,18 @@ impl Store {
         let thread_counters = Arc::clone(&counters);
         let batch_max = config.batch_max.max(1);
         let batch_wait = config.batch_wait;
+        let geo = config.geo.clone();
         let handle = std::thread::Builder::new()
             .name("sqlite-writer".into())
             .spawn(move || {
-                writer_loop(&mut writer, &rx, &thread_counters, batch_max, batch_wait);
+                writer_loop(
+                    &mut writer,
+                    &rx,
+                    &thread_counters,
+                    batch_max,
+                    batch_wait,
+                    geo.as_deref(),
+                );
             })
             .map_err(|error| AppError::Store(format!("could not start the writer: {error}")))?;
 
@@ -270,6 +282,7 @@ fn writer_loop(
     counters: &Counters,
     batch_max: usize,
     batch_wait: Duration,
+    geo: Option<&Geo>,
 ) {
     let mut batch: Vec<RequestLog> = Vec::with_capacity(batch_max);
 
@@ -277,13 +290,13 @@ fn writer_loop(
         // Block for the first record; this thread has nothing else to do.
         match rx.recv() {
             Ok(op) => {
-                if !accept(op, conn, counters, &mut batch) {
+                if !accept(op, conn, counters, &mut batch, geo) {
                     return;
                 }
             }
             // Every sender is gone: commit what we have and stop.
             Err(_) => {
-                commit(conn, counters, &mut batch);
+                commit(conn, counters, &mut batch, geo);
                 return;
             }
         }
@@ -292,19 +305,19 @@ fn writer_loop(
         while batch.len() < batch_max {
             match rx.recv_timeout(batch_wait) {
                 Ok(op) => {
-                    if !accept(op, conn, counters, &mut batch) {
+                    if !accept(op, conn, counters, &mut batch, geo) {
                         return;
                     }
                 }
                 Err(RecvTimeoutError::Timeout) => break,
                 Err(RecvTimeoutError::Disconnected) => {
-                    commit(conn, counters, &mut batch);
+                    commit(conn, counters, &mut batch, geo);
                     return;
                 }
             }
         }
 
-        commit(conn, counters, &mut batch);
+        commit(conn, counters, &mut batch, geo);
     }
 }
 
@@ -314,16 +327,17 @@ fn accept(
     conn: &mut Connection,
     counters: &Counters,
     batch: &mut Vec<RequestLog>,
+    geo: Option<&Geo>,
 ) -> bool {
     match op {
         WriteOp::Request(log) => batch.push(log),
         // A barrier must not be acknowledged before everything ahead of it is committed.
         WriteOp::Flush(ack) => {
-            commit(conn, counters, batch);
+            commit(conn, counters, batch, geo);
             let _ = ack.send(());
         }
         WriteOp::Shutdown(ack) => {
-            commit(conn, counters, batch);
+            commit(conn, counters, batch, geo);
             checkpoint(conn);
             let _ = ack.send(());
             return false;
@@ -333,9 +347,26 @@ fn accept(
     true
 }
 
-fn commit(conn: &mut Connection, counters: &Counters, batch: &mut Vec<RequestLog>) {
+fn commit(
+    conn: &mut Connection,
+    counters: &Counters,
+    batch: &mut Vec<RequestLog>,
+    geo: Option<&Geo>,
+) {
     if batch.is_empty() {
         return;
+    }
+
+    // Once per batch, not once per row: the writer holds no lock between batches, and a
+    // memory-mapped lookup is cheap enough that batching it is about tidiness, not speed.
+    if let Some(geo) = geo {
+        for log in batch.iter_mut() {
+            if log.country.is_none() {
+                if let Some(ip) = log.ip.as_deref().and_then(|ip| ip.parse().ok()) {
+                    log.country = geo.country(ip);
+                }
+            }
+        }
     }
 
     match request::insert(conn, batch) {

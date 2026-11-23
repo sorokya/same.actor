@@ -3,8 +3,11 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tracing_subscriber::EnvFilter;
 
+use std::sync::Arc;
+
 use same_actor::build_app;
 use same_actor::config::Config;
+use same_actor::geo::Geo;
 use same_actor::state::AppState;
 
 #[tokio::main]
@@ -21,6 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let trust_forwarded_for = config.trust_forwarded_for;
     let state = AppState::new(config)?;
     let app = build_app(state.clone());
+
+    // Downloads the geo database in the background; a failure there only means empty countries.
+    Geo::spawn_refresher(Arc::clone(&state.geo));
 
     let listener = TcpListener::bind(bind).await?;
     tracing::info!(%bind, trust_forwarded_for, "same-actor listening");

@@ -12,10 +12,12 @@ use crate::error::AppError;
 use crate::state::AppState;
 
 pub mod findout;
+pub mod observe;
 pub mod og;
 pub mod search;
 
 pub use findout::findout;
+pub use observe::{observe, require_session};
 pub use search::search;
 
 /// Liveness. Deliberately does not touch TMDB: a liveness probe that depends on a third

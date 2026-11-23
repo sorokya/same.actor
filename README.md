@@ -79,6 +79,9 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `DB_PATH` | `data/same-actor.db` | SQLite file. Relative by default so a local run needs no configuration; the container sets `/data/same-actor.db` on a volume. |
 | `LOG_RETENTION_DAYS` | `90` | Days of raw request rows kept before rollup. The aggregates keep no IP and no session id, so this is the privacy cutover as well as the size one. |
 | `LOG_ASSETS` | `false` | Log static assets. Off because one page load would otherwise be five rows. |
+| `GEO_ENABLED` | `true` | Country lookup via DB-IP Lite. Off means no download and a NULL country. |
+| `GEO_DB_PATH` | `data/dbip-country-lite.mmdb` | Where the database is cached. Put it on the same volume as the SQLite file. |
+| `GEO_URL` | DB-IP Lite, current month | `{month}` is substituted. Override only to use a mirror. |
 | `TMDB_LOGO_URL` | TMDB's approved `blue_short` SVG | Override only if TMDB rotates the asset. The card renders without the logo if the fetch fails. |
 | `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
 | `CACHE_CAPACITY` | `10000` | Cache entry ceiling. |
@@ -229,6 +232,48 @@ podman run -d -p 3001:3001 -v ~/same-data:/data:U -e TMDB_TOKEN=… same-actor  
 
 `podman stop` is a `SIGTERM`, which commits the last batch and checkpoints the WAL, so a backup
 sees one consistent `.db` file and no `-wal` sidecar.
+
+## Request logging and sessions
+
+Every request except assets and `/healthz` becomes one row: timestamp, duration, client
+address, session, user agent, method, path, status, and — on failure — an error code and the
+message that explains it. Server errors record the *internal* detail (which upstream call
+failed) while the response body keeps the generic message.
+
+`sa_sid` is a random 16-byte cookie, `HttpOnly`, `SameSite=Lax`, 30 days. It is not
+authentication: it groups requests into a visit, so the log can answer "how many people"
+rather than "how many requests".
+
+**`/api/search` and `/api/findout` require it** and answer `428` with a `Set-Cookie` when it is
+missing, so a caller can simply retry. Everything else stays anonymous, and each exemption is
+deliberate:
+
+| Route | Why |
+|---|---|
+| `/og/…`, `/title/…`, `/person/…` | Unfurlers fetch these once, with no cookie jar, and will not honour `Set-Cookie`. Requiring one would break every Discord and Slack embed. |
+| `/api/trending` | A cached aggregate. There is no visit to attribute. |
+| `/api/admin/*` | Carries its own credential. |
+| `/healthz` | A probe that needs a cookie is a probe that fails the day cookie logic breaks. |
+
+Logging cannot fail a request: the record is offered to a queue, and if the queue is full it is
+dropped and counted in `stats().dropped`.
+
+### Country lookup
+
+DB-IP Lite's country database is downloaded into the data directory at startup and refreshed
+daily. It is not baked into the image — it goes stale monthly, and a build-time network
+dependency is a build that fails for reasons unrelated to the code.
+
+Two things worth knowing, both verified against the live service by an ignored test
+(`cargo test --lib geo::live -- --ignored`):
+
+- **The download `403`s without a `User-Agent`.** The client sets one explicitly. Without it
+  geo silently stays empty, which looks identical to an outage.
+- The file is served gzip-compressed with no `Content-Encoding`, so it is decoded here; a
+  mirror serving a plain `.mmdb` also works.
+
+Geolocation applies to **country only**. Failures degrade to `country = NULL` and a log line —
+never to a failed start.
 
 ## TMDB attribution
 

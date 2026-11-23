@@ -16,16 +16,19 @@ use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
+pub mod clock;
 pub mod compare;
 pub mod config;
 pub mod domain;
 pub mod error;
 pub mod extract;
+pub mod geo;
 pub mod intersect;
 pub mod og;
 pub mod paths;
 pub mod ratelimit;
 pub mod routes;
+pub mod session;
 pub mod state;
 pub mod store;
 pub mod tmdb;
@@ -36,9 +39,16 @@ use state::AppState;
 ///
 /// Kept separate from `main` so tests can drive it without binding a port.
 pub fn build_app(state: AppState) -> Router {
+    // The two endpoints that call TMDB and therefore *are* a visit. `require_session` sits
+    // inside the rate limit so a caller with no cookie is still counted before being told to
+    // come back with one — otherwise 428s would be free.
     let api = Router::new()
         .route("/search", get(routes::search))
         .route("/findout", post(routes::findout))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            routes::require_session,
+        ))
         .layer(middleware::from_fn_with_state(
             state.clone(),
             routes::enforce_rate_limit,
@@ -100,5 +110,11 @@ pub fn build_app(state: AppState) -> Router {
     // A panic in one handler is a 500 for that request, not an outage. Requires unwinding,
     // which is why the release profile does not set `panic = "abort"`.
     .layer(CatchPanicLayer::new())
+    // Outside the panic handler: a panicking handler has to produce a log row with a 500, and
+    // that response only exists once `CatchPanicLayer` has made it.
+    .layer(middleware::from_fn_with_state(
+        state.clone(),
+        routes::observe,
+    ))
     .layer(TraceLayer::new_for_http())
 }

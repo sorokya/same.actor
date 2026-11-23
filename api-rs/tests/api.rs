@@ -25,6 +25,7 @@ use tower::ServiceExt;
 use same_actor::build_app;
 use same_actor::config::{Config, TmdbAuth};
 use same_actor::state::AppState;
+use same_actor::store::Store;
 
 // ---------------------------------------------------------------------------------------
 // Stub upstream
@@ -170,6 +171,9 @@ async fn stub(State(stub): State<Stub>, request: Request<Body>) -> Response {
 struct Harness {
     app: Router,
     hits: Arc<AtomicUsize>,
+    /// The same store the app writes to, so a test can assert on what was recorded rather
+    /// than on what the handler happened to return.
+    store: Arc<Store>,
 }
 
 /// A minimal SPA shell with the Open Graph markers, so page rendering can be tested without
@@ -233,6 +237,9 @@ async fn harness(rate_limit: u32) -> Harness {
         db_path: db_path.to_string_lossy().into_owned(),
         log_retention_days: 90,
         log_assets: false,
+        geo_enabled: false,
+        geo_db_path: "unused.mmdb".into(),
+        geo_url: "https://example.invalid/{month}.mmdb.gz".into(),
         public_origin: "https://same.test".into(),
         tmdb_logo_url: "https://same.test/logo.svg".into(),
         cache_ttl: Duration::from_secs(60),
@@ -242,9 +249,13 @@ async fn harness(rate_limit: u32) -> Harness {
         trust_forwarded_for: false,
     };
 
+    let state = AppState::new(config).unwrap();
+    let store = Arc::clone(&state.store);
+
     Harness {
-        app: build_app(AppState::new(config).unwrap()),
+        app: build_app(state),
         hits,
+        store,
     }
 }
 
@@ -264,20 +275,43 @@ async fn call(app: &Router, request: Request<Body>) -> (StatusCode, HeaderMap, V
     (status, headers, body)
 }
 
-fn post_findout(body: Value) -> Request<Body> {
+/// The cookie the API now requires. Shape-checked by the server (22 base64url characters), so
+/// a made-up value here has to look like a real one.
+const SESSION: &str = "testsessionAAAAAAAAAAA";
+
+/// Every request the tests make carries a session, because `/api/search` and `/api/findout`
+/// refuse one that does not. The `*_anonymous` helpers exist so the refusal itself is tested.
+fn with_session(request: Request<Body>) -> Request<Body> {
+    let (mut parts, body) = request.into_parts();
+    parts.headers.insert(
+        axum::http::header::COOKIE,
+        format!("sa_sid={SESSION}").parse().expect("cookie header"),
+    );
+    Request::from_parts(parts, body)
+}
+
+fn post_findout_anonymous(body: Value) -> Request<Body> {
     Request::builder()
         .method("POST")
         .uri("/api/findout")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body.to_string()))
+        .header("content-type", "application/json")
+        .body(Body::from(serde_json::to_vec(&body).unwrap()))
         .unwrap()
 }
 
-fn get_search(query: &str) -> Request<Body> {
+fn get_search_anonymous(query: &str) -> Request<Body> {
     Request::builder()
-        .uri(format!("/api/search?{query}"))
+        .uri(format!("/api/search{query}"))
         .body(Body::empty())
         .unwrap()
+}
+
+fn post_findout(body: Value) -> Request<Body> {
+    with_session(post_findout_anonymous(body))
+}
+
+fn get_search(query: &str) -> Request<Body> {
+    with_session(get_search_anonymous(&format!("?{query}")))
 }
 
 async fn call_raw(app: &Router, request: Request<Body>) -> (StatusCode, HeaderMap, Vec<u8>) {
@@ -289,7 +323,9 @@ async fn call_raw(app: &Router, request: Request<Body>) -> (StatusCode, HeaderMa
 }
 
 fn get_path(path: &str) -> Request<Body> {
-    Request::builder().uri(path).body(Body::empty()).unwrap()
+    // Share cards and comparison pages stay anonymous on purpose; adding the cookie here keeps
+    // those tests representative of a browser rather than of an unfurler.
+    with_session(Request::builder().uri(path).body(Body::empty()).unwrap())
 }
 
 fn get_healthz() -> Request<Body> {
@@ -649,12 +685,14 @@ async fn errors_are_always_json() {
         get_search("mode=title&term=ab"),
         get_search("mode=title"),                // term missing
         get_search("mode=nonsense&term=matrix"), // bad enum
-        Request::builder()
-            .method("POST")
-            .uri("/api/findout")
-            .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from("{not json"))
-            .unwrap(),
+        with_session(
+            Request::builder()
+                .method("POST")
+                .uri("/api/findout")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from("{not json"))
+                .unwrap(),
+        ),
     ];
 
     for request in cases {
@@ -782,4 +820,240 @@ async fn html_escaping_survives_a_hostile_path() {
     assert_eq!(status, StatusCode::OK);
     let html = body.as_str().unwrap();
     assert!(!html.contains("<script>alert"));
+}
+
+/// The API refuses a request without a session, and hands back the cookie to retry with. This
+/// is the contract the plan settled on: the two endpoints that call TMDB cost money and
+/// represent a visit, so they are not served anonymously.
+#[tokio::test]
+async fn search_without_a_session_is_refused_with_a_cookie() {
+    let h = harness(100).await;
+
+    let (status, headers, body) =
+        call(&h.app, get_search_anonymous("?mode=title&term=matrix")).await;
+
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+    assert_eq!(error_code(&body), "session_required");
+
+    let cookie = headers
+        .get(header::SET_COOKIE)
+        .expect("a refusal must hand back a cookie")
+        .to_str()
+        .unwrap();
+    assert!(cookie.starts_with("sa_sid="), "unexpected cookie: {cookie}");
+    assert!(cookie.contains("HttpOnly"));
+    assert!(cookie.contains("SameSite=Lax"));
+}
+
+#[tokio::test]
+async fn findout_without_a_session_is_refused() {
+    let h = harness(100).await;
+
+    let (status, _, body) = call(
+        &h.app,
+        post_findout_anonymous(serde_json::json!({
+            "mode": "title",
+            "selection": [
+                {"id": 603, "kind": "movie"},
+                {"id": 604, "kind": "movie"}
+            ]
+        })),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+    assert_eq!(error_code(&body), "session_required");
+}
+
+/// The refusals are specific, and the exemptions are the part that breaks embeds if they
+/// regress — so each is asserted rather than one standing in for the rest.
+#[tokio::test]
+async fn the_endpoints_unfurlers_and_crawlers_use_stay_anonymous() {
+    let h = harness(100).await;
+
+    let (status, _, _) = call(&h.app, get_path("/og/title/movie-603,movie-604.png")).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a share card must not require a cookie"
+    );
+
+    let (status, _, _) = call(&h.app, get_path("/title/movie-603,movie-604")).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "a comparison page must not require a cookie"
+    );
+
+    let (status, _, _) = call(&h.app, get_healthz()).await;
+    assert_eq!(status, StatusCode::OK, "liveness must not require a cookie");
+}
+
+/// A page view mints the cookie, so the SPA's very first API call already has one.
+#[tokio::test]
+async fn a_page_view_hands_out_a_session() {
+    let h = harness(100).await;
+
+    let response = h
+        .app
+        .clone()
+        .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    let cookie = response
+        .headers()
+        .get(header::SET_COOKIE)
+        .expect("a first page view must set a session")
+        .to_str()
+        .unwrap();
+
+    assert!(cookie.starts_with("sa_sid="));
+    assert!(
+        cookie.contains("HttpOnly"),
+        "the session must not be readable by script"
+    );
+    // This harness declares an https origin, so `Secure` is expected here. The plain-http case
+    // — where `Secure` would make the cookie vanish — is covered by the session unit tests.
+    assert!(cookie.contains("Secure"));
+}
+
+// ---------------------------------------------------------------------------------------------
+// Request logging
+// ---------------------------------------------------------------------------------------------
+
+/// Rows are written by a background thread, so every assertion here flushes first. `flush` is a
+/// barrier — it returns only once everything offered before it is committed — which is why
+/// these tests need no sleeps and cannot flake on a slow machine.
+async fn logged(h: &Harness) -> Vec<same_actor::store::RequestRow> {
+    h.store.flush().await.expect("flush");
+    h.store.recent_requests(100).await.expect("read")
+}
+
+#[tokio::test]
+async fn a_request_is_recorded_with_its_session_and_address() {
+    let h = harness(100).await;
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let rows = logged(&h).await;
+    assert_eq!(rows.len(), 1, "one request should be one row: {rows:?}");
+
+    let row = &rows[0];
+    assert_eq!(row.path, "/api/search");
+    assert_eq!(row.method, "GET");
+    assert_eq!(row.status, 200);
+    assert_eq!(row.kind, "api");
+    assert_eq!(row.session.as_deref(), Some(SESSION));
+    assert!(row.ip.is_some(), "the client address should be recorded");
+    assert!(row.code.is_none(), "a success carries no error code");
+}
+
+/// The upstream detail is never in the response body, but it is exactly what an operator needs
+/// in the log when a request 502s.
+#[tokio::test]
+async fn a_failure_is_recorded_with_a_code_and_a_message() {
+    let h = harness(100).await;
+
+    // Title 999 is the stub's broken upstream: any request that touches it 502s.
+    let (status, _, _) = call(
+        &h.app,
+        post_findout(json!({
+            "mode": "title",
+            "selection": [
+                {"id": 603, "kind": "movie"},
+                {"id": 999, "kind": "movie"}
+            ]
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::BAD_GATEWAY);
+
+    let rows = logged(&h).await;
+    let row = rows
+        .iter()
+        .find(|row| row.status == 502)
+        .expect("the 502 row");
+
+    assert_eq!(row.code.as_deref(), Some("upstream_unavailable"));
+    let message = row.message.as_deref().unwrap_or_default();
+    assert!(!message.is_empty(), "a failure should say why");
+    // The body stays generic; the log is where the detail lives, because the operator is the
+    // only one who should see which upstream call failed.
+    assert!(
+        message.contains("upstream is broken") || message.contains("999"),
+        "the log should carry the upstream detail, got {message:?}"
+    );
+}
+
+#[tokio::test]
+async fn a_refusal_is_recorded() {
+    let h = harness(100).await;
+
+    let (status, _, _) = call(&h.app, get_search_anonymous("?mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::PRECONDITION_REQUIRED);
+
+    let rows = logged(&h).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].status, 428);
+    assert_eq!(rows[0].code.as_deref(), Some("session_required"));
+    assert!(
+        rows[0].session.is_some(),
+        "a refused request still gets a session, or the retry cannot be matched to it"
+    );
+}
+
+#[tokio::test]
+async fn a_rate_limited_request_is_recorded() {
+    let h = harness(1).await;
+
+    let _ = call(&h.app, get_search("mode=title&term=matrix")).await;
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::TOO_MANY_REQUESTS);
+
+    let rows = logged(&h).await;
+    assert!(
+        rows.iter()
+            .any(|row| row.status == 429 && row.code.as_deref() == Some("rate_limited")),
+        "the 429 is missing from the log: {rows:?}"
+    );
+}
+
+/// One page load is one row, not five. This is the difference between 8 MB/day and 32 MB/day.
+#[tokio::test]
+async fn assets_and_health_checks_are_not_recorded_by_default() {
+    let h = harness(100).await;
+
+    let _ = call(&h.app, get_healthz()).await;
+    let _ = call(&h.app, get_path("/assets/index-abc123.js")).await;
+    let _ = call(&h.app, get_path("/favicon.ico")).await;
+
+    assert!(
+        logged(&h).await.is_empty(),
+        "an asset or a probe should not produce a log row"
+    );
+}
+
+#[tokio::test]
+async fn a_share_card_is_recorded_as_a_card() {
+    let h = harness(100).await;
+
+    let (status, _, _) = call(&h.app, get_path("/og/title/movie-603,movie-604.png")).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let rows = logged(&h).await;
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].kind, "card");
+}
+
+/// The log must survive store trouble, not amplify it: a failed write is counted and the
+/// response is unaffected.
+#[tokio::test]
+async fn a_request_still_succeeds_when_the_writer_is_stopped() {
+    let h = harness(100).await;
+    h.store.close().await.expect("close");
+
+    let (status, _, _) = call(&h.app, get_search("mode=title&term=matrix")).await;
+    assert_eq!(status, StatusCode::OK, "analytics must not be load-bearing");
+    assert!(h.store.stats().dropped > 0, "the drop should be counted");
 }

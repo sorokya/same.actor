@@ -32,6 +32,12 @@ pub struct Config {
     /// SQLite file. The container points this at a volume; the default is relative so a
     /// developer needs no configuration at all.
     pub db_path: String,
+    /// Country lookup from DB-IP Lite. Off means no download and a NULL country column.
+    pub geo_enabled: bool,
+    /// Where the database is kept. Beside the SQLite file by default, on the same volume.
+    pub geo_db_path: String,
+    /// `{month}` is substituted. Overridable so a mirror can be used.
+    pub geo_url: String,
     /// Days of raw request rows kept before they are rolled into daily aggregates. The
     /// aggregates keep no IP and no session id, so this is the privacy cutover as well as the
     /// size one.
@@ -95,6 +101,12 @@ impl Config {
             db_path: env_str("DB_PATH", crate::store::DEFAULT_PATH),
             log_retention_days: env_num("LOG_RETENTION_DAYS", 90).clamp(1, 3650) as u32,
             log_assets: env_bool("LOG_ASSETS", false),
+            geo_enabled: env_bool("GEO_ENABLED", true),
+            geo_db_path: env_str("GEO_DB_PATH", "data/dbip-country-lite.mmdb"),
+            geo_url: env_str(
+                "GEO_URL",
+                "https://download.db-ip.com/free/dbip-country-lite-{month}.mmdb.gz",
+            ),
             cache_ttl: env_secs("CACHE_TTL_SECS", 600),
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,

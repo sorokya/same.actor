@@ -48,6 +48,7 @@ COPY --from=spa /spa/dist /srv/dist
 ENV STATIC_DIR=/srv/dist \
     BIND=0.0.0.0:3001 \
     DB_PATH=/data/same-actor.db \
+    GEO_DB_PATH=/data/dbip-country-lite.mmdb \
     RUST_LOG=info
 
 # The request log lives on a volume. Without this, the database sits in the container's

@@ -35,20 +35,41 @@ pub enum AppError {
     #[error("internal error: {0}")]
     Internal(String),
 
+    /// The session cookie is required on this endpoint and was absent. Carries a `Set-Cookie`
+    /// from the middleware, so the caller can retry and succeed.
+    #[error("session required")]
+    SessionRequired,
+
+    /// The client's address is banned. The reason is admin-authored, so it is safe to show.
+    #[error("banned: {0}")]
+    Banned(String),
+
     /// The database refused a read, a write, or a migration. Distinct from `Internal` so a
     /// storage fault is greppable in the logs instead of hiding among handler bugs.
     #[error("storage error: {0}")]
     Store(String),
 }
 
+/// The error code and message attached to a failed response.
+///
+/// The logging middleware only ever sees a `Response`, so the error is put on the response
+/// rather than re-parsed out of its body. Server errors carry the internal detail — that is
+/// what makes an admin log row worth reading — while the body keeps the generic message the
+/// client is allowed to see.
+#[derive(Debug, Clone)]
+pub struct ErrorDetail {
+    pub code: &'static str,
+    pub message: String,
+}
+
 /// Stable, documented error codes. The frontend switches on these, not on prose.
 #[derive(Debug, Serialize)]
 struct ErrorBody {
-    error: ErrorDetail,
+    error: BodyDetail,
 }
 
 #[derive(Debug, Serialize)]
-struct ErrorDetail {
+struct BodyDetail {
     code: &'static str,
     message: String,
 }
@@ -91,6 +112,21 @@ impl AppError {
                 "storage_error",
                 "Something went wrong on our side.".into(),
             ),
+            AppError::SessionRequired => (
+                StatusCode::PRECONDITION_REQUIRED,
+                "session_required",
+                "This endpoint needs a session cookie. Retry with the cookie from this response."
+                    .into(),
+            ),
+            AppError::Banned(reason) => (
+                StatusCode::FORBIDDEN,
+                "banned",
+                if reason.is_empty() {
+                    "This client is blocked.".into()
+                } else {
+                    format!("This client is blocked: {reason}")
+                },
+            ),
         }
     }
 }
@@ -106,18 +142,36 @@ impl IntoResponse for AppError {
             AppError::Internal(detail) => tracing::error!(error = %detail, "internal failure"),
             AppError::Config(detail) => tracing::error!(error = %detail, "configuration failure"),
             AppError::Store(detail) => tracing::error!(error = %detail, "storage failure"),
-            AppError::Validation(_) | AppError::NotFound | AppError::RateLimited { .. } => {
-                tracing::debug!(%code, "client error")
-            }
+            AppError::Validation(_)
+            | AppError::NotFound
+            | AppError::RateLimited { .. }
+            | AppError::SessionRequired
+            | AppError::Banned(_) => tracing::debug!(%code, "client error"),
         }
 
         let mut response = (
             status,
             Json(ErrorBody {
-                error: ErrorDetail { code, message },
+                error: BodyDetail {
+                    code,
+                    message: message.clone(),
+                },
             }),
         )
             .into_response();
+
+        // The body is safe to show; the log row is for the operator, so a server error records
+        // the detail that explains it. Upstream detail is never in the body, but it is exactly
+        // what an admin needs when a request 502s.
+        let logged = if status.is_server_error() {
+            self.to_string()
+        } else {
+            message.clone()
+        };
+        response.extensions_mut().insert(ErrorDetail {
+            code,
+            message: logged,
+        });
 
         let headers = response.headers_mut();
         headers.insert(

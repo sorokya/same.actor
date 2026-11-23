@@ -37,6 +37,10 @@ moka = { version = "0.12", features = ["future"] }
 # `bundled` compiles SQLite into the binary: no system library in the image, and the version
 # is pinned by Cargo.lock instead of by whatever the base image ships.
 rusqlite = { version = "0.43", features = ["bundled"] }
+# Reads the DB-IP Lite database. DB-IP publishes MaxMind-DB format, so this is the reader.
+maxminddb = "0.33"
+flate2 = "1"
+getrandom = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 thiserror = "2"
