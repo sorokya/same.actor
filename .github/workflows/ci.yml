@@ -60,7 +60,10 @@ jobs:
   publish:
     name: Publish image
     needs: [backend, frontend]
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
+    # Push only: master and version tags. `pull_request` never reaches this job, and
+    # docker/metadata-action turns a `v*.*.*` tag into semver image tags, which the previous
+    # workflow also did.
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
