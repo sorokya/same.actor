@@ -45,6 +45,10 @@ pub struct ColumnView {
     pub colour: &'static str,
     pub group_name: String,
     pub pinned: bool,
+    /// The URL that pins this column: the poster opens TMDB, this opens the column's cast.
+    pub show_href: String,
+    /// How many actors in this column appear twice in the list — what the pin will show.
+    pub cast: usize,
     /// "1999 · 8.2", or the date when the list is about one. The matrix has no room for it on
     /// the header, so it rides in the tooltip: the year is not worth a column, but losing it
     /// would be losing information the old poster grid had.
@@ -307,6 +311,17 @@ fn with_filters(base: &str, filter: &Filter, cameos: bool, view: View) -> String
     url
 }
 
+/// The link that pins one title, keeping the filter and the view it was clicked in.
+fn title_href_for(base: &str, filter: &Filter, cameos: bool, view: View, media_id: u32) -> String {
+    let mut url = with_filters(base, filter, cameos, view);
+    let separator = if url.contains('?') { '&' } else { '?' };
+
+    url.push(separator);
+    url.push_str(&format!("title={media_id}"));
+
+    url
+}
+
 /// The grid's link for one pair, ordered so the same pair is always the same URL.
 fn pair_href(base: &str, filter: &Filter, cameos: bool, one: u32, other: u32) -> String {
     let (a, b) = if one <= other {
@@ -367,11 +382,32 @@ fn synergy_view(
         Vec::new()
     };
 
+    // How many actors each column holds. The panel says the same number once a title is
+    // pinned; here it is what the caption under the poster offers, and it is also the answer to
+    // "is this column worth opening".
+    let mut cast = vec![0usize; matrix.columns.len()];
+    for actor in &matrix.actors {
+        for index in &actor.titles {
+            if let Some(slot) = cast.get_mut(*index) {
+                *slot += 1;
+            }
+        }
+    }
+
     let columns: Vec<ColumnView> = matrix
         .columns
         .iter()
-        .map(|column| ColumnView {
+        .enumerate()
+        .map(|(index, column)| ColumnView {
             id: column.id,
+            cast: cast.get(index).copied().unwrap_or(0),
+            show_href: title_href_for(
+                base,
+                &derived.filter,
+                derived.filter.hide_cameos,
+                derived.view,
+                column.id,
+            ),
             href: title_href(column.kind, column.id),
             name: column.name.clone(),
             poster: column.poster.clone().unwrap_or_default(),
@@ -1131,6 +1167,30 @@ mod tests {
             "the first actor's own title says so: {details:?}"
         );
         assert!(details.iter().any(|detail| detail.contains("Second Actor")));
+    }
+
+    /// The caption under a poster is the pin, and it says what the pin will show.
+    #[test]
+    fn a_column_counts_its_repeat_cast_and_links_to_itself() {
+        let items = vec![
+            item(1, "One", None, None),
+            item(2, "Two", None, None),
+            item(3, "Three", None, None),
+        ];
+        let rows = vec![
+            row(10, "First", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Second", &[(2, "Two"), (3, "Three")], 2),
+        ];
+
+        let page = build(&items, &rows);
+        let columns = &page.synergy.columns;
+
+        assert_eq!(columns.len(), 3);
+        // "Two" is the title both actors are in; the other two have one each.
+        let two = columns.iter().find(|c| c.id == 2).expect("column");
+        assert_eq!(two.cast, 2);
+        assert!(two.show_href.contains("title=2"), "{}", two.show_href);
+        assert_eq!(columns.iter().find(|c| c.id == 1).unwrap().cast, 1);
     }
 
     /// A chip is how a filter changes; it has to keep the reader in the view they were reading.

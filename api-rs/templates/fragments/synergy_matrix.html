@@ -40,6 +40,30 @@
       {% endfor %}
     </div>
 
+    {# The column's own control, under the poster.
+
+       A poster is the whole 3.5rem cell and it already has a job — it opens TMDB — so the pin
+       needs a surface of its own. It gets a labelled row, not a repeated chip: eighteen bordered
+       badges under eighteen posters read as an axis of statistics, and the label is what turns a
+       number into an offer. The label names the row; each number is that column's repeat cast and
+       a link to it. It works with no script; the island turns the click into a swap. #}
+    <div
+      class="grid items-center"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+    >
+      <span class="label pr-2">Repeat cast</span>
+      {% for column in synergy.columns %}
+      <a
+        href="{{ column.show_href }}"
+        data-show="{{ column.id }}"
+        style="grid-column: {{ column.position }}"
+        aria-pressed="{% if column.pinned %}true{% else %}false{% endif %}"
+        class="sync-show flex items-center justify-center rounded-sm py-1 font-mono text-[10px] leading-none underline decoration-dotted underline-offset-2"
+        title="Show everyone in {{ column.name }} who appears in another title"
+      >{{ column.cast }}</a>
+      {% endfor %}
+    </div>
+
     {% for row in synergy.rows %}
     <div
       class="sync-row grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"

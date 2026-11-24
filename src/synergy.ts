@@ -242,6 +242,22 @@ document.addEventListener('click', (event) => {
   void swap(toggleParam('actor', row.dataset.actor), false);
 });
 
+/**
+ * The caption under a poster pins its column.
+ *
+ * A separate gesture from the poster, which opens TMDB: the caption is the site's own question
+ * ("who else is in this?") and the poster is the outside one.
+ */
+document.addEventListener('click', (event) => {
+  const target = event.target as Element | null;
+  const show = target?.closest<HTMLAnchorElement>('a[data-show]');
+  if (show === null || show === undefined) return;
+  if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+
+  event.preventDefault();
+  void swap(show.getAttribute('href') ?? '', false);
+});
+
 /** A filter chip is a link; the island makes it a swap. */
 document.addEventListener('click', (event) => {
   const target = event.target as Element | null;

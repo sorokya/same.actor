@@ -121,6 +121,30 @@
     outline-offset: 1px;
   }
 
+  /* The caption under a poster. The poster fills its cell and opens TMDB, so the column's own
+     control lives here — and it has to look like a control, not like a statistic: a bordered
+     chip in the same language as the filter chips above, dim until pointed at, accent once
+     pinned. */
+  .sync-show {
+    color: var(--color-dim);
+    transition:
+      color 120ms ease-out,
+      background-color 120ms ease-out;
+  }
+
+  .sync-show:hover,
+  .sync-show:focus-visible {
+    color: var(--color-paper);
+    text-decoration-style: solid;
+    background-color: color-mix(in oklab, var(--color-raise) 80%, transparent);
+  }
+
+  .sync-show[aria-pressed="true"] {
+    color: var(--color-accent);
+    text-decoration-style: solid;
+    background-color: color-mix(in oklab, var(--color-accent) 14%, transparent);
+  }
+
   /* The pairs grid: a square carries two actors, and only one of them has a visible label while
      you are looking at it — the other is on the diagonal. Hovering names both. */
   .pair-name {

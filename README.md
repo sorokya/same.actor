@@ -569,6 +569,11 @@ squares are what make the triangle read as a triangle rather than a scatter.
 - **Everything is server-rendered.** The filters are links (`?hide=marvel`, `?cameos=0`), pins are
   `?actor=` and `?title=`, and the panel beside the matrix shows bridges by default — the actors
   who span two or more franchises, which is the fact the flat list could not show.
+- **A poster opens TMDB; the row under it pins the column.** A poster fills its whole 3.5rem cell,
+  so "click the cell but not the poster" is a two-pixel sliver and no target at all. The pin gets
+  its own labelled row instead — "Repeat cast" on the left, one number per column, underlined
+  because a number under a chart otherwise reads as a statistic rather than a link. The number is
+  the column's repeat cast, which is exactly what pinning it shows.
 - **The derivation is pure** (`synergy.rs`): a function of the stored list, the curated franchises
   and the request's filters. No upstream call, no cached matrix per combination — twenty titles and
   forty actors are cheap enough to compute per request.
