@@ -573,7 +573,8 @@ pub async fn refresh_one(
         .collect();
 
     // Upstream, never the cache: the whole job exists to notice that a list has changed, and a
-    // cached list would hand back the one this job stored six hours ago.
+    // cached list would hand back the one this job stored a TTL ago — and on the first run after
+    // a restart it would hand back nothing at all, which is worse.
     let raw = tmdb
         .list(
             variant.source.path,
@@ -783,8 +784,12 @@ pub fn spawn_refresher(state: AppState) {
         tokio::time::sleep(std::time::Duration::from_secs(20)).await;
         refresh_all(&state).await;
 
+        // One TTL for everything TMDB-derived: a response may be reused for this long, and a
+        // list is re-read upstream this often. They are the same number on purpose — refreshing
+        // more often than the cache expires means paying for list pages to rebuild a matrix out
+        // of details that did not change.
         loop {
-            tokio::time::sleep(std::time::Duration::from_secs(6 * 60 * 60)).await;
+            tokio::time::sleep(state.config.cache_ttl).await;
             refresh_all(&state).await;
         }
     });

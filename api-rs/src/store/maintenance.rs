@@ -18,7 +18,7 @@ use crate::error::AppError;
 ///
 /// From the API Terms of Use: "Cache, for longer than 6 months, any information obtained through
 /// or from TMDB or the TMDB APIs." It is a ceiling on retention, not a target — the response cache
-/// lives a day and the snapshots six hours — but a ceiling nobody enforces is a rule that quietly
+/// lives a day, as do the snapshots — but a ceiling nobody enforces is a rule that quietly
 /// stops being true the first time a job is disabled or a build is left running.
 const TMDB_RETENTION: i64 = 183 * 86_400;
 use crate::store::Store;
@@ -120,7 +120,7 @@ pub(super) fn run(
     report.bans_purged = crate::store::bans::purge_expired(conn, now)?;
     report.cache_purged = crate::store::tmdb_cache::purge(conn, now - TMDB_RETENTION)?;
 
-    // Discovery snapshots are TMDB content too. They are rewritten every six hours, so this
+    // Discovery snapshots are TMDB content too. They are rewritten on the same TTL, so this
     // normally deletes nothing — which is the point: it is a ceiling, not a schedule. If the job
     // has been off for seven months, that is exactly when it has to hold.
     report.snapshots_purged = conn.execute(
@@ -370,7 +370,7 @@ mod tests {
     }
 
     /// TMDB's terms cap how long their content may be kept. Nothing here is normally that old —
-    /// snapshots are rewritten every six hours — so this is the test of the ceiling holding when
+    /// snapshots are rewritten on the TTL — so this is the test of the ceiling holding when
     /// the refreshing stops for a reason, which is exactly when it matters.
     #[tokio::test]
     async fn tmdb_content_older_than_six_months_is_swept() {

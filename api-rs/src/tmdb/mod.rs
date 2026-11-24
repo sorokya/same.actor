@@ -175,7 +175,7 @@ pub struct Tmdb {
 /// Whether a call may answer from cache.
 ///
 /// Not every caller may. A discovery refresh has to see the list as it is now; reading back the
-/// list it stored six hours ago would make the six-hourly job a very careful way of doing nothing.
+/// list it stored a day ago would make the refresh a very careful way of doing nothing.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Freshness {
     Reuse,
