@@ -1,0 +1,9 @@
+{# A tab strip entry. `active` is decided in Rust from the page's own section, so the header
+   never disagrees with the page it is on. #}
+{% macro tab(href, label, active) %}
+<a
+  href="{{ href }}"
+  {% if active %}aria-current="page"{% endif %}
+  class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors{% if active %} bg-paper text-ink{% else %} text-dim hover:bg-raise hover:text-paper{% endif %}"
+>{{ label }}</a>
+{% endmacro %}

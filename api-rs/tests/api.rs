@@ -1780,6 +1780,73 @@ async fn an_unknown_section_or_control_is_refused() {
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
+/// The browse page is HTML with the content already in it: a share link renders without a byte of
+/// JavaScript, and the controls are ordinary links.
+#[tokio::test]
+async fn a_discovery_page_is_rendered_server_side() {
+    let h = harness(100).await;
+
+    let spec = same_actor::discovery::by_id("top:movie:all-time").expect("the spec");
+    same_actor::discovery::refresh_one(&h.state.tmdb, &h.state.store, spec, "US")
+        .await
+        .expect("refresh");
+
+    let (status, headers, body) = call_raw(&h.app, get_path_raw("/discover/top")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(
+        headers["content-type"]
+            .to_str()
+            .expect("content type")
+            .starts_with("text/html"),
+        "a page is HTML, not JSON"
+    );
+
+    let html = String::from_utf8(body).expect("utf-8");
+
+    // Content, not shape: the shelf, the actors, and the links that make them useful.
+    assert!(html.contains("Top films"), "the page title is rendered");
+    assert!(html.contains("The Matrix"), "a title is on the page");
+    assert!(
+        html.contains("https://www.themoviedb.org/movie/603"),
+        "titles link to TMDB"
+    );
+    assert!(
+        html.contains("Keanu Reeves"),
+        "the synergy table is rendered"
+    );
+    assert!(
+        html.contains("https://www.themoviedb.org/person/6384"),
+        "actors link to TMDB"
+    );
+    assert!(
+        html.contains("/discover/top?kind=tv"),
+        "the kind control is a link, not a button"
+    );
+    assert!(
+        html.contains(r#"<link rel="canonical""#),
+        "the page is indexable"
+    );
+
+    // The whole point: reading this page needs no script.
+    assert!(
+        !html.contains("<script"),
+        "a browse page must not require JavaScript"
+    );
+}
+
+/// A list nobody has built yet is a 404, and so is a section that does not exist.
+#[tokio::test]
+async fn an_unbuilt_discovery_page_is_not_an_empty_page() {
+    let h = harness(100).await;
+
+    let (status, _, body) = call_raw(&h.app, get_path_raw("/discover/top")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(!body.is_empty(), "an error page still has a body");
+
+    let (status, _, _) = call_raw(&h.app, get_path_raw("/discover/best-anime")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
 /// Runs the refresh the background job runs, against the stub, then reads the page back. The
 /// interesting assertion is the synergy table: 603 and 604 share two actors.
 #[tokio::test]

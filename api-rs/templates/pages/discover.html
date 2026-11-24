@@ -1,0 +1,105 @@
+{% extends "layouts/base.html" %}
+{% import "macros/cards.html" as cards %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24">
+  <h1 class="text-2xl tracking-tight text-paper">{{ heading }}</h1>
+  <p class="mt-1 max-w-xl text-sm text-dim">{{ blurb }}</p>
+
+  <div class="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
+    <div class="flex items-center gap-1">
+      <span class="label mr-1 hidden sm:inline">Type</span>
+      {% for choice in kinds %}
+      <a
+        href="{{ choice.href }}"
+        {% if choice.active %}aria-current="true"{% endif %}
+        class="rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors{% if choice.active %} border-paper bg-paper text-ink{% else %} border-line text-dim hover:border-dim hover:text-paper{% endif %}"
+      >{{ choice.label }}</a>
+      {% endfor %}
+    </div>
+
+    {# A section with a single list has no second axis: a one-option control is a dead button. #}
+    {% if filters.len() > 1 %}
+    <span aria-hidden="true" class="h-4 w-px bg-line"></span>
+    <div class="flex items-center gap-1">
+      <span class="label mr-1 hidden sm:inline">{{ filter_group }}</span>
+      {% for choice in filters %}
+      <a
+        href="{{ choice.href }}"
+        {% if choice.active %}aria-current="true"{% endif %}
+        class="rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors{% if choice.active %} border-paper bg-paper text-ink{% else %} border-line text-dim hover:border-dim hover:text-paper{% endif %}"
+      >{{ choice.label }}</a>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <p class="label mt-4">
+    {{ item_count }} titles · refreshed
+    <span title="{{ refreshed_absolute }}">{{ refreshed_relative }}</span>
+  </p>
+
+  <section class="mt-6" aria-labelledby="the-list">
+    <h2 id="the-list" class="label mb-3">The list</h2>
+
+    <ol class="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-6">
+      {% for item in items %}
+      <li>
+        <a href="{{ item.href }}" target="_blank" rel="noreferrer noopener" class="group block">
+          <div class="relative">
+            {% call cards::poster_well(item.image) %}{% endcall %}
+            <span class="tnum absolute left-1 top-1 rounded bg-ink/80 px-1.5 py-0.5 font-mono text-[10px] text-paper backdrop-blur">{{ item.rank }}</span>
+          </div>
+
+          <p class="mt-1.5 line-clamp-2 text-xs leading-snug text-paper group-hover:text-accent">{{ item.name }}</p>
+          <p class="tnum mt-0.5 font-mono text-[10px] text-dim">{{ item.meta }}</p>
+        </a>
+      </li>
+      {% endfor %}
+    </ol>
+  </section>
+
+  <section class="mt-12" aria-labelledby="synergy">
+    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+      <h2 id="synergy" class="label">Actors in two or more</h2>
+      {% if in_every > 0 %}
+      <p class="label">
+        {{ in_every }} {% if in_every == 1 %}appears{% else %}appear{% endif %} in every title
+      </p>
+      {% endif %}
+    </div>
+
+    {% if rows.is_empty() %}
+    <p class="text-xs text-dim">Nobody appears twice in this list.</p>
+    {% else %}
+    <ul class="grid gap-1.5 sm:grid-cols-2">
+      {% for card in rows %}{% call cards::synergy_card(card) %}{% endcall %}{% endfor %}
+    </ul>
+
+    {# The tail folds away with `<details>`: 250 cards in one column is a page nobody scrolls,
+       and this needs no script to open. #}
+    {% if !more_rows.is_empty() %}
+    <details class="mt-2">
+      <summary class="cursor-pointer text-xs text-dim hover:text-paper">
+        Show all {{ more_count }} ({{ more_rows.len() }} more)
+      </summary>
+      <ul class="mt-1.5 grid gap-1.5 sm:grid-cols-2">
+        {% for card in more_rows %}{% call cards::synergy_card(card) %}{% endcall %}{% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+    {% endif %}
+  </section>
+
+  <nav aria-label="Other sections" class="mt-12 border-t border-line pt-4">
+    <p class="label mb-2">Browse</p>
+    <ul class="flex flex-wrap gap-x-4 gap-y-1.5">
+      {% for other in others %}
+      <li><a href="{{ other.href }}" class="text-xs text-dim hover:text-paper">{{ other.heading }}</a></li>
+      {% endfor %}
+      <li><a href="/" class="text-xs text-dim hover:text-paper">Compare titles</a></li>
+      <li><a href="/person" class="text-xs text-dim hover:text-paper">Compare people</a></li>
+    </ul>
+  </nav>
+</main>
+{% endblock %}

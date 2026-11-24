@@ -17,6 +17,7 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 pub mod admin;
+pub mod assets;
 pub mod bans;
 pub mod clock;
 pub mod compare;
@@ -29,6 +30,7 @@ pub mod geo;
 pub mod intersect;
 pub mod maintenance;
 pub mod og;
+pub mod pageviews;
 pub mod paths;
 pub mod ratelimit;
 pub mod routes;
@@ -83,6 +85,12 @@ pub fn build_app(state: AppState) -> Router {
         ))
         .with_state(state.clone());
 
+    // Server-rendered pages. These are real routes now, not paths handed to the SPA, so the
+    // content is in the first response and the URL is the same for a person and a crawler.
+    let pages = Router::new()
+        .route("/discover/{section}", get(routes::discover::page))
+        .with_state(state.clone());
+
     // Comparison pages, for humans and crawlers alike; Open Graph tags are injected.
     let comparison_page = Router::new()
         .route("/title/{picks}", get(routes::og::page_title))
@@ -111,7 +119,8 @@ pub fn build_app(state: AppState) -> Router {
         .nest("/api", api)
         .nest("/api", public_api)
         .merge(share_card)
-        .merge(comparison_page);
+        .merge(comparison_page)
+        .merge(pages);
 
     let static_dir = PathBuf::from(&state.config.static_dir);
     if static_dir.is_dir() {

@@ -9,10 +9,10 @@ use crate::bans::{AutoBan, BanCache};
 use crate::config::Config;
 use crate::error::AppError;
 use crate::geo::Geo;
+use crate::pageviews::ViewDeduper;
 use crate::ratelimit::RateLimiter;
 use crate::store::{Store, StoreConfig};
 use crate::tmdb::Tmdb;
-use crate::views::ViewDeduper;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -22,6 +22,8 @@ pub struct AppState {
     /// Rendered share cards, keyed by canonical comparison path. Rasterising is the most
     /// expensive thing this service does, and a crawler asks for the same card repeatedly.
     pub og_cache: Cache<String, Arc<Vec<u8>>>,
+    /// Hashed filenames of the built CSS and island, read once from the Vite manifest.
+    pub assets: crate::assets::Assets,
     /// `dist/index.html` held in memory so Open Graph tags can be injected per comparison.
     /// `None` when the deployment serves no SPA.
     pub index_html: Option<Arc<String>>,
@@ -72,6 +74,8 @@ impl AppState {
                 .filter(|html| html.trim().len() > 32)
                 .map(Arc::new);
 
+        let assets = crate::assets::Assets::load(std::path::Path::new(&config.static_dir));
+
         let admin = Arc::new(AdminAuth::new(config.admin_token.clone()));
         if !admin.enabled() {
             tracing::info!("ADMIN_TOKEN is not set; the admin API is disabled");
@@ -90,6 +94,7 @@ impl AppState {
                 .max_capacity(512)
                 .time_to_live(std::time::Duration::from_secs(3600))
                 .build(),
+            assets,
             index_html,
             store: Arc::new(store),
             geo,

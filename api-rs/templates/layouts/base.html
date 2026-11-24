@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ head.title }}</title>
+    <meta name="description" content="{{ head.description }}" />
+    {% if !head.canonical.is_empty() %}<link rel="canonical" href="{{ head.canonical }}" />{% endif %}
+    <meta name="theme-color" content="#0b0b0d" />
+    <meta name="color-scheme" content="dark" />
+    <link rel="icon" type="image/png" href="/avatar.png" />
+    <link rel="preconnect" href="https://image.tmdb.org" />
+    {% if head.noindex %}<meta name="robots" content="noindex" />{% endif %}
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="same.actor" />
+    <meta property="og:title" content="{{ head.title }}" />
+    <meta property="og:description" content="{{ head.description }}" />
+    {% if !head.canonical.is_empty() %}
+    <meta property="og:url" content="{{ head.canonical }}" />
+    {% endif %}
+    {% if !head.image.is_empty() %}
+    <meta property="og:image" content="{{ head.image }}" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="{{ head.description }}" />
+    <meta name="twitter:card" content="summary_large_image" />
+    {% else %}
+    <meta name="twitter:card" content="summary" />
+    {% endif %}
+    <meta name="twitter:title" content="{{ head.title }}" />
+    <meta name="twitter:description" content="{{ head.description }}" />
+    {% if !head.image.is_empty() %}<meta name="twitter:image" content="{{ head.image }}" />{% endif %}
+
+    {% if !head.css.is_empty() %}<link rel="stylesheet" href="{{ head.css }}" />{% endif %}
+    {% if !head.island.is_empty() %}
+    <script type="module" src="{{ head.island }}" defer></script>
+    {% endif %}
+  </head>
+  <body>
+    <div class="flex min-h-screen flex-col">
+      {% include "partials/header.html" %}
+      {% block content %}{% endblock %}
+      {% include "partials/footer.html" %}
+    </div>
+  </body>
+</html>

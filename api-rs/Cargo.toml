@@ -2,11 +2,13 @@
 name = "same-actor"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.88"
 description = "Same.Actor — does that title/actor share a cast?"
 license = "MIT"
 
 [dependencies]
+# Templates are compiled into the binary: a typo is a build error, not a 500 at runtime.
+askama = "0.16"
 axum = "0.8"
 tokio = { version = "1", features = [
   "rt-multi-thread",

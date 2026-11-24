@@ -2,6 +2,10 @@
    the prefers-reduced-motion reset, which must beat utilities that ship transitions. */
 @import "tailwindcss";
 
+/* Templates live outside `src/`, so they are named explicitly rather than relying on automatic
+   detection: a class that only appears in a template is a class the build must still emit. */
+@source "../api-rs/templates";
+
 /* Design tokens. Tailwind 4 reads these as theme values, so they are available both as
    utilities (bg-ink, text-dim) and as CSS variables (var(--color-ink)). */
 @theme {

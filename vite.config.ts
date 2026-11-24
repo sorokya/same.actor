@@ -18,5 +18,8 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
+    // The Rust side reads this to learn the hashed asset names: a template cannot hard-code
+    // `index-Ccu-D8U5.css`.
+    manifest: true,
   },
 });

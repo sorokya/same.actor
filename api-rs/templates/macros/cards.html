@@ -1,0 +1,64 @@
+{# Artwork wells and actor cards, shared by the poster shelf and the two halves of the synergy
+   table. Defined once here: the same markup rendered twice from one source is the only way the
+   folded tail and the first screenful cannot drift apart.
+
+   The placeholder is a layer *under* the image rather than a fallback branch. TMDB has a poster
+   path for most titles and the ones it cannot serve are only discovered at load time; with no
+   script on these pages there is no `onerror`, so the icon sits behind the image and shows
+   through when the image never arrives. A title with no artwork at all looks the same. #}
+
+{% macro film_icon(size) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <rect x="3" y="4.5" width="18" height="15" rx="1.5"></rect>
+  <path d="M7.5 4.5v15M16.5 4.5v15M3 12h18"></path>
+</svg>
+{% endmacro %}
+
+{% macro user_icon(size) %}
+<svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <circle cx="12" cy="8.5" r="3.75"></circle>
+  <path d="M4.75 20a7.25 7.25 0 0 1 14.5 0"></path>
+</svg>
+{% endmacro %}
+
+{# A poster cell that follows its container. #}
+{% macro poster_well(image) %}
+<span class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2">
+  <span class="absolute inset-0 flex items-center justify-center text-dim/60">{% call film_icon(45) %}{% endcall %}</span>
+  {% if !image.is_empty() %}
+  <img src="{{ image }}" alt="" loading="lazy" decoding="async" class="relative h-full w-full object-cover" />
+  {% endif %}
+</span>
+{% endmacro %}
+
+{# A square portrait at a fixed size, so rows line up before the images land. #}
+{% macro avatar_well(image) %}
+<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line-soft bg-raise-2" style="width:36px;height:36px">
+  <span class="absolute inset-0 flex items-center justify-center text-dim/60">{% call user_icon(15) %}{% endcall %}</span>
+  {% if !image.is_empty() %}
+  <img src="{{ image }}" alt="" width="36" height="36" loading="lazy" decoding="async" class="relative h-full w-full object-cover" />
+  {% endif %}
+</span>
+{% endmacro %}
+
+{# One actor: portrait (decorative), the name as the link, and the titles they are in — each of
+   which is its own link, because a title on a card is exactly where a reader wants to go. #}
+{% macro synergy_card(card) %}
+<li class="flex items-start gap-2.5 rounded-md border border-line bg-raise/40 p-2">
+  <span class="shrink-0" aria-hidden="true">{% call avatar_well(card.image) %}{% endcall %}</span>
+
+  <div class="min-w-0 flex-1">
+    <div class="flex items-baseline justify-between gap-2">
+      <a href="{{ card.href }}" target="_blank" rel="noreferrer noopener" class="truncate text-[13px] text-paper hover:text-accent">{{ card.name }}</a>
+      <span
+        class="tnum shrink-0 rounded-full border border-line px-1.5 font-mono text-[10px] text-dim"
+        title="Appears in {{ card.count }} of these titles"
+      >in {{ card.count }}</span>
+    </div>
+
+    <p class="mt-0.5 text-[11px] leading-snug">
+      {% for title in card.titles %}{% if loop.index0 > 0 %}<span class="text-dim/50"> · </span>{% endif %}<a href="{{ title.href }}" target="_blank" rel="noreferrer noopener" class="text-dim/80 hover:text-paper hover:underline">{{ title.name }}</a>{% endfor %}
+    </p>
+  </div>
+</li>
+{% endmacro %}

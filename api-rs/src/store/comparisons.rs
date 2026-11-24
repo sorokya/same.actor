@@ -4,7 +4,7 @@
 //! request that opened it. Counting per request would let one refresh look like ten people, and
 //! counting per IP would collapse a household into one.
 //!
-//! Deduplication lives in memory (see [`crate::views`]): a database round trip on every page view
+//! Deduplication lives in memory (see [`crate::pageviews`]): a database round trip on every page view
 //! to check "have I seen this session and this key before" costs more than the lost counts on
 //! restart are worth.
 

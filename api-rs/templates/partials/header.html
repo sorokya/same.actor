@@ -1,0 +1,25 @@
+{% import "macros/nav.html" as nav %}
+{# One header for every page: the comparison tool, the browse sections and the dashboard. The
+   chrome is shared here rather than in three components, which is what let the three drift
+   apart in the first place. #}
+<header class="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
+  <div
+    class="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
+  >
+    <a
+      href="/"
+      class="shrink-0 font-mono text-[13px] uppercase tracking-[0.2em] text-paper transition-colors hover:text-accent"
+    >same<span class="text-accent">.</span>actor</a>
+
+    <nav aria-label="Sections" class="flex max-w-full flex-wrap items-center gap-0.5 sm:flex-nowrap">
+      {% call nav::tab("/", "Titles", head.nav == "title") %}{% endcall %}
+      {% call nav::tab("/person", "People", head.nav == "person") %}{% endcall %}
+
+      <span aria-hidden="true" class="mx-1.5 h-4 w-px shrink-0 bg-line"></span>
+
+      {% call nav::tab("/discover/top", "Top", head.nav == "top") %}{% endcall %}
+      {% call nav::tab("/discover/new", "New", head.nav == "new") %}{% endcall %}
+      {% call nav::tab("/discover/upcoming", "Upcoming", head.nav == "upcoming") %}{% endcall %}
+    </nav>
+  </div>
+</header>

@@ -1,54 +1,27 @@
-//! `GET /api/discover` and `GET /api/discover/{section}`.
+//! `/discover/{section}` — the page, and the JSON under `/api/discover`.
 //!
-//! Reads the stored snapshot; never calls TMDB. The refresh job owns that, and a page that waits
-//! on an upstream call is a page that goes down when TMDB does.
+//! Both read the same snapshot through [`load`], so the page a person sees and the JSON a script
+//! sees cannot disagree about what is in a list. Neither calls TMDB: the refresh job owns that,
+//! and a page that waits on an upstream call is a page that goes down when TMDB does.
 
 use axum::extract::{Path, State};
+use axum::response::Html;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::discovery::{self, Item, Section, SynergyRow};
+use crate::discovery::{self, Item, Section, SynergyRow, Variant};
 use crate::domain::Kind;
 use crate::error::AppError;
 use crate::extract::AppQuery;
 use crate::state::AppState;
+use crate::views::discover::{DiscoverPage, Snapshot};
+use crate::views::{render, Head};
 
-#[derive(Debug, Serialize)]
-pub struct DiscoverIndex {
-    pub sections: Vec<SectionSummary>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SectionSummary {
-    pub key: &'static str,
-    pub heading: &'static str,
-    pub blurb: &'static str,
-    /// The most recent refresh across this section's lists, or `None` if none has run.
-    pub refreshed_ts: Option<i64>,
-}
-
-/// One option in a segmented control.
-#[derive(Debug, Serialize)]
-pub struct Choice {
-    pub value: &'static str,
-    pub label: &'static str,
-}
-
-#[derive(Debug, Serialize)]
-pub struct DiscoverPage {
-    pub section: &'static str,
-    /// "Top films" — the section and the kind, which is the page's actual title.
-    pub heading: String,
-    pub blurb: &'static str,
-    pub kind: &'static str,
-    pub filter: &'static str,
-    /// Both kinds, always, so the control does not move between pages.
-    pub kinds: Vec<Choice>,
-    /// The second axis, when this section has one for this kind. One entry means no choice to
-    /// offer, and the client hides the control rather than showing a single dead option.
-    pub filters: Vec<Choice>,
-    /// What that axis is: "Ranked by" for top, "Where" for new.
-    pub filter_group: &'static str,
+/// One section's snapshot, already parsed.
+pub struct Loaded {
+    pub section: Section,
+    pub kind: Kind,
+    pub variant: &'static Variant,
     pub refreshed_ts: i64,
     pub items: Vec<Item>,
     pub synergy: Vec<SynergyRow>,
@@ -86,6 +59,87 @@ fn parse_kind(raw: Option<&str>) -> Result<Kind, AppError> {
     }
 }
 
+/// Resolve a request and read its stored list.
+pub async fn load(
+    state: &AppState,
+    section_key: &str,
+    kind_raw: Option<&str>,
+    filter: Option<&str>,
+) -> Result<Loaded, AppError> {
+    let Some(section) = Section::from_key(section_key) else {
+        return Err(AppError::NotFound);
+    };
+
+    let kind = parse_kind(kind_raw)?;
+
+    let Some(variant) = discovery::resolve(section, kind, filter) else {
+        return Err(AppError::Validation(format!(
+            "unknown filter for this list: {}",
+            filter.unwrap_or_default()
+        )));
+    };
+
+    let Some(stored) = state.store.list_snapshot(variant.id.to_owned()).await? else {
+        // The refresh has not run yet. That is a 404 rather than an empty page: an empty list
+        // looks like "nothing is popular", which is a lie.
+        return Err(AppError::NotFound);
+    };
+
+    let items: Vec<Item> = serde_json::from_str(&stored.payload)
+        .map_err(|error| AppError::Store(format!("a stored list is unreadable: {error}")))?;
+    let synergy: Vec<SynergyRow> = serde_json::from_str(&stored.synergy).unwrap_or_default();
+
+    Ok(Loaded {
+        section,
+        kind,
+        variant,
+        refreshed_ts: stored.fetched_ts,
+        items,
+        synergy,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiscoverIndex {
+    pub sections: Vec<SectionSummary>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SectionSummary {
+    pub key: &'static str,
+    pub heading: &'static str,
+    pub blurb: &'static str,
+    /// The most recent refresh across this section's lists, or `None` if none has run.
+    pub refreshed_ts: Option<i64>,
+}
+
+/// One option in a segmented control.
+#[derive(Debug, Serialize)]
+pub struct Choice {
+    pub value: &'static str,
+    pub label: &'static str,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DiscoverPageJson {
+    pub section: &'static str,
+    /// "Top films" — the section and the kind, which is the page's actual title.
+    pub heading: String,
+    pub blurb: &'static str,
+    pub kind: &'static str,
+    pub filter: &'static str,
+    /// Both kinds, always, so the control does not move between pages.
+    pub kinds: Vec<Choice>,
+    /// The second axis, when this section has one for this kind. One entry means no choice to
+    /// offer, and the page hides the control rather than showing a single dead option.
+    pub filters: Vec<Choice>,
+    /// What that axis is: "Ranked by" for top, "Where" for new.
+    pub filter_group: &'static str,
+    pub refreshed_ts: i64,
+    pub items: Vec<Item>,
+    pub synergy: Vec<SynergyRow>,
+}
+
 pub async fn index(State(state): State<AppState>) -> Result<Json<DiscoverIndex>, AppError> {
     let mut sections = Vec::with_capacity(Section::ALL.len());
 
@@ -115,31 +169,16 @@ pub async fn show(
     State(state): State<AppState>,
     Path(section_key): Path<String>,
     AppQuery(query): AppQuery<PageQuery>,
-) -> Result<Json<DiscoverPage>, AppError> {
-    let Some(section) = Section::from_key(&section_key) else {
-        return Err(AppError::NotFound);
-    };
+) -> Result<Json<DiscoverPageJson>, AppError> {
+    let loaded = load(
+        &state,
+        &section_key,
+        query.kind.as_deref(),
+        query.filter.as_deref(),
+    )
+    .await?;
 
-    let kind = parse_kind(query.kind.as_deref())?;
-
-    let Some(variant) = discovery::resolve(section, kind, query.filter.as_deref()) else {
-        return Err(AppError::Validation(format!(
-            "unknown filter for this list: {}",
-            query.filter.as_deref().unwrap_or_default()
-        )));
-    };
-
-    let Some(stored) = state.store.list_snapshot(variant.id.to_owned()).await? else {
-        // The refresh has not run yet. That is a 404 rather than an empty page: an empty list
-        // looks like "nothing is popular", which is a lie.
-        return Err(AppError::NotFound);
-    };
-
-    let items: Vec<Item> = serde_json::from_str(&stored.payload)
-        .map_err(|error| AppError::Store(format!("a stored list is unreadable: {error}")))?;
-    let synergy: Vec<SynergyRow> = serde_json::from_str(&stored.synergy).unwrap_or_default();
-
-    let filters: Vec<Choice> = discovery::variants(section, kind)
+    let filters: Vec<Choice> = discovery::variants(loaded.section, loaded.kind)
         .filter(|candidate| !candidate.filter.is_empty())
         .map(|candidate| Choice {
             value: candidate.filter,
@@ -147,12 +186,16 @@ pub async fn show(
         })
         .collect();
 
-    Ok(Json(DiscoverPage {
-        section: section.key(),
-        heading: format!("{} {}", section.heading(), kind_label(kind).to_lowercase()),
-        blurb: section.blurb(),
-        kind: kind_key(kind),
-        filter: variant.filter,
+    Ok(Json(DiscoverPageJson {
+        section: loaded.section.key(),
+        heading: format!(
+            "{} {}",
+            loaded.section.heading(),
+            kind_label(loaded.kind).to_lowercase()
+        ),
+        blurb: loaded.section.blurb(),
+        kind: kind_key(loaded.kind),
+        filter: loaded.variant.filter,
         kinds: vec![
             Choice {
                 value: "movie",
@@ -164,11 +207,89 @@ pub async fn show(
             },
         ],
         filters,
-        filter_group: section.filter_group(),
-        refreshed_ts: stored.fetched_ts,
-        items,
-        synergy,
+        filter_group: loaded.section.filter_group(),
+        refreshed_ts: loaded.refreshed_ts,
+        items: loaded.items,
+        synergy: loaded.synergy,
     }))
+}
+
+/// The HTML half, at `/discover/{section}`.
+pub async fn page(
+    State(state): State<AppState>,
+    Path(section_key): Path<String>,
+    AppQuery(query): AppQuery<PageQuery>,
+) -> Result<Html<String>, AppError> {
+    let loaded = load(
+        &state,
+        &section_key,
+        query.kind.as_deref(),
+        query.filter.as_deref(),
+    )
+    .await?;
+
+    let heading = format!(
+        "{} {}",
+        loaded.section.heading(),
+        kind_label(loaded.kind).to_lowercase()
+    );
+
+    let mut head = Head::new(
+        format!("{heading} — same.actor"),
+        format!(
+            "{}. Refreshed every few hours.",
+            loaded.section.blurb().trim_end_matches('.')
+        ),
+        loaded.section.key(),
+    );
+
+    if let Some(css) = state.assets.css.as_deref() {
+        head = head.with_css(css);
+    }
+
+    head = head.with_canonical(format!(
+        "{}{}",
+        state.config.public_origin.trim_end_matches('/'),
+        canonical_path(loaded.section, loaded.kind, loaded.variant.filter)
+    ));
+
+    let view = DiscoverPage::new(
+        head,
+        &Snapshot {
+            section: loaded.section,
+            kind: loaded.kind,
+            variant: loaded.variant,
+            refreshed_ts: loaded.refreshed_ts,
+            items: &loaded.items,
+            synergy: &loaded.synergy,
+        },
+        crate::clock::now_unix(),
+        &Section::ALL,
+    );
+
+    render(&view)
+}
+
+/// The canonical path for a list. The default page for a section is the bare path, so
+/// `/discover/top` and `/discover/top?kind=movie&filter=all-time` are one page to a crawler.
+fn canonical_path(section: Section, kind: Kind, filter: &str) -> String {
+    let default_filter = discovery::resolve(section, kind, None)
+        .map(|variant| variant.filter)
+        .unwrap_or("");
+
+    if kind == Kind::Movie && filter == default_filter {
+        return format!("/discover/{}", section.key());
+    }
+
+    if filter == default_filter {
+        return format!("/discover/{}?kind={}", section.key(), kind_key(kind));
+    }
+
+    format!(
+        "/discover/{}?kind={}&filter={filter}",
+        section.key(),
+        kind_key(kind)
+    )
 }
 
 #[cfg(test)]
@@ -212,5 +333,27 @@ mod tests {
         assert!(parse_kind(Some("person")).is_err());
         assert_eq!(parse_kind(None).expect("default"), Kind::Movie);
         assert_eq!(parse_kind(Some("tv")).expect("tv"), Kind::Tv);
+    }
+
+    /// The bare path is the canonical form of the default list, so it must not advertise a
+    /// query string it does not need.
+    #[test]
+    fn the_default_list_has_a_bare_canonical_path() {
+        assert_eq!(
+            canonical_path(Section::Top, Kind::Movie, "all-time"),
+            "/discover/top"
+        );
+        assert_eq!(
+            canonical_path(Section::Top, Kind::Movie, "trending"),
+            "/discover/top?kind=movie&filter=trending"
+        );
+        assert_eq!(
+            canonical_path(Section::Top, Kind::Tv, "all-time"),
+            "/discover/top?kind=tv"
+        );
+        assert_eq!(
+            canonical_path(Section::Upcoming, Kind::Movie, ""),
+            "/discover/upcoming"
+        );
     }
 }

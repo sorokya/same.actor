@@ -368,7 +368,7 @@ fn today_utc() -> String {
     civil_from_days(days as i64)
 }
 
-fn civil_from_days(days_since_epoch: i64) -> String {
+pub(crate) fn civil_from_days(days_since_epoch: i64) -> String {
     let z = days_since_epoch + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
     let doe = z - era * 146_097;
