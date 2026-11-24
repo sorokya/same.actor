@@ -1,0 +1,124 @@
+{# The comparison results: a real table on a wide screen, the same data as cards on a phone.
+   A horizontally scrolling table is technically responsive and practically unusable, which is
+   why both shapes exist rather than one that shrinks.
+
+   This macro is the whole of the results region, so the server can render it into a page and
+   the island can fetch exactly the same markup into an existing view. #}
+{% import "macros/cards.html" as cards %}
+
+{% macro results(view) %}
+{# Fewer than two selections is not a result and not a failure: it is the state before there is
+   anything to compare, so it gets a hint rather than an empty table. #}
+{% if view.selections.len() < 2 %}
+{% if !view.hint.is_empty() %}<p class="mt-4 text-sm text-dim">{{ view.hint }}</p>{% endif %}
+{% else %}
+
+<div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+  <h2 class="text-xs text-dim">{{ view.count_label }}</h2>
+  <div class="flex items-baseline gap-3">
+    {% if !view.views_label.is_empty() %}<p class="label">{{ view.views_label }}</p>{% endif %}
+    {% if view.most_shared %}<p class="label">most shared first</p>{% endif %}
+  </div>
+</div>
+
+{% if view.rows.is_empty() %}
+<div class="rounded-md border border-line bg-raise p-8 text-center">
+  <p class="text-sm text-paper">{{ view.empty_heading }}</p>
+  <p class="mt-1 text-xs text-dim">
+    Nothing links all of these. Try removing one, or picking a bigger production.
+  </p>
+</div>
+{% else %}
+
+<div class="hidden overflow-x-auto rounded-md border border-line sm:block">
+  <table class="w-full border-collapse text-sm">
+    <caption class="sr-only">{{ view.row_heading }}, one column per selection</caption>
+
+    <thead>
+      <tr class="border-b border-line bg-raise">
+        <th scope="col" class="sticky left-0 z-10 border-r border-line-soft bg-raise px-3 pt-10 pb-2 text-left align-top">
+          {# The padding matches the artwork and gap above the names, so this label sits on the
+             same line as the column titles instead of floating above or below them. #}
+          <span class="label">{{ view.row_heading }}</span>
+        </th>
+
+        {% for column in view.selections %}
+        <th scope="col" class="min-w-[9rem] border-l border-line-soft px-3 pt-2 pb-2 text-left align-top font-normal">
+          <span aria-hidden="true" class="mb-1.5 block h-[2px] w-8 rounded-full" style="background: {{ column.tint }}"></span>
+          <a href="{{ column.href }}" target="_blank" rel="noreferrer noopener" class="block hover:underline">
+            {% call cards::art(column.image, column.art_classes, 12, column.person) %}{% endcall %}
+            <span class="mt-1.5 block truncate text-xs text-paper">{{ column.name }}</span>
+            {% if !column.year.is_empty() %}
+            <span class="tnum block font-mono text-[11px]" style="color: {{ column.tint }}">{{ column.year }}</span>
+            {% endif %}
+          </a>
+        </th>
+        {% endfor %}
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for row in view.rows %}
+      <tr class="border-b border-line-soft last:border-0 hover:bg-raise/60">
+        <th scope="row" class="sticky left-0 z-10 border-r border-line-soft bg-ink px-3 py-2 text-left font-normal">
+          <a href="{{ row.href }}" target="_blank" rel="noreferrer noopener" class="flex items-center gap-2.5 hover:underline">
+            {% call cards::art(row.image, row.art_classes, 14, row.person) %}{% endcall %}
+            <span class="min-w-0">
+              <span class="block truncate text-[13px] text-paper">{{ row.name }}</span>
+              {% if !row.year.is_empty() %}
+              <span class="tnum block font-mono text-[10px] text-dim">{{ row.year }}</span>
+              {% endif %}
+            </span>
+          </a>
+        </th>
+
+        {% for cell in row.cells %}
+        <td class="border-l border-line-soft px-3 py-2 align-top">
+          {% if cell.text.is_empty() %}
+          {# An ambiguous blank cell reads as a rendering failure. A dash says "not credited
+             here" without inventing words. #}
+          <span aria-hidden="true" class="text-xs text-dim/40">—</span>
+          <span class="sr-only">Not credited</span>
+          {% else %}
+          <span class="text-xs text-dim">{{ cell.text }}</span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<ul class="space-y-2 sm:hidden">
+  {% for row in view.rows %}
+  <li class="rounded-md border border-line bg-raise p-3">
+    <a href="{{ row.href }}" target="_blank" rel="noreferrer noopener" class="flex items-center gap-2.5">
+      {% call cards::art(row.image, row.art_classes_mobile, 16, row.person) %}{% endcall %}
+      <span class="min-w-0">
+        {# Two lines, not one: a truncated title on a card has no tooltip rescue. #}
+        <span class="line-clamp-2 text-sm text-paper">{{ row.name }}</span>
+        {% if !row.year.is_empty() %}
+        <span class="tnum block font-mono text-[10px] text-dim">{{ row.year }}</span>
+        {% endif %}
+      </span>
+    </a>
+
+    <dl class="mt-2 space-y-1 border-t border-line-soft pt-2">
+      {% for cell in row.cells %}
+      <div class="flex gap-2 text-xs">
+        <dt class="w-2/5 min-w-0 truncate text-dim">{{ cell.label }}</dt>
+        {# Roles wrap: a TV credit can be a sentence, and clipping it hides the detail. #}
+        <dd class="w-3/5 min-w-0 break-words text-paper">
+          {% if cell.text.is_empty() %}—{% else %}{{ cell.text }}{% endif %}
+        </dd>
+      </div>
+      {% endfor %}
+    </dl>
+  </li>
+  {% endfor %}
+</ul>
+
+{% endif %}
+{% endif %}
+{% endmacro %}

@@ -1,0 +1,4 @@
+{# The results region alone, for the island to swap in. Deliberately renders the same macro the
+   full page uses, so there is one definition of what a result looks like. #}
+{% import "macros/results.html" as results %}
+{% call results::results(results) %}{% endcall %}

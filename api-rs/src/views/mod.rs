@@ -7,6 +7,7 @@
 //! The alternative — rendering JSON on the client — is what this replaced. A share link now
 //! paints its content before a byte of JavaScript runs.
 
+pub mod compare;
 pub mod discover;
 
 use askama::Template;

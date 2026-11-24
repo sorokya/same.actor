@@ -1,11 +1,11 @@
-{# Artwork wells and actor cards, shared by the poster shelf and the two halves of the synergy
-   table. Defined once here: the same markup rendered twice from one source is the only way the
-   folded tail and the first screenful cannot drift apart.
+{# Artwork wells and actor cards, shared by the poster shelf, the synergy table and the
+   comparison results. Defined once here: the same markup rendered in several places from one
+   source is the only way they cannot drift apart.
 
    The placeholder is a layer *under* the image rather than a fallback branch. TMDB has a poster
    path for most titles and the ones it cannot serve are only discovered at load time; with no
-   script on these pages there is no `onerror`, so the icon sits behind the image and shows
-   through when the image never arrives. A title with no artwork at all looks the same. #}
+   script there is no `onerror`, so the icon sits behind the image and shows through when the
+   image never arrives. A title with no artwork at all looks the same. #}
 
 {% macro film_icon(size) %}
 <svg width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -21,6 +21,20 @@
 </svg>
 {% endmacro %}
 
+{# An artwork well. `classes` carries the size and shape, so the call site decides whether it is
+   a 2:3 poster or a circular portrait and this macro only owns the layering.
+   `person` picks the placeholder glyph. #}
+{% macro art(image, classes, icon_size, person) %}
+<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden border border-line-soft bg-raise-2 {{ classes }}">
+  <span class="absolute inset-0 flex items-center justify-center text-dim/60">
+    {% if person %}{% call user_icon(icon_size) %}{% endcall %}{% else %}{% call film_icon(icon_size) %}{% endcall %}{% endif %}
+  </span>
+  {% if !image.is_empty() %}
+  <img src="{{ image }}" alt="" loading="lazy" decoding="async" class="relative h-full w-full object-cover" />
+  {% endif %}
+</span>
+{% endmacro %}
+
 {# A poster cell that follows its container. #}
 {% macro poster_well(image) %}
 <span class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2">
@@ -31,21 +45,11 @@
 </span>
 {% endmacro %}
 
-{# A square portrait at a fixed size, so rows line up before the images land. #}
-{% macro avatar_well(image) %}
-<span class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-line-soft bg-raise-2" style="width:36px;height:36px">
-  <span class="absolute inset-0 flex items-center justify-center text-dim/60">{% call user_icon(15) %}{% endcall %}</span>
-  {% if !image.is_empty() %}
-  <img src="{{ image }}" alt="" width="36" height="36" loading="lazy" decoding="async" class="relative h-full w-full object-cover" />
-  {% endif %}
-</span>
-{% endmacro %}
-
 {# One actor: portrait (decorative), the name as the link, and the titles they are in — each of
    which is its own link, because a title on a card is exactly where a reader wants to go. #}
 {% macro synergy_card(card) %}
 <li class="flex items-start gap-2.5 rounded-md border border-line bg-raise/40 p-2">
-  <span class="shrink-0" aria-hidden="true">{% call avatar_well(card.image) %}{% endcall %}</span>
+  <span class="shrink-0" aria-hidden="true">{% call art(card.image, "h-9 w-9 rounded-full", 15, true) %}{% endcall %}</span>
 
   <div class="min-w-0 flex-1">
     <div class="flex items-baseline justify-between gap-2">

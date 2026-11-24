@@ -91,10 +91,12 @@ pub fn build_app(state: AppState) -> Router {
         .route("/discover/{section}", get(routes::discover::page))
         .with_state(state.clone());
 
-    // Comparison pages, for humans and crawlers alike; Open Graph tags are injected.
+    // The comparison pages: server-rendered, with their own metadata.
     let comparison_page = Router::new()
-        .route("/title/{picks}", get(routes::og::page_title))
-        .route("/person/{picks}", get(routes::og::page_person))
+        .route("/", get(routes::compare::home))
+        .route("/person", get(routes::compare::people))
+        .route("/title/{picks}", get(routes::compare::titles))
+        .route("/person/{picks}", get(routes::compare::persons))
         .with_state(state.clone());
 
     // The admin API is mounted unconditionally and guards itself: when ADMIN_TOKEN is unset it

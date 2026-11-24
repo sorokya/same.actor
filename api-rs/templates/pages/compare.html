@@ -1,0 +1,40 @@
+{% extends "layouts/base.html" %}
+{% import "macros/results.html" as results %}
+{% import "macros/cards.html" as cards %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24">
+  <h1 class="text-2xl tracking-tight text-paper">{{ heading }}</h1>
+  <p class="mt-1 max-w-xl text-sm text-dim">{{ sub }}</p>
+
+  {# The picker is the one island on the site: typing, keyboard navigation and instant results
+     are the parts that genuinely need a component. It replaces this markup when it mounts, so
+     what is here is the no-JavaScript version — the selection, as links, and a note. #}
+  <div id="picker" data-state="{{ state_json }}" data-share="{{ share_url }}" data-mode="{{ mode }}" class="mt-6">
+    {% if !results.selections.is_empty() %}
+    <p class="label mb-2">Selected</p>
+    <ul class="grid gap-1.5 sm:grid-cols-2">
+      {% for column in results.selections %}
+      <li class="flex items-center gap-2.5 rounded-md border border-line bg-raise px-2 py-1.5">
+        {% call cards::art(column.image, "h-9 w-8 rounded-[3px]", 12, column.person) %}{% endcall %}
+        <a href="{{ column.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 truncate text-[13px] text-paper hover:text-accent">{{ column.name }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    <noscript>
+      <p class="mt-4 rounded-md border border-line bg-raise px-4 py-3 text-xs text-dim">
+        Picking needs JavaScript. The selection above still links to each title on TMDB, and the
+        results below are rendered by the server.
+      </p>
+    </noscript>
+  </div>
+
+  {# The island replaces the contents of this element after a selection changes. Without a
+     script it is simply the results, correctly rendered by the server. #}
+  <div id="results" class="mt-8">
+    {% call results::results(results) %}{% endcall %}
+  </div>
+</main>
+{% endblock %}

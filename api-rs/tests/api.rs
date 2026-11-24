@@ -845,18 +845,28 @@ async fn the_card_is_cached_and_the_second_request_does_not_refetch() {
     );
 }
 
+/// One pick is not a comparison, so the page says what it has and asks for another — and it
+/// does not advertise a share card for a comparison that does not exist.
 #[tokio::test]
-async fn a_short_selector_gets_the_plain_page_not_tags() {
+async fn a_short_selector_gets_the_page_and_no_share_card() {
     let h = harness(100).await;
     let (status, _, body) = call(&h.app, get_path("/title/movie-603")).await;
 
     assert_eq!(status, StatusCode::OK);
     let html = body.as_str().unwrap();
+
     assert!(
-        html.contains("<title>default</title>"),
-        "default title should survive"
+        html.contains("The Matrix"),
+        "a single pick is still named on the page"
     );
-    assert!(!html.contains("og:image"));
+    assert!(
+        html.contains("Add one more to compare"),
+        "and the page asks for a second"
+    );
+    assert!(
+        !html.contains("og:image"),
+        "no share card for no comparison"
+    );
 }
 
 #[tokio::test]
