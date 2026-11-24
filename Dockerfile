@@ -59,7 +59,7 @@ COPY api-rs/ ./
 RUN cargo build --release
 
 # --- runtime ------------------------------------------------------------------------------
-FROM docker.io/library/alpine:3.23
+FROM docker.io/library/alpine:3.24
 
 # ca-certificates is the only thing the binary needs at runtime: TMDB and the geo database are
 # both HTTPS. The healthcheck uses busybox's wget rather than pulling in curl for one request.
