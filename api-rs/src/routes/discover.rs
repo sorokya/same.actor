@@ -39,6 +39,10 @@ pub struct PageQuery {
     pub actor: Option<u32>,
     /// A pinned title, the other half of the same idea.
     pub title: Option<u32>,
+    /// Which synergy view: absent is the matrix.
+    pub view: Option<String>,
+    /// A pinned pair, `a,b`, for the co-star grid's panel.
+    pub pair: Option<String>,
 }
 
 fn kind_key(kind: Kind) -> &'static str {
@@ -47,6 +51,19 @@ fn kind_key(kind: Kind) -> &'static str {
         Kind::Tv => "tv",
         Kind::Person => "person",
     }
+}
+
+/// `pair=a,b`, in either order, ignoring anything that is not two ids.
+fn parse_pair(raw: &str) -> Option<(u32, u32)> {
+    let (one, other) = raw.split_once(',')?;
+    let one: u32 = one.trim().parse().ok()?;
+    let other: u32 = other.trim().parse().ok()?;
+
+    (one != other).then_some(if one < other {
+        (one, other)
+    } else {
+        (other, one)
+    })
 }
 
 fn parse_kind(raw: Option<&str>) -> Result<Kind, AppError> {
@@ -254,11 +271,17 @@ pub async fn page(
         placements: state.store.placements().await?,
         overrides: state.store.all_cameos().await?,
         filter: synergy_filter(query.hide.as_deref(), query.cameos.as_deref()),
-        focus: match (query.actor, query.title) {
-            (Some(actor), _) => crate::views::discover::Focus::Actor(actor),
-            (None, Some(title)) => crate::views::discover::Focus::Title(title),
+        focus: match (
+            query.pair.as_deref().and_then(parse_pair),
+            query.actor,
+            query.title,
+        ) {
+            (Some((one, other)), _, _) => crate::views::discover::Focus::Pair(one, other),
+            (None, Some(actor), _) => crate::views::discover::Focus::Actor(actor),
+            (None, None, Some(title)) => crate::views::discover::Focus::Title(title),
             _ => crate::views::discover::Focus::Bridges,
         },
+        view: crate::views::discover::View::parse(query.view.as_deref()),
     };
 
     let view = DiscoverPage::new(
@@ -345,6 +368,31 @@ fn canonical_path(section: Section, kind: Kind, filter: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Two ids, either order, and the same pair is always the same URL.
+    #[test]
+    fn a_pair_is_parsed_and_ordered() {
+        assert_eq!(parse_pair("11,10"), Some((10, 11)));
+        assert_eq!(parse_pair(" 10 , 11 "), Some((10, 11)));
+    }
+
+    #[test]
+    fn a_pair_that_is_not_two_ids_is_ignored() {
+        assert_eq!(parse_pair(""), None);
+        assert_eq!(parse_pair("10"), None);
+        assert_eq!(parse_pair("10,"), None);
+        assert_eq!(parse_pair("10,x"), None);
+        assert_eq!(parse_pair("10,10"), None, "a pair is two people");
+    }
+
+    #[test]
+    fn an_unknown_view_falls_back_to_the_matrix() {
+        use crate::views::discover::View;
+
+        assert_eq!(View::parse(Some("pairs")), View::Pairs);
+        assert_eq!(View::parse(Some("ensembles")), View::Matrix);
+        assert_eq!(View::parse(None), View::Matrix);
+    }
 
     /// Every section the site links to must resolve for both kinds, and every filter it
     /// advertises must resolve too — the control cannot offer a page that 400s.

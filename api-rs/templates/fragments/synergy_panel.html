@@ -1,0 +1,34 @@
+{# The side panel: whatever the URL pinned, or the bridges summary when nothing is.
+
+   It is a <aside> beside the visual on a wide screen and below it on a narrow one, and it exists
+   in the server's HTML either way — the island never builds it, it only swaps the region. #}
+<aside class="self-start rounded-md border border-line bg-raise/40 p-3" aria-labelledby="panel">
+  <h2 id="panel" class="label mb-1 truncate">{{ synergy.panel.heading }}</h2>
+  <p class="mb-2.5 text-[11px] leading-snug text-dim">{{ synergy.panel.note }}</p>
+
+  {% if !synergy.panel.entries.is_empty() %}
+  <ul class="space-y-1.5">
+    {% for entry in synergy.panel.entries %}
+    <li class="flex items-center gap-2">
+      <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: {{ entry.colour }}"></span>
+      <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+      <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ entry.detail }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="text-[11px] text-dim">Nothing crosses a franchise in this list.</p>
+  {% endif %}
+
+  {% if !synergy.panel.related.is_empty() %}
+  <h3 class="label mt-4 mb-1.5">{{ synergy.panel.related_heading }}</h3>
+  <ul class="space-y-1.5">
+    {% for entry in synergy.panel.related %}
+    <li class="flex items-center gap-2">
+      <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+      <span class="tnum max-w-[7rem] shrink-0 truncate font-mono text-[10px] text-dim" title="{{ entry.detail }}">{{ entry.detail }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</aside>

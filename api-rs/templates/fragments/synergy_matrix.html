@@ -1,0 +1,78 @@
+{# The matrix: rows are actors, columns are titles grouped by franchise.
+
+   Wide by nature — a hundred columns of 3.5rem — so it scrolls inside its own box rather than
+   making the page scroll, which would take the header with it. #}
+<div class="overflow-x-auto">
+  <div class="inline-block align-top">
+    {% if !synergy.groups.is_empty() %}
+    <div
+      class="grid items-end"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+    >
+      <span></span>
+      {% for group in synergy.groups %}
+      <span
+        class="truncate px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.1em]"
+        style="grid-column: span {{ group.span }}; color: {{ group.colour }}"
+        title="{{ group.name }}"
+      >{{ group.name }}</span>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div
+      class="grid items-end"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+    >
+      <span></span>
+      {% for column in synergy.columns %}
+      <a
+        href="{{ column.href }}"
+        target="_blank"
+        rel="noreferrer noopener"
+        style="grid-column: {{ column.position }}"
+        data-col="{{ column.id }}"
+        class="sync-col block px-0.5{% if column.pinned %} ring-1 ring-accent{% endif %}"
+        title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
+      >
+        {% call cards::poster_bg(column.poster) %}{% endcall %}
+      </a>
+      {% endfor %}
+    </div>
+
+    {% for row in synergy.rows %}
+    <div
+      class="sync-row grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+      data-titles="{{ row.data }}"
+      data-actor="{{ row.id }}"
+    >
+      <a
+        href="{{ row.href }}"
+        target="_blank"
+        rel="noreferrer noopener"
+        class="flex min-w-0 items-center gap-2 pr-2 text-[11px] leading-snug {% if row.pinned %}text-paper{% else %}text-dim hover:text-paper{% endif %}"
+      >
+        <span class="shrink-0" aria-hidden="true">{% call cards::art(row.image, "h-5 w-5 rounded-full", 10, true) %}{% endcall %}</span>
+        <span class="truncate">{{ row.name }}</span>
+      </a>
+
+      {# The run: a line from this actor's first title to their last, which is what makes a
+         cluster read as a staircase rather than as scattered dots. #}
+      {% if row.has_run %}
+      <span
+        aria-hidden="true"
+        class="h-px self-center"
+        style="grid-row: 1; grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
+      ></span>
+      {% endif %}
+
+      {% for at in row.at %}
+      <span class="flex justify-center" style="grid-row: 1; grid-column: {{ at }}">
+        <span class="sync-dot h-2.5 w-2.5 rounded-full ring-2 ring-ink/40" style="background: {{ row.colour }}"></span>
+      </span>
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

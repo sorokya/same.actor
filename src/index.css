@@ -121,6 +121,30 @@
     outline-offset: 1px;
   }
 
+  /* The pairs grid: a square carries two actors, and only one of them has a visible label while
+     you are looking at it — the other is on the diagonal. Hovering names both. */
+  .pair-name {
+    transition:
+      opacity 120ms ease-out,
+      color 120ms ease-out;
+  }
+
+  .pair-name.off {
+    opacity: 0.35;
+  }
+
+  .pair-name.on {
+    color: var(--color-paper);
+  }
+
+  .pair-cell {
+    transition: opacity 80ms ease-out;
+  }
+
+  .pair-cell:hover {
+    opacity: 1;
+  }
+
   /* A hairline that fades out, so section rules don't hit the viewport edge flat. */
   .rule {
     height: 1px;

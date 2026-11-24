@@ -1,0 +1,57 @@
+{# The co-star grid: the lower triangle of an actor × actor heatmap.
+
+   One row per actor, in the matrix's order, with the same 12rem name column — switching views
+   does not move the people. A square sits at its column's grid position, so the triangle's shape
+   is the reader's evidence that no pair is drawn twice.
+
+   A square with nothing shared is an outline and not a link: there is no page to show for zero.
+   The empty squares are still drawn, because without them the triangle is a scatter. #}
+<div class="overflow-x-auto">
+  <div class="inline-block align-top">
+    {% for row in synergy.pairs.rows %}
+    <div
+      class="grid items-center"
+      style="grid-template-columns: 12rem repeat({{ synergy.pairs.columns }}, 1.35rem)"
+    >
+      <a
+        href="{{ row.href }}"
+        target="_blank"
+        rel="noreferrer noopener"
+        data-actor="{{ row.id }}"
+        class="pair-name flex min-w-0 items-center gap-2 pr-2 text-[11px] leading-snug text-dim hover:text-paper"
+      >
+        <span class="shrink-0" aria-hidden="true">{% call cards::art(row.image, "h-5 w-5 rounded-full", 10, true) %}{% endcall %}</span>
+        <span class="truncate">{{ row.name }}</span>
+      </a>
+
+      {# The diagonal: this actor's own count, sitting in their own column rather than in the
+         name column, which is what makes a column identifiable at all. #}
+      <span
+        class="flex justify-center"
+        style="grid-row: 1; grid-column: {{ row.at }}"
+        title="{{ row.name }} — {{ row.total }} in this list"
+      >
+        <span class="h-3 w-3 rounded-sm bg-accent/70"></span>
+      </span>
+
+      {% for cell in row.cells %}
+      {% if cell.href.is_empty() %}
+      <span
+        class="mx-auto h-3 w-3 rounded-sm border border-line/70"
+        style="grid-row: 1; grid-column: {{ cell.at }}"
+      ></span>
+      {% else %}
+      <a
+        href="{{ cell.href }}"
+        data-pair-a="{{ row.id }}"
+        data-pair-b="{{ cell.other }}"
+        title="{{ cell.detail }}"
+        class="pair-cell mx-auto h-3 w-3 rounded-sm bg-accent"
+        style="grid-row: 1; grid-column: {{ cell.at }}; opacity: {{ cell.opacity }}%"
+      ></a>
+      {% endif %}
+      {% endfor %}
+    </div>
+    {% endfor %}
+  </div>
+</div>

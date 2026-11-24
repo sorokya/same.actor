@@ -404,6 +404,95 @@ pub fn co_stars(matrix: &Matrix, person_id: u32) -> Vec<(u32, String, usize)> {
     shared
 }
 
+/// An actor, as an axis of the pairs grid.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PairActor {
+    pub person_id: u32,
+    pub name: String,
+    pub image: Option<String>,
+    /// Their own title count — the diagonal, and the answer to "how much of this list is theirs".
+    pub total: usize,
+}
+
+/// One square of the lower triangle: the later actor's row, the earlier actor's column.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PairCell {
+    pub row: usize,
+    pub col: usize,
+    pub shared: usize,
+}
+
+/// The actor × actor grid, lower triangle only, with the diagonal left to the caller.
+///
+/// A full matrix would say everything twice — the pair of two actors is one fact, not two — and
+/// the triangle is also what makes the grid readable: with actors ordered by where their run
+/// starts, a cluster of co-stars shows up as a block against the diagonal.
+#[derive(Debug, Clone, Default)]
+pub struct Pairs {
+    pub actors: Vec<PairActor>,
+    /// Every pair, row by row from the top, columns left to right. Zero shares included: the
+    /// empty squares are what make the shape of the triangle visible.
+    pub cells: Vec<PairCell>,
+    /// The largest share in the grid, so the template can scale brightness to the data rather
+    /// than to a number nobody has.
+    pub most: usize,
+}
+
+/// Build the grid from the same rows the matrix draws, in the same order.
+pub fn pairs(matrix: &Matrix) -> Pairs {
+    let actors: Vec<PairActor> = matrix
+        .actors
+        .iter()
+        .map(|actor| PairActor {
+            person_id: actor.person_id,
+            name: actor.name.clone(),
+            image: actor.image.clone(),
+            total: actor.titles.len(),
+        })
+        .collect();
+
+    let mut cells = Vec::with_capacity(actors.len() * actors.len() / 2);
+    let mut most = 0;
+
+    for row in 0..matrix.actors.len() {
+        for col in 0..row {
+            let shared = shared_titles(&matrix.actors[row].titles, &matrix.actors[col].titles);
+            most = most.max(shared);
+            cells.push(PairCell { row, col, shared });
+        }
+    }
+
+    Pairs {
+        actors,
+        cells,
+        most,
+    }
+}
+
+/// How many titles two actors have in common.
+///
+/// Both lists are ascending column indices, so this walks them together instead of building a
+/// set per pair: a hundred titles and sixty actors is eighteen hundred pairs, and eighteen
+/// hundred sets is a lot of allocation to answer a question two cursors can.
+fn shared_titles(one: &[usize], other: &[usize]) -> usize {
+    let (mut a, mut b) = (0, 0);
+    let mut shared = 0;
+
+    while a < one.len() && b < other.len() {
+        match one[a].cmp(&other[b]) {
+            std::cmp::Ordering::Less => a += 1,
+            std::cmp::Ordering::Greater => b += 1,
+            std::cmp::Ordering::Equal => {
+                shared += 1;
+                a += 1;
+                b += 1;
+            }
+        }
+    }
+
+    shared
+}
+
 /// The actors who span more than one franchise: the links the flat list could not show.
 pub fn bridges(matrix: &Matrix) -> Vec<(u32, String, usize)> {
     let mut out: Vec<(u32, String, usize)> = matrix

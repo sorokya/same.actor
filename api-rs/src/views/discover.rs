@@ -16,6 +16,7 @@ use crate::synergy::{self, Filter};
 use super::{absolute_time, relative_time, Head};
 
 /// One option in a control group, rendered as a link so it works without JavaScript.
+#[derive(Clone)]
 pub struct Choice {
     pub value: String,
     pub label: String,
@@ -116,18 +117,62 @@ pub enum Focus {
     Bridges,
     Actor(u32),
     Title(u32),
+    Pair(u32, u32),
+}
+
+/// Which of the synergy views the URL asked for.
+///
+/// A switcher that offers a view which does not exist yet is a dead link with a nice label, so
+/// this grows one arm at a time as each view lands.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum View {
+    Matrix,
+    Pairs,
+}
+
+impl View {
+    pub fn parse(raw: Option<&str>) -> Self {
+        match raw.unwrap_or("").trim() {
+            "pairs" => View::Pairs,
+            _ => View::Matrix,
+        }
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            View::Matrix => "matrix",
+            View::Pairs => "pairs",
+        }
+    }
+
+    pub fn label(self) -> &'static str {
+        match self {
+            View::Matrix => "Matrix",
+            View::Pairs => "Pairs",
+        }
+    }
+
+    /// In the order the switcher shows them; the matrix stays first because it is the default.
+    pub const ALL: [View; 2] = [View::Matrix, View::Pairs];
 }
 
 /// Everything the matrix needs that is not in the stored list.
+#[derive(Clone)]
 pub struct Derived {
     pub placements: HashMap<(String, u32), Placement>,
     pub overrides: HashMap<(String, u32, u32), bool>,
     pub filter: Filter,
     pub focus: Focus,
+    pub view: View,
 }
 
 #[derive(Clone)]
 pub struct SynergyView {
+    /// The switcher's links, and which one is current.
+    pub views: Vec<Choice>,
+    pub view: String,
+    /// Present only when the URL asked for the grid: the matrix never pays to build it.
+    pub pairs: PairsView,
     pub groups: Vec<GroupView>,
     pub columns: Vec<ColumnView>,
     pub rows: Vec<RowView>,
@@ -140,6 +185,43 @@ pub struct SynergyView {
     pub empty: String,
     /// The page with every synergy filter dropped, for the empty state's reset link.
     pub reset: String,
+}
+
+/// The actor × actor grid, row by row.
+#[derive(Clone, Default)]
+pub struct PairsView {
+    pub rows: Vec<PairRowView>,
+    /// How wide the grid is, so the template can lay the columns out without counting.
+    pub columns: usize,
+    pub most: usize,
+    /// Non-empty when there is nothing to draw.
+    pub empty: String,
+}
+
+#[derive(Clone)]
+pub struct PairRowView {
+    pub id: u32,
+    pub name: String,
+    pub image: String,
+    pub href: String,
+    pub total: usize,
+    /// Grid column of the diagonal: the actor's own count, under their own name.
+    pub at: usize,
+    pub cells: Vec<PairCellView>,
+}
+
+#[derive(Clone)]
+pub struct PairCellView {
+    /// Grid column, already offset past the name column.
+    pub at: usize,
+    /// The other half of the pair, for the island's hover.
+    pub other: u32,
+    pub shared: usize,
+    /// 0-100, scaled to the busiest pair in this grid.
+    pub opacity: u32,
+    /// Empty for a pair that shares nothing — there is no page to link to for a zero.
+    pub href: String,
+    pub detail: String,
 }
 
 /// Everything a browse page renders, in one value.
@@ -196,24 +278,47 @@ pub fn title_href(kind: Kind, id: u32) -> String {
 /// `base` already carries the section's kind and ranking, so this only has to append the synergy
 /// parameters, and it drops the ones that would be at their default: a URL that says
 /// `cameos=1&hide=` is a URL with two lies in it.
-fn with_filters(base: &str, filter: &Filter, cameos: bool) -> String {
+fn with_filters(base: &str, filter: &Filter, cameos: bool, view: View) -> String {
     let mut url = base.to_owned();
-    let mut separator = if url.contains('?') { '&' } else { '?' };
 
     let mut hidden: Vec<&str> = filter.hide.iter().map(String::as_str).collect();
     hidden.sort_unstable();
 
-    if !hidden.is_empty() {
+    let add = |url: &mut String, pair: String| {
+        let separator = if url.contains('?') { '&' } else { '?' };
         url.push(separator);
-        separator = '&';
-        url.push_str("hide=");
-        url.push_str(&hidden.join(","));
+        url.push_str(&pair);
+    };
+
+    if !hidden.is_empty() {
+        add(&mut url, format!("hide={}", hidden.join(",")));
     }
 
     if cameos {
-        url.push(separator);
-        url.push_str("cameos=0");
+        add(&mut url, "cameos=0".to_owned());
     }
+
+    // The view is part of every control's URL, or switching a chip would silently drop the
+    // reader back to the matrix they were not looking at.
+    if view != View::Matrix {
+        add(&mut url, format!("view={}", view.key()));
+    }
+
+    url
+}
+
+/// The grid's link for one pair, ordered so the same pair is always the same URL.
+fn pair_href(base: &str, filter: &Filter, cameos: bool, one: u32, other: u32) -> String {
+    let (a, b) = if one <= other {
+        (one, other)
+    } else {
+        (other, one)
+    };
+    let mut url = with_filters(base, filter, cameos, View::Pairs);
+    let separator = if url.contains('?') { '&' } else { '?' };
+
+    url.push(separator);
+    url.push_str(&format!("pair={a},{b}"));
 
     url
 }
@@ -330,16 +435,28 @@ fn synergy_view(
                 name: group.name.clone(),
                 colour: group.colour,
                 shown: !derived.filter.hides(&group.slug),
-                href: with_filters(base, &flipped, derived.filter.hide_cameos),
+                href: with_filters(base, &flipped, derived.filter.hide_cameos, derived.view),
             }
         })
         .collect();
 
-    let cameo_href = with_filters(base, &derived.filter, !derived.filter.hide_cameos);
+    let cameo_href = with_filters(
+        base,
+        &derived.filter,
+        !derived.filter.hide_cameos,
+        derived.view,
+    );
 
     let panel = panel_view(kind, matrix, derived, base);
 
-    let empty = if matrix.columns.is_empty() {
+    let pairs = match derived.view {
+        View::Pairs => pairs_view(matrix, derived, base),
+        View::Matrix => PairsView::default(),
+    };
+
+    let empty = if derived.view == View::Pairs && !pairs.empty.is_empty() {
+        pairs.empty.clone()
+    } else if matrix.columns.is_empty() {
         "Every title in this list is hidden by the franchise filter.".to_owned()
     } else if matrix.actors.is_empty() {
         "Nobody appears in two of the titles left.".to_owned()
@@ -347,7 +464,28 @@ fn synergy_view(
         String::new()
     };
 
+    // Every view a reader can switch to, each a plain link that keeps the filters and drops the
+    // selection: a pinned pair means nothing in the matrix, and a pinned actor is a different
+    // view's idea of what is selected.
+    let views: Vec<Choice> = View::ALL
+        .iter()
+        .map(|candidate| Choice {
+            value: candidate.key().to_owned(),
+            label: candidate.label().to_owned(),
+            href: with_filters(
+                base,
+                &derived.filter,
+                derived.filter.hide_cameos,
+                *candidate,
+            ),
+            active: *candidate == derived.view,
+        })
+        .collect();
+
     SynergyView {
+        views,
+        view: derived.view.key().to_owned(),
+        pairs,
         groups,
         columns,
         rows,
@@ -357,7 +495,88 @@ fn synergy_view(
         hidden_actors: matrix.hidden_actors,
         panel,
         empty,
-        reset: base.to_owned(),
+        reset: with_filters(base, &Filter::default(), false, derived.view),
+    }
+}
+
+/// The grid, as rows the template can draw without filtering anything itself.
+fn pairs_view(matrix: &synergy::Matrix, derived: &Derived, base: &str) -> PairsView {
+    let pairs = synergy::pairs(matrix);
+
+    if pairs.actors.is_empty() {
+        return PairsView {
+            empty: "Nobody appears in two of the titles left.".to_owned(),
+            ..PairsView::default()
+        };
+    }
+
+    let rows = pairs
+        .actors
+        .iter()
+        .enumerate()
+        .map(|(row, actor)| {
+            let cells: Vec<PairCellView> = pairs
+                .cells
+                .iter()
+                .filter(|cell| cell.row == row)
+                .map(|cell| {
+                    let other = &pairs.actors[cell.col];
+                    PairCellView {
+                        at: cell.col + 2,
+                        other: other.person_id,
+                        shared: cell.shared,
+                        // Scaled to the busiest pair here, so a list whose best is two still
+                        // shows which two it is. Zero stays visible as an outline, which is
+                        // what makes the triangle read as a triangle.
+                        opacity: match cell
+                            .shared
+                            .checked_mul(100)
+                            .and_then(|scaled| (pairs.most > 0).then(|| scaled / pairs.most))
+                        {
+                            Some(scaled) => scaled.clamp(18, 100) as u32,
+                            None => 0,
+                        },
+                        href: if cell.shared == 0 {
+                            String::new()
+                        } else {
+                            pair_href(
+                                base,
+                                &derived.filter,
+                                derived.filter.hide_cameos,
+                                actor.person_id,
+                                other.person_id,
+                            )
+                        },
+                        detail: format!(
+                            "{} & {} — {}",
+                            actor.name,
+                            other.name,
+                            match cell.shared {
+                                1 => "1 title".to_owned(),
+                                count => format!("{count} titles"),
+                            }
+                        ),
+                    }
+                })
+                .collect();
+
+            PairRowView {
+                id: actor.person_id,
+                name: actor.name.clone(),
+                image: actor.image.clone().unwrap_or_default(),
+                href: format!("https://www.themoviedb.org/person/{}", actor.person_id),
+                total: actor.total,
+                at: row + 2,
+                cells,
+            }
+        })
+        .collect();
+
+    PairsView {
+        rows,
+        columns: pairs.actors.len(),
+        most: pairs.most,
+        empty: String::new(),
     }
 }
 
@@ -457,6 +676,90 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 related_heading: String::new(),
                 related: Vec::new(),
                 reset: base.to_owned(),
+            }
+        }
+
+        Focus::Pair(one, other) => {
+            let looked_up = |person_id: u32| {
+                matrix
+                    .actors
+                    .iter()
+                    .find(|actor| actor.person_id == person_id)
+            };
+
+            let (Some(first), Some(second)) = (looked_up(one), looked_up(other)) else {
+                // One of the two is not in what the filters left: a stale link, or a pair the
+                // reader narrowed away. The bridges summary is the honest fallback.
+                let fallback = Derived {
+                    focus: Focus::Bridges,
+                    ..derived.clone()
+                };
+
+                return panel_view(kind, matrix, &fallback, base);
+            };
+
+            let theirs: std::collections::HashSet<usize> = second.titles.iter().copied().collect();
+
+            // The panel is the answer to "what do these two have?", which is two things: what
+            // they did together, and what each did without the other.
+            let shared: Vec<PanelEntry> = first
+                .titles
+                .iter()
+                .filter(|index| theirs.contains(index))
+                .filter_map(|index| matrix.columns.get(*index))
+                .map(|column| {
+                    let group = &matrix.groups[column.group];
+                    PanelEntry {
+                        href: title_href(column.kind, column.id),
+                        name: column.name.clone(),
+                        image: column.poster.clone().unwrap_or_default(),
+                        detail: group.name.clone(),
+                        colour: group.colour,
+                    }
+                })
+                .collect();
+
+            let mut alone: Vec<PanelEntry> = Vec::new();
+            for (actor, verb) in [(first, "only"), (second, "only")] {
+                for index in &actor.titles {
+                    let shared_here = if actor.person_id == first.person_id {
+                        theirs.contains(index)
+                    } else {
+                        first.titles.contains(index)
+                    };
+
+                    if shared_here {
+                        continue;
+                    }
+
+                    if let Some(column) = matrix.columns.get(*index) {
+                        alone.push(PanelEntry {
+                            href: title_href(column.kind, column.id),
+                            name: column.name.clone(),
+                            image: column.poster.clone().unwrap_or_default(),
+                            detail: format!("{verb} {}", actor.name),
+                            colour: matrix.groups[column.group].colour,
+                        });
+                    }
+                }
+            }
+
+            PanelView {
+                show: true,
+                heading: format!("{} & {}", first.name, second.name),
+                note: match shared.len() {
+                    1 => "1 title together".to_owned(),
+                    count => format!("{count} titles together"),
+                },
+                entries: shared,
+                related_heading: "Apart".to_owned(),
+                related: alone,
+                reset: with_filters(
+                    base,
+                    &derived.filter,
+                    derived.filter.hide_cameos,
+                    derived.view,
+                ),
             }
         }
 
@@ -608,6 +911,14 @@ mod tests {
             overrides: HashMap::new(),
             filter: Filter::default(),
             focus: Focus::Bridges,
+            view: View::Matrix,
+        }
+    }
+
+    fn as_pairs() -> Derived {
+        Derived {
+            view: View::Pairs,
+            ..derived()
         }
     }
 
@@ -648,6 +959,193 @@ mod tests {
             1_795_500_000,
             &derived,
         )
+    }
+
+    /// Both views exist today and the switcher says which one you are looking at. A pill that is
+    /// offered but not built is a dead link, so this list grows only as views land.
+    #[test]
+    fn the_switcher_offers_every_view_and_marks_the_current_one() {
+        let page = build(&[], &[]);
+        let keys: Vec<&str> = page
+            .synergy
+            .views
+            .iter()
+            .map(|v| v.value.as_str())
+            .collect();
+
+        assert_eq!(keys, ["matrix", "pairs"]);
+        assert!(page.synergy.views[0].active, "the matrix is the default");
+        assert!(!page.synergy.views[1].active);
+        assert!(
+            page.synergy.views[1].href.contains("view=pairs"),
+            "the pairs pill has to lead to the pairs view"
+        );
+    }
+
+    /// A pair of actors, as the grid draws them: one square, and the other two thirds empty.
+    #[test]
+    fn the_pairs_grid_is_a_lower_triangle_in_the_matrix_order() {
+        let items = vec![
+            item(1, "One", None, None),
+            item(2, "Two", None, None),
+            item(3, "Three", None, None),
+        ];
+        let rows = vec![
+            row(10, "First", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Second", &[(2, "Two"), (3, "Three")], 2),
+            row(12, "Third", &[(3, "Three"), (1, "One")], 2),
+        ];
+
+        let page = build_with(&items, &rows, as_pairs());
+        let grid = &page.synergy.pairs;
+
+        assert_eq!(grid.rows.len(), 3, "one row per actor");
+        assert_eq!(grid.columns, 3);
+
+        // Row 0 has no earlier actor to compare with; row 1 compares with row 0; row 2 with both.
+        assert!(grid.rows[0].cells.is_empty(), "nothing above the diagonal");
+        assert_eq!(grid.rows[1].cells.len(), 1);
+        assert_eq!(grid.rows[2].cells.len(), 2);
+
+        // The grid orders actors by where their run starts, like the matrix does — the same
+        // order, so switching views does not shuffle the people.
+        let names: Vec<&str> = grid.rows.iter().map(|r| r.name.as_str()).collect();
+        let matrix_names: Vec<&str> = page.synergy.rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, matrix_names);
+    }
+
+    /// A square knows its column and the two actors it is about, because the grid's axes are the
+    /// row labels and the diagonal and the island has to name both.
+    #[test]
+    fn a_square_positions_itself_and_names_both_actors() {
+        let items = vec![item(1, "One", None, None), item(2, "Two", None, None)];
+        let rows = vec![
+            row(10, "First", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Second", &[(1, "One"), (2, "Two")], 2),
+        ];
+
+        let page = build_with(&items, &rows, as_pairs());
+        let cell = &page.synergy.pairs.rows[1].cells[0];
+
+        assert_eq!(cell.at, 2, "past the 12rem name column");
+        assert_eq!(cell.shared, 2, "both titles in common");
+        assert_eq!(cell.other, 10, "the earlier actor of the pair");
+        assert!(
+            cell.href.contains("pair=10,11"),
+            "a stable, ordered pair URL"
+        );
+        assert_eq!(cell.opacity, 100, "the busiest pair is fully lit");
+    }
+
+    /// A pair that shares nothing is drawn but not linked: there is no page to show for zero.
+    #[test]
+    fn a_square_with_nothing_shared_is_not_a_link() {
+        let items = vec![
+            item(1, "One", None, None),
+            item(2, "Two", None, None),
+            item(3, "Three", None, None),
+            item(4, "Four", None, None),
+        ];
+        // Two actors, two titles each, no title in common: both are rows, and their square is
+        // the one pair in the grid that has nothing to say.
+        let rows = vec![
+            row(10, "First", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Second", &[(3, "Three"), (4, "Four")], 2),
+        ];
+
+        let page = build_with(&items, &rows, as_pairs());
+        let cell = &page.synergy.pairs.rows[1].cells[0];
+
+        assert_eq!(cell.shared, 0);
+        assert!(cell.href.is_empty());
+    }
+
+    /// Pinning a pair fills the panel with what they did together, and what each did without the
+    /// other — the two halves of the question a square asks.
+    #[test]
+    fn a_pinned_pair_lists_what_they_share_and_what_they_do_not() {
+        let items = vec![
+            item(1, "One", None, None),
+            item(2, "Two", None, None),
+            item(3, "Three", None, None),
+        ];
+        let rows = vec![
+            row(10, "First", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Second", &[(2, "Two"), (3, "Three")], 2),
+        ];
+
+        let page = build_with(
+            &items,
+            &rows,
+            Derived {
+                focus: Focus::Pair(10, 11),
+                ..as_pairs()
+            },
+        );
+
+        let panel = &page.synergy.panel;
+        assert_eq!(panel.heading, "First & Second");
+        assert_eq!(panel.note, "1 title together");
+        assert_eq!(panel.entries.len(), 1);
+        assert_eq!(panel.entries[0].name, "Two");
+        assert_eq!(
+            panel.related.len(),
+            2,
+            "One for the first, Three for the second"
+        );
+    }
+
+    /// "Apart" has to say *whose* title it is: two actors can share a first name, and a list of
+    /// titles under a heading that names neither is a list of titles with no subject.
+    #[test]
+    fn the_apart_list_says_which_actor_each_title_belongs_to() {
+        let items = vec![
+            item(1, "Shared", None, None),
+            item(2, "Hers", None, None),
+            item(3, "His", None, None),
+        ];
+        let rows = vec![
+            row(10, "First Actor", &[(1, "Shared"), (2, "Hers")], 2),
+            row(11, "Second Actor", &[(1, "Shared"), (3, "His")], 2),
+        ];
+
+        let page = build_with(
+            &items,
+            &rows,
+            Derived {
+                focus: Focus::Pair(10, 11),
+                ..as_pairs()
+            },
+        );
+
+        let details: Vec<&str> = page
+            .synergy
+            .panel
+            .related
+            .iter()
+            .map(|entry| entry.detail.as_str())
+            .collect();
+
+        assert!(
+            details.iter().any(|detail| detail.contains("First Actor")),
+            "the first actor's own title says so: {details:?}"
+        );
+        assert!(details.iter().any(|detail| detail.contains("Second Actor")));
+    }
+
+    /// A chip is how a filter changes; it has to keep the reader in the view they were reading.
+    #[test]
+    fn a_filter_link_keeps_the_view() {
+        let items = vec![item(1, "One", None, None), item(2, "Two", None, None)];
+        let rows = vec![row(10, "First", &[(1, "One"), (2, "Two")], 2)];
+
+        let page = build_with(&items, &rows, as_pairs());
+
+        assert!(
+            page.synergy.cameo_href.contains("view=pairs"),
+            "switching cameos drops the grid otherwise: {}",
+            page.synergy.cameo_href
+        );
     }
 
     #[test]

@@ -14,6 +14,9 @@
  *
  * With it, a filter change fetches only the matrix region and swaps it, so the page keeps its
  * scroll position and its focus, and a click on a row pins that actor without a reload.
+ *
+ * The same file serves the co-star grid: there the hover names the two actors a square is about,
+ * which is the one thing the server-rendered picture cannot say on its own.
  */
 
 /** The region this island owns and the header the server answers it with. */
@@ -27,6 +30,9 @@ interface Matrix {
   readonly rows: HTMLElement[];
   readonly dots: HTMLElement[];
   readonly columns: HTMLElement[];
+  /** The pairs grid's actor labels and squares, empty on the matrix. */
+  readonly names: HTMLElement[];
+  readonly pairs: HTMLElement[];
 }
 
 let current: Matrix | null = null;
@@ -40,6 +46,8 @@ function read(root: HTMLElement): Matrix {
     rows: all<HTMLElement>('.sync-row'),
     dots: all<HTMLElement>('.sync-dot'),
     columns: all<HTMLElement>('.sync-col'),
+    names: all<HTMLElement>('.pair-name'),
+    pairs: all<HTMLElement>('[data-pair-a]'),
   };
 }
 
@@ -52,6 +60,25 @@ function clear(matrix: Matrix): void {
   for (const row of matrix.rows) row.classList.remove('off', 'on');
   for (const dot of matrix.dots) dot.classList.remove('off');
   for (const column of matrix.columns) column.classList.remove('on');
+  for (const name of matrix.names) name.classList.remove('off', 'on');
+}
+
+/**
+ * Name both actors of a square.
+ *
+ * The grid has no header row: a column is an actor whose name appears on the diagonal's row, so
+ * the only actor on screen with the square is the one whose row you are already on. Lighting up
+ * both labels is what makes a square mean a pair rather than a cell.
+ */
+function focusPair(matrix: Matrix, one: string, other: string): void {
+  clear(matrix);
+
+  for (const name of matrix.names) {
+    const id = name.dataset.actor ?? '';
+    const involved = id === one || id === other;
+    name.classList.toggle('on', involved);
+    name.classList.toggle('off', !involved);
+  }
 }
 
 /**
@@ -153,6 +180,12 @@ document.addEventListener('pointerover', (event) => {
     return;
   }
 
+  const cell = target.closest<HTMLElement>('[data-pair-a]');
+  if (cell !== null) {
+    focusPair(matrix, cell.dataset.pairA ?? '', cell.dataset.pairB ?? '');
+    return;
+  }
+
   const row = target.closest<HTMLElement>('.sync-row');
   if (row !== null) focusRow(matrix, row);
 });
@@ -166,6 +199,12 @@ document.addEventListener('focusin', (event) => {
   const target = event.target;
   if (!(target instanceof Element) || !matrix.root.contains(target)) return;
 
+  const cell = target.closest<HTMLElement>('[data-pair-a]');
+  if (cell !== null) {
+    focusPair(matrix, cell.dataset.pairA ?? '', cell.dataset.pairB ?? '');
+    return;
+  }
+
   const row = target.closest<HTMLElement>('.sync-row');
   if (row !== null) focusRow(matrix, row);
 });
@@ -175,7 +214,7 @@ document.addEventListener('pointerout', (event) => {
   if (matrix === null) return;
 
   const target = event.target as Element | null;
-  const leaving = target?.closest?.('.sync-row, .sync-col');
+  const leaving = target?.closest?.('.sync-row, .sync-col, [data-pair-a]');
   if (leaving === null || leaving === undefined) return;
 
   const next = event.relatedTarget;

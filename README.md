@@ -533,12 +533,33 @@ first tap produces a list of matches rather than a blank box; without the island
 still links. (The booster sets the URL *before* swapping the page in, because the island reads
 `?q` on mount — pushing after the swap left the box empty at the right address.)
 
-## The cast matrix
+## The synergy views
 
-Each browse page (`/discover/top`, `/new`, `/upcoming`) ends in a matrix: actors down the side,
-titles across the top, a dot where an actor is credited and a line joining their first title to
-their last. It replaced the poster grid and the "actors in two or more" cards, which answered "who
-is in a lot of these" and never "who works together".
+Each browse page (`/discover/top`, `/new`, `/upcoming`) ends in one of a set of views of the same
+data, chosen with `?view=`. They replaced the poster grid and the "actors in two or more" cards,
+which answered "who is in a lot of these" and never "who works together".
+
+| View | URL | What it is |
+| --- | --- | --- |
+| Cast matrix (default) | `?view=matrix` | Actors down the side, titles across the top, a dot per credit, a line through each actor's run |
+| Co-star pairs | `?view=pairs` | The lower triangle of an actor × actor grid: a square per pair, brighter for more shared titles, the diagonal being an actor's own count |
+
+The switcher is a row of links, so a view change is a navigation that works with no script, and
+every control keeps `view=` in its URL — otherwise switching a franchise off would silently drop
+the reader back to the matrix. Changing view drops the selection (`?actor=`, `?pair=`), because a
+pinned pair means nothing in a matrix.
+
+**Pairs** is a second derivation over the same rows (`synergy::pairs`), not a second fetch. It
+walks each pair of title lists together instead of building a set per pair — sixty actors is 1,770
+pairs, and 1,770 sets is a lot of allocation to answer a question two cursors can. The order is
+the matrix's order, so switching views does not shuffle the people.
+
+A square carries two actors and only one of them has a label on screen; the island names both on
+hover, which is the one thing the server-rendered picture cannot say. A square that shares nothing
+is drawn as an outline and is not a link — there is no page to show for a zero — and those empty
+squares are what make the triangle read as a triangle rather than a scatter.
+
+## The cast matrix
 
 - **Titles are columns, grouped by franchise**, in the order the franchises were curated. That is
   what makes the staircase appear: an actor in three Marvel films draws a long run, and an actor
