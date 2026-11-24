@@ -236,7 +236,10 @@ pub async fn page(
             loaded.variant.blurb().trim_end_matches('.')
         ),
         loaded.section.key(),
-    );
+    )
+    // The matrix is twenty columns wide. A 48rem column cannot hold it without scrolling inside
+    // the page, which is the one thing a wide table should not do.
+    .wide();
 
     if let Some(css) = state.assets.css.as_deref() {
         head = head.with_css(css);

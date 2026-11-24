@@ -58,7 +58,11 @@
   class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2"
   {% if !image.is_empty() %}style="background-image: url('{{ image }}'); background-size: cover; background-position: center"{% endif %}
 >
-  <span class="absolute inset-0 flex items-center justify-center text-dim/60" aria-hidden="true">{% call film_icon(45) %}{% endcall %}</span>
+  {# Only when there is no artwork: the icon cannot sit *under* a background image — it is a
+     sibling element and paints over it, which put a film glyph in the middle of every poster. #}
+  {% if image.is_empty() %}
+  <span class="flex items-center justify-center text-dim/60" aria-hidden="true">{% call film_icon(45) %}{% endcall %}</span>
+  {% endif %}
 </span>
 {% endmacro %}
 

@@ -84,6 +84,9 @@ pub struct PanelEntry {
 
 /// The side panel: bridges by default, or whatever the URL pinned.
 pub struct PanelView {
+    /// Whether the panel is worth drawing at all. Bridges with nothing in them is a box that
+    /// says "no" — the matrix should take the space instead.
+    pub show: bool,
     pub heading: String,
     pub note: String,
     pub entries: Vec<PanelEntry>,
@@ -382,6 +385,7 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 .unwrap_or_else(|| format!("#{person_id}"));
 
             PanelView {
+                show: true,
                 heading: name,
                 note: their_titles.len().to_string() + " in this list",
                 entries: their_titles,
@@ -417,6 +421,7 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 .collect();
 
             PanelView {
+                show: true,
                 heading: column.map(|column| column.name.clone()).unwrap_or_default(),
                 note: detail(entries.len()) + " shared with this list",
                 entries,
@@ -452,6 +457,7 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
             let _ = kind;
 
             PanelView {
+                show: !entries.is_empty(),
                 heading: "Bridges".to_owned(),
                 note: "Actors who cross from one franchise to another".to_owned(),
                 entries,

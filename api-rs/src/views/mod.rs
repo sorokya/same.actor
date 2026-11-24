@@ -50,6 +50,10 @@ pub struct Head {
     pub noindex: bool,
     /// Which admin tab is current. Empty on every public page.
     pub active: &'static str,
+    /// The wide shell. A comparison page is a column of prose and reads worse wider than 48rem;
+    /// a matrix of twenty columns needs the room, and squeezing it into the reading measure is
+    /// what made the browse pages feel like they had margins to spare.
+    pub wide: bool,
     /// Copyright year, resolved once at render time instead of in every footer.
     pub year: i32,
 }
@@ -61,6 +65,7 @@ impl Head {
         nav: &'static str,
     ) -> Self {
         Self {
+            wide: false,
             title: title.into(),
             description: description.into(),
             canonical: String::new(),
@@ -73,6 +78,12 @@ impl Head {
             noindex: false,
             year: current_year(),
         }
+    }
+
+    /// Ask for the wide shell, header included.
+    pub fn wide(mut self) -> Self {
+        self.wide = true;
+        self
     }
 
     pub fn with_css(mut self, css: &str) -> Self {
