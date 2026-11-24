@@ -639,6 +639,34 @@
           }
         ]
       }
+    },
+    "/3/collection/2344": {
+      "id": 2344,
+      "name": "The Matrix Collection",
+      "overview": "The Matrix trilogy.",
+      "parts": [
+        {
+          "id": 603,
+          "title": "The Matrix",
+          "media_type": "movie",
+          "release_date": "1999-03-31",
+          "poster_path": "/dXNAPwY7VrqMAo51EKhhCJfaGb5.jpg"
+        },
+        {
+          "id": 604,
+          "title": "The Matrix Reloaded",
+          "media_type": "movie",
+          "release_date": "2003-05-15",
+          "poster_path": "/aMd3QQdx7Ce67pBoyaCke8jERTE.jpg"
+        },
+        {
+          "id": 605,
+          "title": "The Matrix Revolutions",
+          "media_type": "movie",
+          "release_date": "2003-11-05",
+          "poster_path": "/bUFa0s5m1M0Fa9t2r1FhVwG0vQk.jpg"
+        }
+      ]
     }
   },
   "people": {

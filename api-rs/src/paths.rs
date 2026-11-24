@@ -94,7 +94,7 @@ pub fn canonical(mode: Mode, picks: &[Selection]) -> String {
 /// normalisation without a dependency, so the common accented Latin letters are mapped by hand.
 /// The two only have to agree well enough that a link does not look broken — the id in front of
 /// the slug is what the parser reads, and it is authoritative.
-fn slugify(name: &str) -> String {
+pub(crate) fn slugify(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut dash = false;
 

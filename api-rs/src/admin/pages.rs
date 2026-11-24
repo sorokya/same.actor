@@ -41,6 +41,7 @@ pub fn page_router(state: AppState) -> Router<AppState> {
         .route("/bans", get(bans).post(create_ban))
         .route("/bans/{id}/delete", post(delete_ban))
         .route("/health", get(health))
+        .nest("/franchises", crate::admin::franchises::router())
         .layer(middleware::from_fn_with_state(state, guard))
         .layer(middleware::from_fn(crate::admin::no_store))
 }

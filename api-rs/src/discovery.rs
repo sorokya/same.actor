@@ -1110,6 +1110,7 @@ mod tests {
             poster_path: None,
             overview: None,
             vote_average: None,
+            media_type: None,
         };
 
         assert!(by_id("top:movie:all-time")

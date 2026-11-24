@@ -484,11 +484,34 @@ first tap produces a list of matches rather than a blank box; without the island
 still links. (The booster sets the URL *before* swapping the page in, because the island reads
 `?q` on mount — pushing after the swap left the box empty at the right address.)
 
+## Franchises
+
+The synergy views cluster titles by **franchise**, and TMDB cannot supply that: its collections are
+narrower than franchises (Iron Man, The Avengers and Guardians are three collections and one
+franchise), and its keywords are noisy. So the grouping is curated, at `/admin/franchises`, and TMDB
+is used only to *suggest*.
+
+- **The list** — create, rename, delete. Renaming keeps the URL; deleting returns the titles to the
+  queue rather than deleting anything.
+- **One franchise** — its titles as posters with a remove button, a search box to add more, and,
+  when a title it holds belongs to a TMDB collection, one button to import every part of that
+  collection.
+- **The queue** — every title in a list that no franchise holds, with the reasons it might belong to
+  one: the collection it already shares with a franchise ("same collection"), a director, or
+  overlapping keywords. Each is a button that says why; none is applied automatically.
+- **Cameos** — per title, the cast with the cutoff's verdict and a toggle either way. The cutoff
+  (billing position 15) is a guess, so the override is what makes being wrong cheap; it is stored
+  per person and per title, and `cameo = 0` — "this is a lead, not a walk-on" — matters as much as
+  the other direction.
+
+One title belongs to at most one franchise: `franchise_titles` is keyed on `(kind, media_id)`, so a
+crossover has to pick a side.
+
 ## Admin
 
 The dashboard is at `/admin` and is server-rendered: a login form posts the token, and the cookie
 it sets (`sa_admin`, HttpOnly) opens `/admin/overview`, `/admin/logs`, `/admin/suspicious`,
-`/admin/bans` and `/admin/health`. Filters are query strings — `?window=7d`, `?ip=…`, `?path=…`
+`/admin/bans`, `/admin/franchises` and `/admin/health`. Filters are query strings — `?window=7d`, `?ip=…`, `?path=…`
 — so any view is a link you can keep, and no page there loads a script. Admin routes are exempt
 from bans, so a mistake cannot lock the operator out.
 

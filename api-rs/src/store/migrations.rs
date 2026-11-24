@@ -10,7 +10,7 @@ use rusqlite::Connection;
 use crate::error::AppError;
 
 /// Index 0 becomes `user_version = 1`, and so on.
-const MIGRATIONS: &[&str] = &[V1, V2, V3];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
 
 /// How many answers a comparison produced.
 ///
@@ -20,6 +20,46 @@ const MIGRATIONS: &[&str] = &[V1, V2, V3];
 const V3: &str = r#"
 ALTER TABLE comparisons ADD COLUMN matches INTEGER NOT NULL DEFAULT 0;
 CREATE INDEX comparisons_recent ON comparisons(last_seen DESC);
+"#;
+
+/// Curated franchises, the grouping the synergy views cluster by.
+///
+/// TMDB has no franchise field: its collections are narrower than franchises (Iron Man, The
+/// Avengers and Guardians are three collections and one franchise) and its keywords are noisy. So
+/// the grouping is recorded here, by hand, and TMDB's collection, directors and keywords are
+/// offered to the admin as suggestions rather than decisions.
+///
+/// `franchise_titles` is keyed on `(kind, media_id)`: one title belongs to at most one franchise,
+/// and a reassignment is an upsert rather than a cleanup. Deleting a franchise releases its titles
+/// instead of deleting them — a franchise is a label on a title, and the title is not ours.
+const V4: &str = r#"
+CREATE TABLE franchises (
+  id         INTEGER PRIMARY KEY,
+  slug       TEXT NOT NULL UNIQUE,
+  name       TEXT NOT NULL,
+  sort_order INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE franchise_titles (
+  franchise_id INTEGER NOT NULL REFERENCES franchises(id) ON DELETE CASCADE,
+  kind         TEXT NOT NULL,
+  media_id     INTEGER NOT NULL,
+  name         TEXT NOT NULL,
+  poster       TEXT,
+  added_ts     INTEGER NOT NULL,
+  PRIMARY KEY (kind, media_id)
+);
+CREATE INDEX franchise_titles_franchise ON franchise_titles(franchise_id);
+
+-- The billing cutoff gets a cameo wrong in both directions: it demotes a lead who joins late and
+-- promotes someone who walks through one scene. `cameo = 0` is the half that matters more.
+CREATE TABLE cameo_overrides (
+  kind      TEXT NOT NULL,
+  media_id  INTEGER NOT NULL,
+  person_id INTEGER NOT NULL,
+  cameo     INTEGER NOT NULL,
+  PRIMARY KEY (kind, media_id, person_id)
+);
 "#;
 
 /// True per-day totals.

@@ -339,7 +339,7 @@ pub struct ListResponse {
     pub results: Vec<ListItem>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 pub struct ListItem {
     pub id: u32,
     pub title: Option<String>,
@@ -352,6 +352,18 @@ pub struct ListItem {
     pub poster_path: Option<String>,
     pub overview: Option<String>,
     pub vote_average: Option<f64>,
+    /// Only collection parts carry this: `/collection/{id}` mixes films and shows in one list.
+    #[serde(default)]
+    pub media_type: Option<String>,
+}
+
+/// `/collection/{id}`. Parts are list items because they are, in every field that matters.
+#[derive(Debug, Deserialize)]
+pub struct CollectionDetail {
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub parts: Vec<ListItem>,
 }
 
 impl ListItem {

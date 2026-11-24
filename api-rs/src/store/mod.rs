@@ -25,6 +25,7 @@ use crate::geo::Geo;
 
 pub mod bans;
 pub mod comparisons;
+pub mod franchises;
 pub mod lists;
 pub mod maintenance;
 pub mod migrations;
@@ -73,6 +74,9 @@ pub(crate) enum WriteOp {
     Search(searches::SearchEvent),
     View(comparisons::NewView),
     Ban(BanWrite),
+    /// Curated franchise mutations. Acknowledged, because the admin page has to re-render the
+    /// result and a silent failure would leave it showing a change that did not happen.
+    Franchise(FranchiseOp),
     /// `(retention_days, now, ack)`.
     Maintenance(
         u32,
@@ -108,6 +112,36 @@ pub(crate) enum BanWrite {
     /// Fire and forget: a refused request should not wait on a counter.
     Hit(i64),
     Purge(tokio::sync::oneshot::Sender<Result<usize, String>>),
+}
+
+/// Durable franchise mutations, acknowledged like the ban ones and for the same reason.
+pub(crate) enum FranchiseOp {
+    Create(String, tokio::sync::oneshot::Sender<Result<i64, String>>),
+    Rename(
+        i64,
+        String,
+        tokio::sync::oneshot::Sender<Result<bool, String>>,
+    ),
+    Delete(i64, tokio::sync::oneshot::Sender<Result<bool, String>>),
+    Assign(
+        franchises::Assign,
+        tokio::sync::oneshot::Sender<Result<(), String>>,
+    ),
+    Unassign(
+        String,
+        u32,
+        tokio::sync::oneshot::Sender<Result<bool, String>>,
+    ),
+    Cameo(
+        franchises::Cameo,
+        tokio::sync::oneshot::Sender<Result<(), String>>,
+    ),
+    ClearCameo(
+        String,
+        u32,
+        u32,
+        tokio::sync::oneshot::Sender<Result<bool, String>>,
+    ),
 }
 
 #[derive(Debug, Clone, Copy, Default, Serialize)]
@@ -465,6 +499,41 @@ fn accept(
             commit(conn, counters, pending, geo);
             let now = crate::clock::now_unix();
             let _ = ack.send(bans::purge_expired(conn, now).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::Create(name, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(franchises::insert(conn, &name).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::Rename(id, name, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ =
+                ack.send(franchises::rename(conn, id, &name).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::Delete(id, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(franchises::delete(conn, id).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::Assign(assign, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(franchises::assign(conn, &assign).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::Unassign(kind, media_id, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(
+                franchises::unassign(conn, &kind, media_id).map_err(|error| error.to_string()),
+            );
+        }
+        WriteOp::Franchise(FranchiseOp::Cameo(cameo, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ =
+                ack.send(franchises::set_cameo(conn, &cameo).map_err(|error| error.to_string()));
+        }
+        WriteOp::Franchise(FranchiseOp::ClearCameo(kind, media_id, person_id, ack)) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(
+                franchises::clear_cameo(conn, &kind, media_id, person_id)
+                    .map_err(|error| error.to_string()),
+            );
         }
         WriteOp::Ban(BanWrite::Hit(id)) => {
             if let Err(error) = bans::record_hit(conn, id) {

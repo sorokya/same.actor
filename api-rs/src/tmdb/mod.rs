@@ -406,6 +406,17 @@ impl Tmdb {
         })
     }
 
+    /// Every part of a TMDB collection.
+    ///
+    /// One call, and only when the maintainer asks for it: collections are suggestions for a
+    /// franchise, never the franchise itself, so nothing here runs on a normal page render.
+    pub async fn collection(&self, id: u32) -> Result<types::CollectionDetail, AppError> {
+        let id = id.to_string();
+
+        self.get(&["collection", id.as_str()], &[("language", LANGUAGE)])
+            .await
+    }
+
     /// Filmography of one selected person. Used when comparing people.
     pub async fn person_selection(
         &self,

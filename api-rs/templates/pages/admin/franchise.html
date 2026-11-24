@@ -1,0 +1,107 @@
+{% extends "layouts/base.html" %}
+{% import "macros/cards.html" as cards %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+  <p class="label">
+    <a href="/admin/franchises" class="hover:text-paper">Franchises</a>
+    <span aria-hidden="true" class="mx-1 text-dim/50">/</span>
+    {{ name }}
+  </p>
+  <h1 class="mt-1 inline-flex items-center gap-2 text-xl tracking-tight text-paper">
+    <span aria-hidden="true" class="h-3 w-3 shrink-0 rounded-full" style="background: {{ colour }}"></span>
+    {{ name }}
+  </h1>
+  <p class="mt-1 font-mono text-[11px] text-dim">/{{ slug }} · {{ rows.len() }} {% if rows.len() == 1 %}title{% else %}titles{% endif %}</p>
+
+  {% if !error.is_empty() %}
+  <p role="alert" class="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-paper">{{ error }}</p>
+  {% endif %}
+  {% if !message.is_empty() %}
+  <p class="mt-3 rounded-md border border-line bg-raise px-3 py-2 text-sm text-dim">{{ message }}</p>
+  {% endif %}
+
+  <form method="post" action="/admin/franchises/{{ slug }}/rename" class="mt-4 flex flex-wrap items-end gap-2">
+    <label class="min-w-[14rem] flex-1">
+      <span class="label block">Name</span>
+      <input
+        name="name"
+        value="{{ name }}"
+        required
+        class="mt-1 w-full rounded-md border border-line bg-raise px-2.5 py-1.5 text-xs text-paper focus:border-dim focus:outline-none"
+      />
+    </label>
+    <button type="submit" class="rounded-md border border-line px-3 py-1.5 text-xs text-paper hover:border-dim">Rename</button>
+  </form>
+  <p class="mt-1.5 text-[11px] text-dim">Renaming keeps the URL, so an existing link keeps working.</p>
+
+  <section class="mt-7" aria-labelledby="in-this">
+    <h2 id="in-this" class="label mb-3">In this franchise</h2>
+
+    {% if rows.is_empty() %}
+    <p class="text-sm text-dim">Nothing yet. Add titles below, or from the queue.</p>
+    {% else %}
+    <ul class="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-6">
+      {% for row in rows %}
+      <li>
+        <div class="relative">
+          {% call cards::poster_well(row.poster) %}{% endcall %}
+        </div>
+        <p class="mt-1.5 line-clamp-2 text-[11px] leading-snug text-paper">{{ row.name }}</p>
+        <form method="post" action="/admin/franchises/{{ slug }}/remove/{{ row.kind }}/{{ row.id }}" class="mt-1">
+          <button type="submit" class="font-mono text-[10px] uppercase tracking-[0.1em] text-dim hover:text-danger">Remove</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+
+  <section class="mt-8" aria-labelledby="add">
+    <h2 id="add" class="label mb-2">Add a title</h2>
+
+    <form method="get" action="/admin/franchises/{{ slug }}" class="flex flex-wrap items-end gap-2">
+      <label class="min-w-[14rem] flex-1">
+        <span class="label block">Search TMDB</span>
+        <input
+          name="q"
+          value="{{ query }}"
+          placeholder="The Matrix"
+          class="mt-1 w-full rounded-md border border-line bg-raise px-2.5 py-1.5 text-xs text-paper focus:border-dim focus:outline-none"
+        />
+      </label>
+      <button type="submit" class="rounded-md border border-line px-3 py-1.5 text-xs text-paper hover:border-dim">Search</button>
+    </form>
+
+    {% if results.len() > 0 %}
+    <ul class="mt-3 divide-y divide-line-soft rounded-md border border-line">
+      {% for row in results %}
+      <li class="flex items-center gap-3 px-3 py-2">
+        <span class="w-8 shrink-0">{% call cards::art(row.poster, "h-11 w-8 rounded-[3px]", 12, false) %}{% endcall %}</span>
+        <span class="min-w-0 flex-1">
+          <span class="block truncate text-[13px] text-paper">{{ row.name }}</span>
+          <span class="font-mono text-[10px] uppercase tracking-[0.1em] text-dim">{{ row.kind }}</span>
+        </span>
+        <form method="post" action="/admin/franchises/{{ slug }}/add">
+          <input type="hidden" name="kind" value="{{ row.kind }}" />
+          <input type="hidden" name="media_id" value="{{ row.id }}" />
+          <input type="hidden" name="name" value="{{ row.name }}" />
+          <input type="hidden" name="poster" value="{{ row.poster }}" />
+          <button type="submit" class="rounded-md bg-paper px-2.5 py-1 text-[11px] font-medium text-ink hover:bg-paper/90">Add</button>
+        </form>
+      </li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if collection_parts > 0 %}
+    <form method="post" action="/admin/franchises/{{ slug }}/collection/{{ collection_id }}" class="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-md border border-line bg-raise px-3 py-2">
+      <span class="text-xs text-dim">
+        TMDB collection <span class="text-paper">{{ collection_name }}</span> — {{ collection_parts }} parts, one call
+      </span>
+      <button type="submit" class="rounded-md border border-line px-2.5 py-1 text-[11px] text-paper hover:border-dim">Add all</button>
+    </form>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

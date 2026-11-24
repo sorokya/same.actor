@@ -10,6 +10,7 @@
 pub mod admin;
 pub mod compare;
 pub mod discover;
+pub mod franchise;
 pub mod not_found;
 pub mod start_here;
 

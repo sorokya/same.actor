@@ -1,0 +1,78 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+  <h1 class="text-xl tracking-tight text-paper">Franchises</h1>
+  <p class="mt-1 max-w-2xl text-sm text-dim">
+    The groups the synergy views cluster by. TMDB has no franchise field — its collections are
+    narrower than franchises and its keywords are noisy — so the grouping is decided here, and
+    TMDB's data is offered as a suggestion rather than used as an answer.
+  </p>
+
+  {% if !error.is_empty() %}
+  <p role="alert" class="mt-3 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-paper">{{ error }}</p>
+  {% endif %}
+  {% if !message.is_empty() %}
+  <p class="mt-3 rounded-md border border-line bg-raise px-3 py-2 text-sm text-dim">{{ message }}</p>
+  {% endif %}
+
+  <div class="mt-5 flex flex-wrap items-end justify-between gap-3">
+    <form method="post" action="/admin/franchises" class="flex flex-wrap items-end gap-2">
+      <label class="min-w-[14rem] flex-1">
+        <span class="label block">New franchise</span>
+        <input
+          name="name"
+          required
+          placeholder="Marvel Cinematic Universe"
+          class="mt-1 w-full rounded-md border border-line bg-raise px-2.5 py-1.5 text-xs text-paper focus:border-dim focus:outline-none"
+        />
+      </label>
+      <button type="submit" class="rounded-md bg-paper px-3 py-1.5 text-xs font-medium text-ink hover:bg-paper/90">Create</button>
+    </form>
+
+    <a href="/admin/franchises/queue" class="rounded-md border border-line px-3 py-1.5 text-xs text-dim hover:border-dim hover:text-paper">
+      Unassigned queue{% if unassigned > 0 %} <span class="tnum ml-1 text-accent">{{ unassigned }}</span>{% endif %}
+    </a>
+  </div>
+
+  {% if rows.is_empty() %}
+  <p class="mt-6 text-sm text-dim">
+    No franchises yet. Every title is in the queue until one exists, and the views group titles by
+    list order until then.
+  </p>
+  {% else %}
+  <table class="mt-6 w-full border-collapse text-sm">
+    <thead>
+      <tr class="border-b border-line text-left">
+        <th class="label pb-1.5">Franchise</th>
+        <th class="label pb-1.5">URL</th>
+        <th class="label pb-1.5 text-right">Titles</th>
+        <th class="pb-1.5"></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="border-b border-line-soft">
+        <td class="py-2">
+          <a href="/admin/franchises/{{ row.slug }}" class="inline-flex items-center gap-2 text-paper hover:text-accent">
+            <span aria-hidden="true" class="h-2.5 w-2.5 shrink-0 rounded-full" style="background: {{ row.colour }}"></span>
+            {{ row.name }}
+          </a>
+        </td>
+        <td class="py-2 font-mono text-[11px] text-dim">/{{ row.slug }}</td>
+        <td class="tnum py-2 text-right font-mono text-xs text-dim">{{ row.titles }}</td>
+        <td class="py-2 text-right">
+          <form method="post" action="/admin/franchises/{{ row.id }}/delete">
+            <button type="submit" class="rounded px-2 py-1 font-mono text-[11px] uppercase tracking-[0.1em] text-dim hover:text-danger">
+              Delete
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <p class="mt-3 text-[11px] text-dim">Deleting a franchise returns its titles to the queue; it never deletes a title.</p>
+  {% endif %}
+</main>
+{% endblock %}

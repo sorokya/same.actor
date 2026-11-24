@@ -9,6 +9,7 @@
 //! process signs everyone out, which is the correct default for a single-operator service.
 
 pub mod api;
+pub mod franchises;
 pub mod pages;
 
 use std::collections::HashMap;

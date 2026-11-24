@@ -101,6 +101,21 @@ impl Store {
             .await
     }
 
+    /// Every stored list's payload, for the admin queue.
+    ///
+    /// Read all of them at once rather than per list: the queue unions by title, and nine small
+    /// JSON blobs are one query and one pass.
+    pub async fn all_list_payloads(&self) -> Result<Vec<(String, String)>, AppError> {
+        self.read(|conn| {
+            let mut stmt = conn.prepare("SELECT id, payload FROM lists")?;
+            let rows = stmt.query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })?;
+            rows.collect()
+        })
+        .await
+    }
+
     pub async fn put_list(
         &self,
         id: String,
