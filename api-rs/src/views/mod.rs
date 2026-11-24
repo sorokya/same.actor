@@ -30,6 +30,19 @@ pub fn render<T: Template>(template: &T) -> Result<Html<String>, AppError> {
         .map_err(|error| AppError::Internal(format!("could not render a page: {error}")))
 }
 
+/// Which island a page needs.
+///
+/// A page loads what it uses and nothing else: a browse page has no picker, a comparison page has
+/// no matrix. The booster carries the difference — when a swap lands on a page whose script this
+/// document never ran, it loads it before announcing the swap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scripts {
+    /// The comparison pages: searching, picking, sharing.
+    Picker,
+    /// The browse pages: hover, pinning, filter swaps.
+    Synergy,
+}
+
 /// Everything the shared layout needs.
 ///
 /// `nav` is the section key the header marks as current: `title`, `person`, `top`, `new`,
@@ -83,25 +96,32 @@ impl Head {
         }
     }
 
-    /// Everything a public page loads: stylesheet, the two islands and the link booster.
+    /// What a public page loads: the stylesheet and the link booster always, and the island that
+    /// page actually uses.
     ///
-    /// All of them, on every public page, because a boosted navigation does not re-run scripts:
-    /// arriving at a comparison page from a browse page used to leave the picker unmounted, with
-    /// no search box and no buttons, until a full reload. Each script no-ops when its markup is
-    /// absent, so the cost is bytes, and they are small and cached.
-    pub fn with_scripts(mut self, assets: &crate::assets::Assets) -> Self {
+    /// Not everything everywhere: a browse page has no picker and a comparison page has no
+    /// matrix. The booster carries the rest — when a swap lands on a page whose script this
+    /// document never ran, it fetches and runs it before announcing the swap (`lib/nav.ts`).
+    pub fn with_scripts(mut self, assets: &crate::assets::Assets, scripts: Scripts) -> Self {
         if let Some(css) = assets.css.as_deref() {
             self = self.with_css(css);
         }
         if let Some(boost) = assets.boost.as_deref() {
             self = self.with_boost(boost);
         }
-        if let Some(island) = assets.island.as_deref() {
-            self = self.with_island(island);
+
+        let island = match scripts {
+            Scripts::Picker => assets.island.as_deref(),
+            Scripts::Synergy => assets.synergy.as_deref(),
+        };
+
+        if let Some(script) = island {
+            match scripts {
+                Scripts::Picker => self = self.with_island(script),
+                Scripts::Synergy => self = self.with_synergy(script),
+            }
         }
-        if let Some(synergy) = assets.synergy.as_deref() {
-            self = self.with_synergy(synergy);
-        }
+
         self
     }
 
@@ -237,6 +257,34 @@ fn plural(n: i64) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assets() -> crate::assets::Assets {
+        crate::assets::Assets {
+            css: Some("/assets/island.css".into()),
+            island: Some("/assets/island.js".into()),
+            boost: Some("/assets/boost.js".into()),
+            synergy: Some("/assets/synergy.js".into()),
+        }
+    }
+
+    /// A page loads the island it uses and not the other one: a browse page has no picker, and a
+    /// comparison page has no matrix. The booster is what makes that safe — it fetches the
+    /// missing script before announcing a swap (`lib/nav.ts`).
+    #[test]
+    fn a_page_loads_the_island_it_needs_and_not_the_other() {
+        let picker = Head::new("t", "d", "title").with_scripts(&assets(), Scripts::Picker);
+        assert_eq!(picker.island, "/assets/island.js");
+        assert!(picker.synergy.is_empty(), "a comparison page has no matrix");
+        assert!(
+            !picker.boost.is_empty(),
+            "a picker page still swaps pages in"
+        );
+
+        let browse = Head::new("t", "d", "upcoming").with_scripts(&assets(), Scripts::Synergy);
+        assert_eq!(browse.synergy, "/assets/synergy.js");
+        assert!(browse.island.is_empty(), "a browse page has no picker");
+        assert!(!browse.boost.is_empty(), "and so does a browse page");
+    }
 
     const NOW: i64 = 1_795_500_000;
 

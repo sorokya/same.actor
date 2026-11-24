@@ -34,6 +34,11 @@ function mount(): void {
   // `render` mounts into an empty container, so without this the fallback stays underneath the
   // island for the life of the page — still naming the selection the *document* was built with,
   // after the island has changed it. That is why Clear looked like it did nothing.
+  //
+  // Unmount first. This function runs twice when the island's script arrives with a boosted
+  // navigation — once as the module evaluates, once on the swap announcement — and emptying a
+  // container Preact still owns leaves it updating detached nodes, which renders nothing at all.
+  render(null, target);
   target.replaceChildren();
   render(<Picker bootstrap={bootstrap} />, target);
 }

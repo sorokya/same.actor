@@ -157,7 +157,17 @@ The comparison pages ask the same route for `X-Fragment: results` after a select
 the results markup exists in one template and the island never renders a table. Without
 JavaScript everything except picking still works, including a shared comparison link.
 
-### Navigation without reloads
+### Navigation
+
+Pages are swapped in rather than reloaded (`src/lib/nav.ts`). A page loads only the island it
+uses — the picker on comparison pages, the matrix island on browse pages — and the booster closes
+the gap: when a swap lands on a page whose script this document never ran, it fetches and runs it
+before announcing the swap. Without that, arriving at a comparison page from a browse page left an
+empty picker with no search box, and the matrix arrived without its hover.
+
+The island unmounts before it renders (`render(null, target)`), because its script can arrive
+*with* a swap: it would otherwise mount twice, and the second mount empties a container Preact
+still owns, which draws nothing at all. without reloads
 
 `src/boost.ts` intercepts clicks on links it can serve — same origin, left button, no modifiers,
 one of our page routes — fetches the page, and swaps `[data-swap]` plus the header. The URL goes

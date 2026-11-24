@@ -14,6 +14,48 @@ export const SWAPPED = 'sameactor:swapped';
 
 const SWAP = '[data-swap]';
 
+/** Scripts this document has already run, by absolute URL. */
+const loaded = new Set<string>(
+  Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]')).map(
+    (script) => script.src,
+  ),
+);
+
+/**
+ * Bring over the scripts the incoming page needs and this one never loaded.
+ *
+ * A page's scripts are chosen by the server — the picker on a comparison page, the matrix
+ * island on a browse page — because a page should not pay for what it does not use. But a swap
+ * does not re-run scripts, so navigating from a browse page to a comparison page used to arrive
+ * at a page with no search box: the markup was there and the script that fills it never was.
+ *
+ * Loaded in order of appearance and awaited, so an island that mounts on evaluation sees the
+ * finished DOM. A script that fails to load resolves anyway: a missing island leaves the
+ * server-rendered page, which is the whole point of rendering it first.
+ */
+async function loadScripts(next: Document): Promise<void> {
+  const wanted = Array.from(next.querySelectorAll<HTMLScriptElement>('script[src]'))
+    .map((script) => new URL(script.src, window.location.href).href)
+    .filter((src) => !loaded.has(src));
+
+  await Promise.all(
+    wanted.map(
+      (src) =>
+        new Promise<void>((resolve) => {
+          const script = document.createElement('script');
+          script.type = 'module';
+          script.src = src;
+          script.onload = () => {
+            loaded.add(script.src);
+            resolve();
+          };
+          script.onerror = () => resolve();
+          document.head.append(script);
+        }),
+    ),
+  );
+}
+
 /** Only same-origin GETs to pages we render are ours to intercept. */
 export function isInternalPage(url: URL, current: URL): boolean {
   if (url.origin !== current.origin) return false;
@@ -41,7 +83,7 @@ function replace(selector: string, next: Document): boolean {
  * Returns false when the incoming page is not the same shape as the current one, which is the
  * signal to let the browser load it normally.
  */
-export function swapDocument(next: Document): boolean {
+export async function swapDocument(next: Document): Promise<boolean> {
   if (!replace(SWAP, next)) return false;
   // The header is outside the swap region because it is identical on every page except for
   // one attribute; replacing it is cheaper than reconciling that attribute by hand.
@@ -57,6 +99,9 @@ export function swapDocument(next: Document): boolean {
     main.setAttribute('tabindex', '-1');
     main.focus({ preventScroll: true });
   }
+
+  // Before the announcement: an island's handler assumes its script is running.
+  await loadScripts(next);
 
   document.dispatchEvent(new CustomEvent(SWAPPED));
   return true;
@@ -85,7 +130,7 @@ export async function navigate(url: string, options: { push?: boolean } = {}): P
     // link arrived at the right URL with an empty box.
     if (push) window.history.pushState(null, '', url);
 
-    if (!swapDocument(next)) {
+    if (!(await swapDocument(next))) {
       if (push) window.history.replaceState(null, '', previous);
       throw new Error('the page has a different shape');
     }

@@ -115,7 +115,7 @@ async fn response(
 
     let mut head = head_for(&state, mode, &picks, &selections, &matches, &share_url);
 
-    head = head.with_scripts(&state.assets);
+    head = head.with_scripts(&state.assets, crate::views::Scripts::Picker);
 
     let mut page = ComparePage::new(head, mode, &selections, &matches, views, share_url);
 

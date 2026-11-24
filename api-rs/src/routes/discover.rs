@@ -259,7 +259,7 @@ pub async fn page(
     // the page, which is the one thing a wide table should not do.
     .wide();
 
-    head = head.with_scripts(&state.assets);
+    head = head.with_scripts(&state.assets, crate::views::Scripts::Synergy);
 
     head = head.with_canonical(format!(
         "{}{}",
