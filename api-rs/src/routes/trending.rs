@@ -38,12 +38,11 @@ pub struct TrendingResponse {
     pub terms: Vec<TrendingTerm>,
 }
 
-pub async fn trending(State(state): State<AppState>) -> Result<Json<TrendingResponse>, AppError> {
+/// The terms, cached. Shared by the JSON endpoint and the page that renders the strip, so the
+/// cache has one writer and the two views cannot disagree.
+pub async fn terms(state: &AppState) -> Result<Vec<TrendingTerm>, AppError> {
     if let Some(cached) = state.trending_cache.get(&CACHE_SLOT).await {
-        return Ok(Json(TrendingResponse {
-            window: "24h",
-            terms: cached.as_ref().clone(),
-        }));
+        return Ok(cached.as_ref().clone());
     }
 
     let terms = state.store.trending(DAYS, MIN_SEARCHES, LIMIT).await?;
@@ -53,8 +52,12 @@ pub async fn trending(State(state): State<AppState>) -> Result<Json<TrendingResp
         .insert(CACHE_SLOT, std::sync::Arc::new(terms.clone()))
         .await;
 
+    Ok(terms)
+}
+
+pub async fn trending(State(state): State<AppState>) -> Result<Json<TrendingResponse>, AppError> {
     Ok(Json(TrendingResponse {
         window: "24h",
-        terms,
+        terms: terms(&state).await?,
     }))
 }

@@ -3,8 +3,10 @@
 Is that the same actor from another movie you remember? Pick two to five films, shows, or
 people and see exactly what they share.
 
-One Rust binary serves the API, the single-page Preact app, and the share cards, on one
-origin at one version.
+One Rust binary renders every page, serves the API and draws the share cards, on one origin at
+one version. Pages are HTML the server produced: a shared link shows its answer before a byte of
+JavaScript runs, and the only script the site loads is the picker — a ~24 kB island on the
+comparison pages. The browse pages and the dashboard load no script at all.
 
 ## How it works
 
@@ -74,7 +76,7 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `BIND` | `0.0.0.0:3001` | Listen address. |
 | `TMDB_BASE` | `https://api.themoviedb.org/3` | Override for the stub or a proxy. |
 | `IMAGE_BASE` | `https://image.tmdb.org/t/p/w342` | Poster/portrait prefix. |
-| `STATIC_DIR` | `dist` | Directory holding the built SPA. API-only if absent. |
+| `STATIC_DIR` | `dist` | Directory holding the built CSS and the island. Pages render unstyled if absent. |
 | `PUBLIC_ORIGIN` | `http://localhost:3001` | Absolute origin for `og:url` and `og:image`. **Set this in production** — Open Graph requires absolute URLs and it cannot be inferred behind a proxy. |
 | `DB_PATH` | `data/same-actor.db` | SQLite file. Relative by default so a local run needs no configuration; the container sets `/data/same-actor.db` on a volume. |
 | `LOG_RETENTION_DAYS` | `90` | Days of raw request rows kept before rollup. The aggregates keep no IP and no session id, so this is the privacy cutover as well as the size one. |
@@ -128,6 +130,24 @@ The id is authoritative and the slug is decoration, so `/title/movie-603,movie-6
 same page — the client rewrites the address to the slug form once it knows the names. The
 kind is only written in `title` mode, where a selection can be either a film or a show.
 
+## Rendering
+
+| Page | Rendered by | Script |
+| --- | --- | --- |
+| `/`, `/person`, `/title/{picks}`, `/person/{picks}` | Rust | the island |
+| `/discover/{section}` | Rust | none |
+| `/admin` and its pages | Rust | none |
+| unknown paths | Rust (404 page) | none |
+
+The comparison pages ask the same route for `X-Fragment: results` after a selection changes, so
+the results markup exists in one template and the island never renders a table. Without
+JavaScript everything except picking still works, including a shared comparison link.
+
+Templates are compiled into the binary, so a typo is a build error and not a 500. Classes live in
+the templates; `src/index.css` names `../api-rs/templates` with `@source` so Tailwind emits the
+utilities that only appear there. Forgetting that is silent in development and visible in
+production — the fix is to rebuild the stylesheet after adding a template.
+
 ## Layout
 
 ```
@@ -163,9 +183,10 @@ api-rs/assets/fonts/
 
 ## Frontend notes
 
-Preact, not React — with no `preact/compat`, so the bundle is ~38 kB (14 kB gzipped) and
-nothing underneath it imports React. Three behaviours differ from React and cost an
-afternoon if you meet them cold:
+Rust renders the pages (`api-rs/templates`, askama, compiled in). The browser runs one island:
+the search box, the chips and Share. It is Preact — not React — with no `preact/compat`, so
+nothing underneath it imports React. Three behaviours differ from React and cost an afternoon
+if you meet them cold:
 
 - **`onChange` is the DOM `change` event**, not React's input alias. Typing does nothing
   until blur. Use `onInput`.

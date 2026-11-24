@@ -24,9 +24,6 @@ pub struct AppState {
     pub og_cache: Cache<String, Arc<Vec<u8>>>,
     /// Hashed filenames of the built CSS and island, read once from the Vite manifest.
     pub assets: crate::assets::Assets,
-    /// `dist/index.html` held in memory so Open Graph tags can be injected per comparison.
-    /// `None` when the deployment serves no SPA.
-    pub index_html: Option<Arc<String>>,
     /// The request log and everything derived from it.
     pub store: Arc<Store>,
     /// Country lookups. Held here as well as inside the writer so the refresher and the health
@@ -66,14 +63,8 @@ impl AppState {
             ..StoreConfig::default()
         })?;
 
-        // A truncated or empty shell would render blank pages with a 200; treat it as absent
-        // so the failure mode is a visible 404 rather than a mystery.
-        let index_html =
-            std::fs::read_to_string(std::path::Path::new(&config.static_dir).join("index.html"))
-                .ok()
-                .filter(|html| html.trim().len() > 32)
-                .map(Arc::new);
-
+        // Hashed filenames for the stylesheet and the island, read once. A missing manifest is
+        // a warning, not a startup failure: an API-only deployment has no assets and must run.
         let assets = crate::assets::Assets::load(std::path::Path::new(&config.static_dir));
 
         let admin = Arc::new(AdminAuth::new(config.admin_token.clone()));
@@ -95,7 +86,6 @@ impl AppState {
                 .time_to_live(std::time::Duration::from_secs(3600))
                 .build(),
             assets,
-            index_html,
             store: Arc::new(store),
             geo,
             bans,
@@ -145,37 +135,14 @@ mod tests {
         }
     }
 
-    fn dir_with(contents: &str) -> std::path::PathBuf {
-        let dir = std::env::temp_dir().join(format!(
-            "same-actor-state-{}-{}",
-            std::process::id(),
-            contents.len()
-        ));
-        std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("index.html"), contents).unwrap();
-        dir
-    }
-
+    /// An API-only deployment — no built assets — must still start. The pages then render
+    /// without a stylesheet, which is degraded but not a failure to boot.
     #[test]
-    fn a_real_shell_is_loaded() {
-        let dir = dir_with("<!doctype html><html><head><!--og:start--><!--og:end--></head></html>");
-        let state = AppState::new(config(&dir)).expect("state");
-        assert!(state.index_html.is_some());
-    }
-
-    /// A truncated shell — the file being rewritten underneath us, or a bad image — must not
-    /// become a blank page served with a 200.
-    #[test]
-    fn an_empty_shell_is_treated_as_absent() {
-        let state = AppState::new(config(&dir_with(""))).expect("state");
-        assert!(state.index_html.is_none());
-    }
-
-    #[test]
-    fn a_missing_shell_is_absent_not_fatal() {
-        let dir = std::env::temp_dir().join("same-actor-state-does-not-exist");
+    fn a_missing_asset_manifest_is_not_fatal() {
+        let dir = std::env::temp_dir().join(format!("same-actor-state-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
+
         let state = AppState::new(config(&dir)).expect("an API-only deployment must still start");
-        assert!(state.index_html.is_none());
+        assert!(state.assets.css.is_none());
     }
 }

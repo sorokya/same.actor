@@ -5,7 +5,7 @@
 //! and a page that waits on an upstream call is a page that goes down when TMDB does.
 
 use axum::extract::{Path, State};
-use axum::response::Html;
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
@@ -219,14 +219,19 @@ pub async fn page(
     State(state): State<AppState>,
     Path(section_key): Path<String>,
     AppQuery(query): AppQuery<PageQuery>,
-) -> Result<Html<String>, AppError> {
-    let loaded = load(
+) -> Result<Response, AppError> {
+    let loaded = match load(
         &state,
         &section_key,
         query.kind.as_deref(),
         query.filter.as_deref(),
     )
-    .await?;
+    .await
+    {
+        Ok(loaded) => loaded,
+        Err(AppError::NotFound) => return Ok(crate::routes::not_found_page(&state)),
+        Err(error) => return Err(error),
+    };
 
     let heading = format!(
         "{} {}",
@@ -267,7 +272,7 @@ pub async fn page(
         &Section::ALL,
     );
 
-    render(&view)
+    Ok(render(&view)?.into_response())
 }
 
 /// The canonical path for a list. The default page for a section is the bare path, so

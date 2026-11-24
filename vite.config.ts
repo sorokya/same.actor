@@ -19,12 +19,10 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
-      // Two entries: the island the comparison pages load, and the dashboard SPA the admin
-      // still uses. They are separate on purpose — the island is 8 KB and every page that has
-      // a picker pays for it, so the dashboard's charts must not be in the same file.
+      // One entry: the picker island. There is no single-page app any more — every page is
+      // rendered by the server, and this is the only script the site loads.
       input: {
         island: 'src/island.tsx',
-        main: 'index.html',
       },
     },
     // The Rust side reads this to learn the hashed asset names: a template cannot hard-code

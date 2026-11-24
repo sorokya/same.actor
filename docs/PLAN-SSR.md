@@ -1,4 +1,8 @@
-# Plan: Rust-rendered pages with progressive enhancement
+# Rust-rendered pages with progressive enhancement
+
+**Status: done.** Phases 1–4 are in: browse pages, comparison pages with the picker island, the
+dashboard, and the cleanup that deleted the single-page app. The measurements below are the ones
+the decisions were made on, kept so the reasoning survives the code.
 
 ## The shape
 

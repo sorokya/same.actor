@@ -1,7 +1,7 @@
 //! HTTP handlers.
 
 use axum::extract::{Request, State};
-use axum::http::header;
+use axum::http::{header, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::Json;
@@ -87,6 +87,26 @@ pub async fn enforce_rate_limit(
                 retry_after_secs: retry_after.as_secs().max(1),
             }
             .into_response()
+        }
+    }
+}
+
+/// The 404 page, for anything no route claimed.
+pub async fn not_found(State(state): State<AppState>) -> Response {
+    not_found_page(&state)
+}
+
+/// Render the 404 page. A page route that cannot find what it was asked for should answer with
+/// a page: a JSON error body in a browser is a wall of braces where an explanation belongs.
+pub fn not_found_page(state: &AppState) -> Response {
+    let page = crate::views::not_found::NotFoundPage::new(&state.assets.css);
+
+    match crate::views::render(&page) {
+        // A 404 is a page, and a page says what happened.
+        Ok(html) => (StatusCode::NOT_FOUND, html).into_response(),
+        Err(error) => {
+            tracing::error!(%error, "could not render the 404 page");
+            (StatusCode::NOT_FOUND, "Not found.").into_response()
         }
     }
 }

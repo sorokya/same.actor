@@ -12,7 +12,7 @@ use axum::routing::{get, post};
 use axum::{middleware, Router};
 use tower_http::catch_panic::CatchPanicLayer;
 use tower_http::compression::CompressionLayer;
-use tower_http::services::{ServeDir, ServeFile};
+use tower_http::services::ServeDir;
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
@@ -132,13 +132,14 @@ pub fn build_app(state: AppState) -> Router {
 
     let static_dir = PathBuf::from(&state.config.static_dir);
     if static_dir.is_dir() {
-        // Single-page app: unknown paths return index.html so client-side routes survive a
-        // refresh or a shared link.
-        let serve = ServeDir::new(&static_dir)
-            .append_index_html_on_directories(true)
-            .fallback(ServeFile::new(static_dir.join("index.html")));
+        // Static files, and then a 404 page. There is no single-page app to fall back to:
+        // every page is a route, so an unknown path is genuinely not found.
+        let not_found = Router::new()
+            .fallback(routes::not_found)
+            .with_state(state.clone());
+        let serve = ServeDir::new(&static_dir).fallback(not_found);
         app = app.fallback_service(serve);
-        tracing::info!(dir = %static_dir.display(), "serving the SPA");
+        tracing::info!(dir = %static_dir.display(), "serving assets");
     } else {
         tracing::warn!(
             dir = %static_dir.display(),

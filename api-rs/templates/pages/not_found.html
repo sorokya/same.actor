@@ -1,0 +1,19 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-3xl flex-1 px-4 py-20">
+  <p class="label">404</p>
+  <h1 class="mt-2 text-2xl tracking-tight text-paper">Nothing here.</h1>
+  <p class="mt-2 max-w-md text-sm text-dim">
+    There is no page at this address. A comparison link has the shape
+    <span class="font-mono text-[12px] text-paper">/title/movie-603-the-matrix,movie-604-the-matrix-reloaded</span>,
+    and the browse sections are under <a href="/discover/top" class="text-accent hover:underline">/discover</a>.
+  </p>
+
+  <div class="mt-6 flex flex-wrap gap-2">
+    <a href="/" class="rounded-md bg-paper px-3 py-1.5 text-sm font-medium text-ink hover:bg-paper/90">Compare titles</a>
+    <a href="/person" class="rounded-md border border-line px-3 py-1.5 text-sm text-paper hover:bg-raise">Compare people</a>
+    <a href="/discover/top" class="rounded-md border border-line px-3 py-1.5 text-sm text-dim hover:text-paper">Browse</a>
+  </div>
+</main>
+{% endblock %}

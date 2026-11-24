@@ -33,6 +33,24 @@
 
   {# The island replaces the contents of this element after a selection changes. Without a
      script it is simply the results, correctly rendered by the server. #}
+  {# What people have been looking at today, rendered by the server: the strip is useful before
+     the first pick, and it is the same cached list the JSON endpoint serves. #}
+  {% if !trending.is_empty() %}
+  <section class="mt-6" aria-labelledby="trending">
+    <h2 id="trending" class="label mb-2">Trending today</h2>
+    <ul class="flex flex-wrap gap-1.5">
+      {% for link in trending %}
+      <li>
+        <a
+          href="{{ link.href }}"
+          class="inline-block rounded-full border border-line px-2.5 py-1 text-xs text-dim transition-colors hover:border-dim hover:text-paper"
+        >{{ link.term }}</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
   <div id="results" class="mt-8">
     {% call results::results(results) %}{% endcall %}
   </div>

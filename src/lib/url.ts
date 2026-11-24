@@ -1,5 +1,9 @@
 /**
- * Comparison URLs.
+ * Comparison URLs, built on the client.
+ *
+ * The server parses these (`api-rs/src/paths.rs`) and now owns that half: this module only
+ * writes the path the island navigates to, so there is one parser and no chance of the two
+ * disagreeing.
  *
  * `?mode=title&pick=movie%3A603` was the old form: `URLSearchParams` escapes the colon, so
  * every shared link carried `%3A` and `%2C` and read like machine output. This module
@@ -14,9 +18,7 @@
  * it would be noise.
  */
 
-import { type Kind, MAX_SELECTIONS, type Mode, type Selection } from './types';
-
-const KINDS: readonly Kind[] = ['movie', 'tv', 'person'];
+import type { Mode, Selection } from './types';
 
 export interface UrlState {
   readonly mode: Mode;
@@ -39,82 +41,6 @@ export function slugify(name: string): string {
     .replace(/-+$/, '')
     .slice(0, 48)
     .replace(/-+$/, '');
-}
-
-export function parsePicks(raw: string | undefined, mode: Mode): Selection[] {
-  if (!raw) return [];
-
-  const picks: Selection[] = [];
-  const seen = new Set<number>();
-
-  for (const segment of raw.split(',')) {
-    if (picks.length === MAX_SELECTIONS) break;
-
-    let rest = segment.trim();
-    if (rest === '') continue;
-
-    let kind: Kind = mode === 'person' ? 'person' : 'movie';
-
-    if (mode === 'title') {
-      const prefix = /^(movie|tv)-/.exec(rest);
-      if (prefix === null) continue;
-      kind = prefix[1] as Kind;
-      rest = rest.slice(prefix[0].length);
-    }
-
-    // `603-the-matrix` and `603` are both valid; the slug is ignored.
-    const idMatch = /^(\d{1,10})(?:-|$)/.exec(rest);
-    if (idMatch === null) continue;
-
-    const id = Number(idMatch[1]);
-    if (!Number.isInteger(id) || id <= 0 || id > 2147483647) continue;
-    if (seen.has(id)) continue;
-
-    seen.add(id);
-    picks.push({ kind, id });
-  }
-
-  return picks;
-}
-
-/** The legacy `?mode=&pick=kind:id,…` form, kept so pre-existing links still resolve. */
-function parseLegacyQuery(search: string): UrlState | null {
-  const params = new URLSearchParams(search);
-  const raw = params.get('pick');
-  if (raw === null) return null;
-
-  const mode: Mode = params.get('mode') === 'person' ? 'person' : 'title';
-  const picks: Selection[] = [];
-
-  for (const token of raw.split(',')) {
-    const [kindPart, idPart] = token.split(':');
-    if (kindPart === undefined || idPart === undefined) continue;
-    if (!(KINDS as readonly string[]).includes(kindPart)) continue;
-
-    const id = Number(idPart);
-    if (!Number.isInteger(id) || id <= 0) continue;
-
-    picks.push({ kind: kindPart as Kind, id });
-    if (picks.length === MAX_SELECTIONS) break;
-  }
-
-  return { mode, picks };
-}
-
-export function readFromLocation(pathname: string, search: string): UrlState {
-  const segments = pathname.split('/').filter((part) => part !== '');
-  const first = segments[0];
-
-  if (first === 'title' || first === 'person') {
-    const picks = parsePicks(segments[1], first);
-    if (picks.length > 0) return { mode: first, picks };
-    return { mode: first, picks: [] };
-  }
-
-  const legacy = parseLegacyQuery(search);
-  if (legacy !== null) return legacy;
-
-  return { mode: 'title', picks: [] };
 }
 
 export type NameFor = (pick: Selection) => string | null;

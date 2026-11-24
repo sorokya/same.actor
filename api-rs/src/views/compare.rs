@@ -87,6 +87,14 @@ pub struct ComparePage {
     /// The canonical comparison URL, for the "copy link" affordance.
     pub share_url: String,
     pub results: Results,
+    /// What people have been searching for today. Empty until a term is searched three times.
+    pub trending: Vec<TrendLink>,
+}
+
+/// One term in the trending strip, linked back into the search box.
+pub struct TrendLink {
+    pub term: String,
+    pub href: String,
 }
 
 /// The results region on its own, for the island to swap in after a selection changes.
@@ -94,6 +102,27 @@ pub struct ComparePage {
 #[template(path = "fragments/results.html")]
 pub struct ResultsFragment {
     pub results: Results,
+}
+
+/// Percent-encode a search term for a query string. Everything outside an unreserved character
+/// goes in as `%XX`, which is always correct and never surprising in a URL.
+fn encode_query(term: &str) -> String {
+    let mut out = String::with_capacity(term.len());
+
+    for byte in term.bytes() {
+        match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b' ' => {
+                if byte == b' ' {
+                    out.push('+');
+                } else {
+                    out.push(byte as char);
+                }
+            }
+            _ => out.push_str(&format!("%{byte:02X}")),
+        }
+    }
+
+    out
 }
 
 fn copy(mode: Mode) -> (&'static str, &'static str) {
@@ -158,8 +187,21 @@ enum Entry<'a> {
 }
 
 impl ComparePage {
-    /// Build the page. `matches` is empty when fewer than two selections were made, which is
-    /// the empty state rather than an error.
+    /// The strip is filled by the caller, which has the store: a page can then be built in a
+    /// test without one.
+    pub fn with_trending(mut self, terms: &[String]) -> Self {
+        self.trending = terms
+            .iter()
+            .map(|term| TrendLink {
+                term: term.clone(),
+                href: format!("/?q={}", encode_query(term)),
+            })
+            .collect();
+        self
+    }
+
+    /// Build the page. `matches` is empty when fewer than two selections were made, which is the
+    /// empty state rather than an error.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         head: Head,
@@ -284,6 +326,7 @@ impl ComparePage {
             sub: sub.to_owned(),
             state_json: picker_state(mode, selections),
             share_url,
+            trending: Vec::new(),
             results: Results {
                 selections: columns,
                 rows,

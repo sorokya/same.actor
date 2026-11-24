@@ -42,7 +42,9 @@ function metaFrom(result: SearchResult): SelectionMeta {
 export function Picker({ bootstrap }: PickerProps) {
   const mode = bootstrap.mode;
   const [meta, setMeta] = useState<readonly SelectionMeta[]>(bootstrap.picks);
-  const [term, setTerm] = useState('');
+  const [term, setTerm] = useState(
+    () => new URLSearchParams(window.location.search).get('q') ?? '',
+  );
   const [highlight, setHighlight] = useState(0);
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState(false);

@@ -123,7 +123,21 @@ async fn response(
         head = head.with_island(island);
     }
 
-    let page = ComparePage::new(head, mode, &selections, &matches, views, share_url);
+    let mut page = ComparePage::new(head, mode, &selections, &matches, views, share_url);
+
+    // The strip is only worth the query when the page has nothing to show yet, and it is the
+    // same cached list the JSON endpoint serves.
+    let matched = match &matches {
+        Matches::People(people) => people.len(),
+        Matches::Titles(titles) => titles.len(),
+    };
+
+    if matched == 0 {
+        if let Ok(terms) = super::trending::terms(&state).await {
+            let words: Vec<String> = terms.into_iter().map(|term| term.term).collect();
+            page = page.with_trending(&words);
+        }
+    }
 
     if fragment_requested(&headers) {
         let fragment = ResultsFragment {
