@@ -1,17 +1,42 @@
 {# The co-star grid: the lower triangle of an actor × actor heatmap.
 
-   One row per actor, in the matrix's order, with the same 12rem name column — switching views
-   does not move the people. A square sits at its column's grid position, so the triangle's shape
-   is the reader's evidence that no pair is drawn twice.
+   Actors run down the side and across the top, because a square is about two people and the
+   second one is only findable on an axis. The triangle is drawn below the diagonal, so no pair
+   appears twice and the shape itself says so.
 
-   A square with nothing shared is an outline and not a link: there is no page to show for zero.
-   The empty squares are still drawn, because without them the triangle is a scatter. #}
+   A square carries the number of titles the pair shares: the count is the answer, and a reader
+   should not have to hover to get it. The diagonal is dashed and dim — an actor's own total is
+   context for the row, not a pair. #}
 <div class="overflow-x-auto">
   <div class="inline-block align-top">
+    {# The top axis. Names are rotated so sixty of them fit in sixty narrow columns. #}
+    <div
+      class="grid items-end"
+      style="grid-template-columns: 12rem repeat({{ synergy.pairs.columns }}, 2.25rem)"
+    >
+      <span></span>
+      {% for row in synergy.pairs.rows %}
+      <a
+        href="{{ row.href }}"
+        target="_blank"
+        rel="noreferrer noopener"
+        style="grid-column: {{ row.at }}"
+        class="flex flex-col items-center justify-end gap-1.5 pb-1"
+      >
+        <span
+          class="pair-name truncate text-[10px] leading-none text-dim hover:text-paper"
+          data-actor="{{ row.id }}"
+          style="writing-mode: vertical-rl; transform: rotate(180deg); max-height: 8.5rem"
+        >{{ row.name }}</span>
+        <span class="shrink-0">{% call cards::art(row.image, "h-4 w-4 rounded-full", 8, true) %}{% endcall %}</span>
+      </a>
+      {% endfor %}
+    </div>
+
     {% for row in synergy.pairs.rows %}
     <div
       class="grid items-center"
-      style="grid-template-columns: 12rem repeat({{ synergy.pairs.columns }}, 1.35rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.pairs.columns }}, 2.25rem)"
     >
       <a
         href="{{ row.href }}"
@@ -24,20 +49,17 @@
         <span class="truncate">{{ row.name }}</span>
       </a>
 
-      {# The diagonal: this actor's own count, sitting in their own column rather than in the
-         name column, which is what makes a column identifiable at all. #}
+      {# The diagonal: this actor's own count. Dashed, because it is not a pair. #}
       <span
-        class="flex justify-center"
+        class="mx-auto flex h-8 w-8 items-center justify-center rounded-sm border border-dashed border-line font-mono text-[11px] text-dim"
         style="grid-row: 1; grid-column: {{ row.at }}"
         title="{{ row.name }} — {{ row.total }} in this list"
-      >
-        <span class="h-3 w-3 rounded-sm bg-accent/70"></span>
-      </span>
+      >{{ row.total }}</span>
 
       {% for cell in row.cells %}
-      {% if cell.href.is_empty() %}
+      {% if cell.shared == 0 %}
       <span
-        class="mx-auto h-3 w-3 rounded-sm border border-line/70"
+        class="mx-auto block h-8 w-8 rounded-sm border border-line/60"
         style="grid-row: 1; grid-column: {{ cell.at }}"
       ></span>
       {% else %}
@@ -46,12 +68,27 @@
         data-pair-a="{{ row.id }}"
         data-pair-b="{{ cell.other }}"
         title="{{ cell.detail }}"
-        class="pair-cell mx-auto h-3 w-3 rounded-sm bg-accent"
-        style="grid-row: 1; grid-column: {{ cell.at }}; opacity: {{ cell.opacity }}%"
-      ></a>
+        class="pair-cell mx-auto flex h-8 w-8 items-center justify-center rounded-sm font-mono text-[11px] text-paper"
+        style="grid-row: 1; grid-column: {{ cell.at }}; background: color-mix(in oklab, var(--color-accent) {% if cell.shared == 1 %}30{% else if cell.shared == 2 %}48{% else if cell.shared == 3 %}68{% else %}92{% endif %}%, transparent)"
+      >{{ cell.shared }}</a>
       {% endif %}
       {% endfor %}
     </div>
     {% endfor %}
+
+    {# The legend, which is what makes four shades a scale rather than decoration. #}
+    <div class="mt-3 flex flex-wrap items-center gap-3 font-mono text-[10px] uppercase tracking-[0.1em] text-dim">
+      <span>Titles shared</span>
+      <span class="flex items-center gap-1">
+        <span class="flex h-5 w-5 items-center justify-center rounded-sm text-paper" style="background: color-mix(in oklab, var(--color-accent) 30%, transparent)">1</span>
+        <span class="flex h-5 w-5 items-center justify-center rounded-sm text-paper" style="background: color-mix(in oklab, var(--color-accent) 48%, transparent)">2</span>
+        <span class="flex h-5 w-5 items-center justify-center rounded-sm text-paper" style="background: color-mix(in oklab, var(--color-accent) 68%, transparent)">3</span>
+        <span class="flex h-5 w-5 items-center justify-center rounded-sm text-paper" style="background: color-mix(in oklab, var(--color-accent) 92%, transparent)">4+</span>
+      </span>
+      <span class="flex items-center gap-1">
+        <span class="flex h-5 w-5 items-center justify-center rounded-sm border border-dashed border-line"></span>
+        Their own total
+      </span>
+    </div>
   </div>
 </div>

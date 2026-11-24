@@ -420,8 +420,17 @@ TMDB and an outage costs freshness, not availability. A refresh also prunes snap
 otherwise every change to the section model leaves a row behind for ever.
 
 A list is five TMDB pages — a hundred titles — because twenty mostly shares nothing, and a cast
-matrix over twenty titles is a grid with one dot per row. Titles that no actor appears in twice
-are then dropped: they are stored, they are simply not columns. The page says both numbers.
+matrix over twenty titles is a grid with one dot per row. The page then keeps only the titles with
+a **thin** connection: a column stays while at most two of its people appear in another title of
+the list (`MAX_SHARED_CAST` in `synergy.rs`).
+
+That cap is what makes a hundred titles readable. Without it the page is franchise blocks — six
+people recurring across six films, drawn six times over — and the interesting links (the actor who
+crosses from Marvel to a Tarantino film) are buried. A title sharing half its cast with four other
+titles is not a link, it is a franchise, and the group header already says so. Filtering runs to a
+fixed point because dropping a column can drop an actor below a second appearance, which thins the
+columns again. On a stub list of 22 titles, 8 dense franchise films and 13 of their actors drop
+out, leaving 14 titles and 13 actors. The page says both numbers: "14 of 22 titles".
 
 ### Response cache and retention
 
@@ -554,10 +563,14 @@ walks each pair of title lists together instead of building a set per pair — s
 pairs, and 1,770 sets is a lot of allocation to answer a question two cursors can. The order is
 the matrix's order, so switching views does not shuffle the people.
 
-A square carries two actors and only one of them has a label on screen; the island names both on
-hover, which is the one thing the server-rendered picture cannot say. A square that shares nothing
-is drawn as an outline and is not a link — there is no page to show for a zero — and those empty
-squares are what make the triangle read as a triangle rather than a scatter.
+The grid carries the actors on both axes: down the side, and rotated across the top, because a
+square is about two people and the second one is otherwise only findable on the diagonal. Each
+square prints the number of titles the pair shares, over one of four fixed shades, so the legend
+means the same thing on every list. The diagonal is dashed — an actor's own total is context for
+the row, not a pair. A square that shares nothing is drawn as an outline and is not a link.
+
+The island names both actors on hover, which is the one thing the server-rendered picture cannot
+say on its own.
 
 ## The cast matrix
 

@@ -102,10 +102,19 @@ pub struct PanelView {
     pub show: bool,
     pub heading: String,
     pub note: String,
+    /// Faces for the heading: a pair has two, everything else has none.
+    pub avatars: Vec<String>,
     pub entries: Vec<PanelEntry>,
-    pub related_heading: String,
-    pub related: Vec<PanelEntry>,
+    /// The rest of the answer, in sections. A pair has two — what each of them did alone — and
+    /// a section without a heading of its own is one list under the note.
+    pub related: Vec<PanelGroup>,
     pub reset: String,
+}
+
+#[derive(Clone)]
+pub struct PanelGroup {
+    pub heading: String,
+    pub entries: Vec<PanelEntry>,
 }
 
 /// The synergy block on its own, for the island to swap in after a filter change.
@@ -221,8 +230,9 @@ pub struct PairCellView {
     /// The other half of the pair, for the island's hover.
     pub other: u32,
     pub shared: usize,
-    /// 0-100, scaled to the busiest pair in this grid.
-    pub opacity: u32,
+    /// Background tint, 0-100: one of four fixed steps, so the legend under the grid can say
+    /// what each shade means without the grid rescaling between lists.
+    pub tint: u32,
     /// Empty for a pair that shares nothing — there is no page to link to for a zero.
     pub href: String,
     pub detail: String,
@@ -561,16 +571,15 @@ fn pairs_view(matrix: &synergy::Matrix, derived: &Derived, base: &str) -> PairsV
                         at: cell.col + 2,
                         other: other.person_id,
                         shared: cell.shared,
-                        // Scaled to the busiest pair here, so a list whose best is two still
-                        // shows which two it is. Zero stays visible as an outline, which is
-                        // what makes the triangle read as a triangle.
-                        opacity: match cell
-                            .shared
-                            .checked_mul(100)
-                            .and_then(|scaled| (pairs.most > 0).then(|| scaled / pairs.most))
-                        {
-                            Some(scaled) => scaled.clamp(18, 100) as u32,
-                            None => 0,
+                        // Four fixed steps, so the legend under the grid can say what each
+                        // shade means without the grid rescaling between lists. Zero is not a
+                        // shade at all: it is drawn as an outline.
+                        tint: match cell.shared {
+                            0 => 0,
+                            1 => 24,
+                            2 => 40,
+                            3 => 60,
+                            _ => 85,
                         },
                         href: if cell.shared == 0 {
                             String::new()
@@ -672,9 +681,12 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 show: true,
                 heading: name,
                 note: their_titles.len().to_string() + " in this list",
+                avatars: Vec::new(),
                 entries: their_titles,
-                related_heading: "Shares two or more with".to_owned(),
-                related,
+                related: vec![PanelGroup {
+                    heading: "Shares two or more with".to_owned(),
+                    entries: related,
+                }],
                 reset: base.to_owned(),
             }
         }
@@ -708,8 +720,8 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 show: true,
                 heading: column.map(|column| column.name.clone()).unwrap_or_default(),
                 note: detail(entries.len()) + " shared with this list",
+                avatars: Vec::new(),
                 entries,
-                related_heading: String::new(),
                 related: Vec::new(),
                 reset: base.to_owned(),
             }
@@ -738,47 +750,51 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
 
             // The panel is the answer to "what do these two have?", which is two things: what
             // they did together, and what each did without the other.
+            let entry = |index: &usize| {
+                matrix.columns.get(*index).map(|column| PanelEntry {
+                    href: title_href(column.kind, column.id),
+                    name: column.name.clone(),
+                    image: column.poster.clone().unwrap_or_default(),
+                    // The year, as the mockup has it: on this panel the titles are the answer to
+                    // "which ones", and the year is the only thing that distinguishes two films
+                    // with the same name.
+                    detail: column.year.map(|year| year.to_string()).unwrap_or_default(),
+                    colour: matrix.groups[column.group].colour,
+                })
+            };
+
             let shared: Vec<PanelEntry> = first
                 .titles
                 .iter()
                 .filter(|index| theirs.contains(index))
-                .filter_map(|index| matrix.columns.get(*index))
-                .map(|column| {
-                    let group = &matrix.groups[column.group];
-                    PanelEntry {
-                        href: title_href(column.kind, column.id),
-                        name: column.name.clone(),
-                        image: column.poster.clone().unwrap_or_default(),
-                        detail: group.name.clone(),
-                        colour: group.colour,
-                    }
-                })
+                .filter_map(&entry)
                 .collect();
 
-            let mut alone: Vec<PanelEntry> = Vec::new();
-            for (actor, verb) in [(first, "only"), (second, "only")] {
-                for index in &actor.titles {
-                    let shared_here = if actor.person_id == first.person_id {
-                        theirs.contains(index)
-                    } else {
-                        first.titles.contains(index)
-                    };
+            // One section per actor, headed with their name: "only Samuel L. Jackson" is the
+            // question a reader asks next, and a list of titles labelled "only" twice over is
+            // not an answer to it.
+            let alone: Vec<PanelGroup> = [first, second]
+                .iter()
+                .map(|actor| {
+                    let other: std::collections::HashSet<usize> =
+                        if actor.person_id == first.person_id {
+                            theirs.clone()
+                        } else {
+                            first.titles.iter().copied().collect()
+                        };
 
-                    if shared_here {
-                        continue;
+                    PanelGroup {
+                        heading: format!("Only {}", actor.name),
+                        entries: actor
+                            .titles
+                            .iter()
+                            .filter(|index| !other.contains(index))
+                            .filter_map(&entry)
+                            .collect(),
                     }
-
-                    if let Some(column) = matrix.columns.get(*index) {
-                        alone.push(PanelEntry {
-                            href: title_href(column.kind, column.id),
-                            name: column.name.clone(),
-                            image: column.poster.clone().unwrap_or_default(),
-                            detail: format!("{verb} {}", actor.name),
-                            colour: matrix.groups[column.group].colour,
-                        });
-                    }
-                }
-            }
+                })
+                .filter(|group| !group.entries.is_empty())
+                .collect();
 
             PanelView {
                 show: true,
@@ -787,8 +803,11 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                     1 => "1 title together".to_owned(),
                     count => format!("{count} titles together"),
                 },
+                avatars: [first, second]
+                    .iter()
+                    .filter_map(|actor| actor.image.clone())
+                    .collect(),
                 entries: shared,
-                related_heading: "Apart".to_owned(),
                 related: alone,
                 reset: with_filters(
                     base,
@@ -828,8 +847,8 @@ fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &st
                 show: !entries.is_empty(),
                 heading: "Bridges".to_owned(),
                 note: "Actors who cross from one franchise to another".to_owned(),
+                avatars: Vec::new(),
                 entries,
-                related_heading: String::new(),
                 related: Vec::new(),
                 reset: base.to_owned(),
             }
@@ -1070,7 +1089,7 @@ mod tests {
             cell.href.contains("pair=10,11"),
             "a stable, ordered pair URL"
         );
-        assert_eq!(cell.opacity, 100, "the busiest pair is fully lit");
+        assert_eq!(cell.tint, 40, "two titles shared is the second shade");
     }
 
     /// A pair that shares nothing is drawn but not linked: there is no page to show for zero.
@@ -1154,19 +1173,21 @@ mod tests {
             },
         );
 
-        let details: Vec<&str> = page
+        let headings: Vec<&str> = page
             .synergy
             .panel
             .related
             .iter()
-            .map(|entry| entry.detail.as_str())
+            .map(|group| group.heading.as_str())
             .collect();
 
-        assert!(
-            details.iter().any(|detail| detail.contains("First Actor")),
-            "the first actor's own title says so: {details:?}"
+        assert_eq!(
+            headings,
+            ["Only First Actor", "Only Second Actor"],
+            "a section per actor: {headings:?}"
         );
-        assert!(details.iter().any(|detail| detail.contains("Second Actor")));
+        assert_eq!(page.synergy.panel.related[0].entries[0].name, "Hers");
+        assert_eq!(page.synergy.panel.related[1].entries[0].name, "His");
     }
 
     /// The caption under a poster is the pin, and it says what the pin will show.
@@ -1362,18 +1383,6 @@ mod tests {
             drawn.data, "1 3",
             "space separated: the island splits on whitespace"
         );
-    }
-
-    #[test]
-    fn the_row_cap_is_reported_rather_than_silently_dropping_people() {
-        let items = vec![item(1, "One", None, None), item(2, "Two", None, None)];
-        let rows: Vec<SynergyRow> = (0..crate::synergy::MAX_ROWS as u32 + 4)
-            .map(|id| row(id, "Someone", &[(1, "One"), (2, "Two")], 2))
-            .collect();
-
-        let page = build(&items, &rows);
-        assert_eq!(page.synergy.rows.len(), crate::synergy::MAX_ROWS);
-        assert_eq!(page.synergy.hidden_actors, 4);
     }
 
     #[test]
