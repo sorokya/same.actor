@@ -1,8 +1,7 @@
-# One image, one process: the SPA and the API on the same origin at the same version.
+# One image, one process: every page, the API and the share cards on one origin at one version.
 #
-# This replaces the previous split where the frontend was rsynced to a static host and the
-# API was published to a registry independently — two artefacts that could disagree about
-# the JSON contract.
+# The frontend stage builds only assets now — a stylesheet and the picker island. Pages are
+# rendered by the binary, so the templates are part of the Rust build, not of `dist`.
 
 # --- frontend -----------------------------------------------------------------------------
 FROM docker.io/library/node:22-alpine AS spa
@@ -10,7 +9,7 @@ FROM docker.io/library/node:22-alpine AS spa
 WORKDIR /spa
 COPY package.json package-lock.json ./
 RUN npm ci
-COPY tsconfig.json vite.config.ts postcss.config.mjs index.html ./
+COPY tsconfig.json vite.config.ts postcss.config.mjs ./
 COPY src ./src
 COPY public ./public
 RUN npm run build
@@ -27,6 +26,8 @@ RUN mkdir src && echo "fn main() {}" > src/main.rs \
 COPY api-rs/src ./src
 # Embedded with include_bytes! for the Open Graph renderer.
 COPY api-rs/assets ./assets
+# Compiled in by askama: a template error fails this build, which is the point.
+COPY api-rs/templates ./templates
 COPY api-rs/tests ./tests
 RUN touch src/main.rs && cargo build --release
 
