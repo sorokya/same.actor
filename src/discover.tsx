@@ -1,22 +1,24 @@
 /**
- * `/discover/:slug` — a ranked list, and the actors who keep turning up in it.
+ * `/discover/:section` — a ranked list, and the actors who keep turning up in it.
  *
- * Presented as artwork rather than a numbered text list. The films are a poster shelf, because
- * that is how anyone recognises a film; the actors are cards with faces, because "the same actor
- * again" is a recognition, not something a name in a wide table conveys.
+ * Three sections, each split by kind, and the top and new sections split again by what "top"
+ * and "new" mean. That second axis is a control on the page rather than another tab: five lists
+ * in the navigation was already one more than fits across, and "Films" sitting beside "Titles"
+ * told a reader nothing about what the page was for.
  *
- * Every title and every actor links to its TMDB page. This site has no person pages, and adding
- * one to serve a link from a list page is a page type this feature does not need.
+ * The controls are links. With JavaScript they rewrite the query and refetch; without it they are
+ * ordinary navigation, which is the direction the front end is heading.
+ *
+ * Everything that is a title or an actor links to TMDB — this site has no person pages, and a
+ * title on an actor's card is exactly where a reader wants to go and look.
  */
 
-import { useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useState } from 'preact/hooks';
 import { Poster } from './components/poster';
 import { SiteHeader } from './components/site-header';
 import { SiteNav } from './components/site-nav';
-import { LISTS, listBySlug } from './lib/lists';
+import { SECTIONS, type SectionKey, sectionByKey } from './lib/lists';
 import { absoluteTime, relativeTime } from './lib/time';
-
-type Kind = 'movie' | 'tv';
 
 interface Item {
   id: number;
@@ -27,19 +29,34 @@ interface Item {
   rating: number | null;
 }
 
+interface TitleRef {
+  id: number;
+  kind: string;
+  name: string;
+}
+
 interface SynergyRow {
   person_id: number;
   name: string;
   image: string | null;
   count: number;
-  titles: string[];
+  titles: TitleRef[];
+}
+
+interface Choice {
+  value: string;
+  label: string;
 }
 
 interface DiscoverPage {
-  slug: string;
+  section: SectionKey;
   heading: string;
   blurb: string;
-  kind: Kind;
+  kind: string;
+  filter: string;
+  kinds: Choice[];
+  filters: Choice[];
+  filter_group: string;
   refreshed_ts: number;
   items: Item[];
   synergy: SynergyRow[];
@@ -48,20 +65,72 @@ interface DiscoverPage {
 /** How many actor cards to show before "show more". */
 const VISIBLE = 24;
 
-function titleHref(kind: Kind, id: number): string {
-  return `https://www.themoviedb.org/${kind}/${id}`;
+function hrefFor(section: string, kind: string, filter: string): string {
+  const params = new URLSearchParams({ kind });
+  if (filter !== '') params.set('filter', filter);
+  return `/discover/${section}?${params.toString()}`;
 }
 
-function personHref(id: number): string {
-  return `https://www.themoviedb.org/person/${id}`;
+function readQuery(): { kind: string; filter: string } {
+  const params = new URLSearchParams(window.location.search);
+  return { kind: params.get('kind') ?? '', filter: params.get('filter') ?? '' };
 }
 
-export function Discover({ slug }: { slug: string }) {
+function ControlGroup({
+  label,
+  choices,
+  active,
+  hrefFor,
+  onPick,
+}: {
+  label: string;
+  choices: Choice[];
+  active: string;
+  /** The real URL for a value, so the control is a working link without JavaScript. */
+  hrefFor: (value: string) => string;
+  onPick: (value: string) => void;
+}) {
+  return (
+    <div className="flex items-center gap-1">
+      <span className="label mr-1 hidden sm:inline">{label}</span>
+      {choices.map((choice) => (
+        <a
+          key={choice.value}
+          href={hrefFor(choice.value)}
+          onClick={(event) => {
+            // A modified click is a link like any other; only a plain click is intercepted.
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.button !== 0) return;
+            event.preventDefault();
+            onPick(choice.value);
+          }}
+          aria-current={active === choice.value ? 'true' : undefined}
+          className={`rounded-full border px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.1em] transition-colors ${
+            active === choice.value
+              ? 'border-paper bg-paper text-ink'
+              : 'border-line text-dim hover:border-dim hover:text-paper'
+          }`}
+        >
+          {choice.label}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+export function Discover({ section }: { section: SectionKey }) {
   const [page, setPage] = useState<DiscoverPage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState(readQuery);
 
-  const known = listBySlug(slug);
+  const known = sectionByKey(section);
+
+  // The controls push history entries, so the back button walks through filters.
+  useEffect(() => {
+    const onPopState = () => setQuery(readQuery());
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,7 +138,12 @@ export function Discover({ slug }: { slug: string }) {
     setError(null);
     setExpanded(false);
 
-    fetch(`/api/discover/${encodeURIComponent(slug)}`, {
+    const params = new URLSearchParams();
+    if (query.kind !== '') params.set('kind', query.kind);
+    if (query.filter !== '') params.set('filter', query.filter);
+    const search = params.toString();
+
+    fetch(`/api/discover/${section}${search === '' ? '' : `?${search}`}`, {
       signal: controller.signal,
       headers: { accept: 'application/json' },
     })
@@ -89,7 +163,15 @@ export function Discover({ slug }: { slug: string }) {
       });
 
     return () => controller.abort();
-  }, [slug]);
+  }, [section, query.kind, query.filter]);
+
+  const select = useCallback(
+    (kind: string, filter: string) => {
+      setQuery({ kind, filter });
+      window.history.pushState(null, '', hrefFor(section, kind, filter));
+    },
+    [section],
+  );
 
   const rows = page?.synergy ?? [];
   const shown = expanded ? rows : rows.slice(0, VISIBLE);
@@ -98,12 +180,43 @@ export function Discover({ slug }: { slug: string }) {
   return (
     <>
       <SiteHeader>
-        <SiteNav slug={slug} />
+        <SiteNav section={section} />
       </SiteHeader>
 
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24">
-        <h1 className="text-2xl tracking-tight text-paper">{known?.heading ?? 'List'}</h1>
-        <p className="mt-1 max-w-xl text-sm text-dim">{known?.blurb ?? page?.blurb ?? ''}</p>
+        <h1 className="text-2xl tracking-tight text-paper">
+          {page?.heading ?? known?.heading ?? 'List'}
+        </h1>
+        <p className="mt-1 max-w-xl text-sm text-dim">{page?.blurb ?? known?.blurb ?? ''}</p>
+
+        <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <ControlGroup
+            label="Type"
+            choices={
+              page?.kinds ?? [
+                { value: 'movie', label: 'Films' },
+                { value: 'tv', label: 'Shows' },
+              ]
+            }
+            active={page?.kind ?? (query.kind === '' ? 'movie' : query.kind)}
+            hrefFor={(kind) => hrefFor(section, kind, '')}
+            onPick={(kind) => select(kind, '')}
+          />
+
+          {/* Only when there is a choice to make: a one-option control is a dead button. */}
+          {page && page.filters.length > 1 ? (
+            <>
+              <span aria-hidden="true" className="h-4 w-px bg-line" />
+              <ControlGroup
+                label={page.filter_group}
+                choices={page.filters}
+                active={page.filter}
+                hrefFor={(filter) => hrefFor(section, page.kind, filter)}
+                onPick={(filter) => select(page.kind, filter)}
+              />
+            </>
+          ) : null}
+        </div>
 
         {error ? (
           <p
@@ -127,12 +240,12 @@ export function Discover({ slug }: { slug: string }) {
 
         {page ? (
           <>
-            <p className="label mt-3">
+            <p className="label mt-4">
               {page.items.length} titles · refreshed{' '}
               <span title={absoluteTime(page.refreshed_ts)}>{relativeTime(page.refreshed_ts)}</span>
             </p>
 
-            <section className="mt-8" aria-labelledby="the-list">
+            <section className="mt-6" aria-labelledby="the-list">
               <h2 id="the-list" className="label mb-3">
                 The list
               </h2>
@@ -141,7 +254,7 @@ export function Discover({ slug }: { slug: string }) {
                 {page.items.map((item, index) => (
                   <li key={item.id}>
                     <a
-                      href={titleHref(page.kind, item.id)}
+                      href={`https://www.themoviedb.org/${page.kind}/${item.id}`}
                       target="_blank"
                       rel="noreferrer noopener"
                       className="group block"
@@ -187,7 +300,7 @@ export function Discover({ slug }: { slug: string }) {
                   {shown.map((row) => (
                     <li
                       key={row.person_id}
-                      className="flex items-center gap-2.5 rounded-md border border-line bg-raise/40 p-2"
+                      className="flex items-start gap-2.5 rounded-md border border-line bg-raise/40 p-2"
                     >
                       {/* The portrait is decorative here: the name beside it is the link, and
                           two links to the same place would be noise for a screen reader. */}
@@ -198,7 +311,7 @@ export function Discover({ slug }: { slug: string }) {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-baseline justify-between gap-2">
                           <a
-                            href={personHref(row.person_id)}
+                            href={`https://www.themoviedb.org/person/${row.person_id}`}
                             target="_blank"
                             rel="noreferrer noopener"
                             className="truncate text-[13px] text-paper hover:text-accent"
@@ -212,7 +325,22 @@ export function Discover({ slug }: { slug: string }) {
                             in {row.count}
                           </span>
                         </div>
-                        <p className="truncate text-[11px] text-dim/80">{row.titles.join(' · ')}</p>
+
+                        <p className="mt-0.5 text-[11px] leading-snug">
+                          {row.titles.map((title, index) => (
+                            <span key={title.id}>
+                              {index > 0 ? <span className="text-dim/50"> · </span> : null}
+                              <a
+                                href={`https://www.themoviedb.org/${title.kind}/${title.id}`}
+                                target="_blank"
+                                rel="noreferrer noopener"
+                                className="text-dim/80 hover:text-paper hover:underline"
+                              >
+                                {title.name}
+                              </a>
+                            </span>
+                          ))}
+                        </p>
                       </div>
                     </li>
                   ))}
@@ -230,19 +358,29 @@ export function Discover({ slug }: { slug: string }) {
               ) : null}
             </section>
 
-            <nav aria-label="Other lists" className="mt-12 border-t border-line pt-4">
-              <p className="label mb-2">More lists</p>
+            <nav aria-label="Other sections" className="mt-12 border-t border-line pt-4">
+              <p className="label mb-2">Browse</p>
               <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {LISTS.filter((list) => list.slug !== slug).map((list) => (
-                  <li key={list.slug}>
+                {SECTIONS.filter((entry) => entry.key !== section).map((entry) => (
+                  <li key={entry.key}>
                     <a
-                      href={`/discover/${list.slug}`}
+                      href={`/discover/${entry.key}`}
                       className="text-xs text-dim hover:text-paper"
                     >
-                      {list.label}
+                      {entry.heading}
                     </a>
                   </li>
                 ))}
+                <li>
+                  <a href="/" className="text-xs text-dim hover:text-paper">
+                    Compare titles
+                  </a>
+                </li>
+                <li>
+                  <a href="/person" className="text-xs text-dim hover:text-paper">
+                    Compare people
+                  </a>
+                </li>
               </ul>
             </nav>
           </>

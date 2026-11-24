@@ -1,55 +1,45 @@
 /**
- * The list pages, in one place.
+ * The three browse sections.
  *
- * Shared by the header tabs and the discovery page itself, so a slug can never be linked from the
+ * Shared by the header tabs and the discovery page, so a section can never be linked from the
  * navigation and then rejected by the page.
+ *
+ * The second axis — all time versus trending, cinemas versus at home — is deliberately not here:
+ * the API returns the filters a section actually has for the chosen kind, and a section with one
+ * option would otherwise render a control that does nothing.
  */
 
-export interface SiteList {
-  readonly slug: string;
-  /**
-   * Short enough to sit in a one-line tab strip with the two tool tabs. The full name is
-   * `heading`, which the page itself uses — "Top films" and "Coming soon" do not fit, and a
-   * tab strip whose last label is clipped reads as broken rather than scrollable.
-   */
+export type SectionKey = 'top' | 'new' | 'upcoming';
+
+export interface SiteSection {
+  readonly key: SectionKey;
+  /** Short enough for a one-line tab strip: the wordmark plus five tabs at 390px. */
   readonly label: string;
   readonly heading: string;
   readonly blurb: string;
 }
 
-export const LISTS: readonly SiteList[] = [
+export const SECTIONS: readonly SiteSection[] = [
   {
-    slug: 'top-movies',
-    label: 'Films',
-    heading: 'Top films',
-    blurb: 'What everyone is watching, and the actors who keep turning up in it.',
+    key: 'top',
+    label: 'Top',
+    heading: 'Top',
+    blurb: 'Ranked by how much they have been watched, and the actors who keep turning up.',
   },
   {
-    slug: 'top-tv',
-    label: 'Shows',
-    heading: 'Top shows',
-    blurb: 'The most-watched series right now, and the faces shared between them.',
+    key: 'new',
+    label: 'New',
+    heading: 'New',
+    blurb: 'Out now, and the casts they share.',
   },
   {
-    slug: 'new-movies',
-    label: 'Cinemas',
-    heading: 'In cinemas',
-    blurb: 'Showing this week, and the casts they have in common.',
-  },
-  {
-    slug: 'upcoming',
+    key: 'upcoming',
     label: 'Upcoming',
-    heading: 'Coming soon',
-    blurb: 'Not out yet. The same actors, in films nobody has seen.',
-  },
-  {
-    slug: 'on-the-air',
-    label: 'On air',
-    heading: 'On the air',
-    blurb: 'Series with an episode this week.',
+    heading: 'Upcoming',
+    blurb: 'Not out yet. The same actors, in things nobody has seen.',
   },
 ];
 
-export function listBySlug(slug: string): SiteList | undefined {
-  return LISTS.find((list) => list.slug === slug);
+export function sectionByKey(key: string): SiteSection | undefined {
+  return SECTIONS.find((section) => section.key === key);
 }

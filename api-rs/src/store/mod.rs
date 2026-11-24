@@ -79,6 +79,11 @@ pub(crate) enum WriteOp {
         i64,
         tokio::sync::oneshot::Sender<Result<maintenance::Report, String>>,
     ),
+    /// Snapshot ids to keep; everything else is dropped.
+    PruneLists(
+        Vec<String>,
+        tokio::sync::oneshot::Sender<Result<usize, String>>,
+    ),
     /// A whole discovery snapshot: `(id, payload, synergy, now, ack)`.
     PutList(
         String,
@@ -475,6 +480,10 @@ fn accept(
             }))
             .unwrap_or_default();
             let _ = ack.send(Ok(report));
+        }
+        WriteOp::PruneLists(keep, ack) => {
+            commit(conn, counters, pending, geo);
+            let _ = ack.send(lists::prune(conn, &keep).map_err(|error| error.to_string()));
         }
         WriteOp::PutList(id, payload, synergy, now, ack) => {
             commit(conn, counters, pending, geo);

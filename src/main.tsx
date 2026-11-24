@@ -2,6 +2,7 @@ import { Component, type ComponentChildren, render } from 'preact';
 import { AdminRoot } from './admin/root';
 import { App } from './app';
 import { Discover } from './discover';
+import { sectionByKey } from './lib/lists';
 import './index.css';
 
 interface BoundaryState {
@@ -59,14 +60,17 @@ if (!container) throw new Error('#root is missing from index.html');
 
 // Three surfaces, one binary. `/admin` is its own entry point because it is a separate job: the
 // comparison tool is what a visitor opens, and nothing about it should wait on, or pay for, the
-// dashboard's chunk. `/discover/:slug` is a page of the public site.
+// dashboard's chunk. `/discover/:section` is a page of the public site, and the section has to be
+// one the API serves — anything else falls through to the comparison tool rather than rendering a
+// page that will only 404.
 const path = window.location.pathname;
 const isAdmin = path.startsWith('/admin');
-const discoverSlug = /^\/discover\/([a-z0-9-]+)\/?$/.exec(path)?.[1];
+const discoverSection = /^\/discover\/([a-z-]+)\/?$/.exec(path)?.[1];
+const section = discoverSection === undefined ? undefined : sectionByKey(discoverSection);
 
 render(
   <ErrorBoundary>
-    {isAdmin ? <AdminRoot /> : discoverSlug ? <Discover slug={discoverSlug} /> : <App />}
+    {isAdmin ? <AdminRoot /> : section ? <Discover section={section.key} /> : <App />}
   </ErrorBoundary>,
   container,
 );

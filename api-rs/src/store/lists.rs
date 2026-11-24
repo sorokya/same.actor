@@ -69,7 +69,38 @@ pub(super) fn oldest_age_secs(conn: &Connection, now: i64) -> rusqlite::Result<O
     .map(|oldest| oldest.map(|ts| now - ts))
 }
 
+/// Drop snapshots whose id is no longer one of the lists the site serves.
+///
+/// Without this, a renamed or removed list leaves a row behind for ever: it is never read, never
+/// refreshed, and never deleted, so the database grows a little every time the section model
+/// changes.
+pub(super) fn prune(conn: &Connection, keep: &[String]) -> rusqlite::Result<usize> {
+    let mut removed = 0;
+
+    let known: Vec<String> = conn
+        .prepare("SELECT id FROM lists")?
+        .query_map([], |row| row.get::<_, String>(0))?
+        .collect::<rusqlite::Result<_>>()?;
+
+    for id in known {
+        if keep.iter().any(|keep| keep == &id) {
+            continue;
+        }
+
+        conn.execute("DELETE FROM list_synergy WHERE list_id = ?1", params![id])?;
+        removed += conn.execute("DELETE FROM lists WHERE id = ?1", params![id])?;
+    }
+
+    Ok(removed)
+}
+
 impl Store {
+    /// Remove snapshots for lists that no longer exist. Returns how many rows went.
+    pub async fn prune_lists(&self, keep: Vec<String>) -> Result<usize, AppError> {
+        self.submit(move |ack| crate::store::WriteOp::PruneLists(keep, ack))
+            .await
+    }
+
     pub async fn put_list(
         &self,
         id: String,

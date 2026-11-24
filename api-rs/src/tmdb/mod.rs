@@ -285,12 +285,20 @@ impl Tmdb {
     ///
     /// `region` is only sent for the lists that need one: TMDB rejects a region on endpoints that
     /// do not take it, and ignores one on the rest.
+    /// One TMDB list endpoint.
+    ///
+    /// `params` are extra query pairs — `sort_by`, release-type filters, date windows. They belong
+    /// to the caller because "top" and "new" are different questions to the same endpoint, and
+    /// spelling them at the call site keeps the query visible in the code rather than assembled
+    /// somewhere else.
     pub async fn list(
         &self,
         path: &str,
+        params: &[(&str, &str)],
         region: Option<&str>,
     ) -> Result<Vec<types::ListItem>, AppError> {
         let mut query = vec![("language", LANGUAGE), ("page", "1")];
+        query.extend(params.iter().copied());
         if let Some(region) = region {
             query.push(("region", region));
         }

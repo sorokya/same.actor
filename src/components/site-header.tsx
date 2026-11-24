@@ -18,7 +18,12 @@ interface SiteHeaderProps {
 export function SiteHeader({ children, width = 'max-w-3xl' }: SiteHeaderProps) {
   return (
     <header className="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
-      <div className={`mx-auto flex w-full ${width} items-center justify-between gap-4 px-4 py-3`}>
+      {/* Below `sm` the navigation gets its own row: five tabs beside the wordmark do not fit on
+          a phone, and a scroll strip clips the last label, which reads as broken rather than
+          scrollable. Given the full width they fit on one line. */}
+      <div
+        className={`mx-auto flex w-full ${width} flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3`}
+      >
         <a
           href="/"
           className="shrink-0 font-mono text-[13px] uppercase tracking-[0.2em] text-paper transition-colors hover:text-accent"

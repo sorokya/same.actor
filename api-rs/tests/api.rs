@@ -42,7 +42,13 @@ async fn stub(State(stub): State<Stub>, request: Request<Body>) -> Response {
 
     match path.as_str() {
         // Discovery lists: the two titles the stub knows, so the synergy table has overlap.
-        "/3/movie/popular" => Json(json!({
+        // Every list endpoint the site asks for answers the same way; the real ones differ by
+        // query string, which the stub deliberately ignores.
+        "/3/movie/popular"
+        | "/3/movie/now_playing"
+        | "/3/movie/upcoming"
+        | "/3/discover/movie"
+        | "/3/trending/movie/day" => Json(json!({
             "page": 1,
             "results": [
                 {"id": 603, "title": "The Matrix", "release_date": "1999-03-31",
@@ -1732,30 +1738,46 @@ async fn one_visitor_looking_twice_is_counted_once() {
 async fn an_unbuilt_discovery_list_is_not_found() {
     let h = harness(100).await;
 
-    let (status, _, _) = call(
-        &h.app,
-        with_client(get_path_raw("/api/discover/top-movies")),
-    )
-    .await;
+    let (status, _, _) = call(&h.app, with_client(get_path_raw("/api/discover/top"))).await;
     assert_eq!(status, StatusCode::NOT_FOUND);
 
     // The index still lists it, with no refresh time, so the UI can say "not built yet".
     let (status, _, body) = call(&h.app, with_client(get_path_raw("/api/discover"))).await;
     assert_eq!(status, StatusCode::OK);
-    let lists = body["lists"].as_array().expect("lists");
-    assert_eq!(lists.len(), 5);
-    assert!(lists[0]["refreshed_ts"].is_null());
+    let sections = body["sections"].as_array().expect("sections");
+    assert_eq!(sections.len(), 3, "top, new, upcoming");
+    assert!(sections[0]["refreshed_ts"].is_null());
 }
 
 #[tokio::test]
-async fn an_unknown_slug_is_not_found() {
+async fn an_unknown_section_or_control_is_refused() {
     let h = harness(100).await;
+
     let (status, _, _) = call(
         &h.app,
         with_client(get_path_raw("/api/discover/best-anime")),
     )
     .await;
-    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert_eq!(status, StatusCode::NOT_FOUND, "no such section");
+
+    // A kind the API does not serve is a client error, not a 404 on a page that could exist.
+    let (status, _, _) = call(
+        &h.app,
+        with_client(get_path_raw("/api/discover/top?kind=person")),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+
+    // An unknown filter must not silently serve the default list: that would make a typo look
+    // like a working page with the wrong contents.
+    let (status, _, _) = call(
+        &h.app,
+        with_client(get_path_raw(
+            "/api/discover/top?kind=movie&filter=best-anime",
+        )),
+    )
+    .await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
 }
 
 /// Runs the refresh the background job runs, against the stub, then reads the page back. The
@@ -1764,7 +1786,7 @@ async fn an_unknown_slug_is_not_found() {
 async fn a_refreshed_list_is_served_with_its_synergy() {
     let h = harness(100).await;
 
-    let spec = same_actor::discovery::by_slug("top-movies").expect("the spec");
+    let spec = same_actor::discovery::by_id("top:movie:all-time").expect("the spec");
     let (titles, people) =
         same_actor::discovery::refresh_one(&h.state.tmdb, &h.state.store, spec, "US")
             .await
@@ -1775,11 +1797,21 @@ async fn a_refreshed_list_is_served_with_its_synergy() {
 
     let (status, _, body) = call(
         &h.app,
-        with_client(get_path_raw("/api/discover/top-movies")),
+        with_client(get_path_raw("/api/discover/top?kind=movie")),
     )
     .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["heading"], "Top films");
+
+    // The control offers the second axis, and says which one is showing.
+    assert_eq!(body["filter"], "all-time");
+    let filters: Vec<&str> = body["filters"]
+        .as_array()
+        .expect("filters")
+        .iter()
+        .filter_map(|choice| choice["value"].as_str())
+        .collect();
+    assert_eq!(filters, ["all-time", "trending"]);
 
     let items = body["items"].as_array().expect("items");
     assert_eq!(items.len(), 2);
@@ -1796,6 +1828,9 @@ async fn a_refreshed_list_is_served_with_its_synergy() {
     // Everyone listed is in both titles, and the titles are in list order.
     for row in synergy {
         assert_eq!(row["count"], 2);
-        assert_eq!(row["titles"][0], "The Matrix");
+        assert_eq!(row["titles"][0]["name"], "The Matrix");
+        // The id and kind travel with the name, which is what makes the title a link.
+        assert_eq!(row["titles"][0]["id"], 603);
+        assert_eq!(row["titles"][0]["kind"], "movie");
     }
 }

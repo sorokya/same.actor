@@ -46,10 +46,23 @@ class Handler(BaseHTTPRequestHandler):
 
         # Discovery lists. The movie lists return titles the stub knows, so the cast-synergy
         # table has something real to show; the tv lists return ids it does not, which
-        # demonstrates the empty-synergy path.
-        if path in ("/3/movie/popular", "/3/movie/now_playing", "/3/movie/upcoming"):
+        # demonstrates the empty-synergy path. `discover/*` and `trending/*` are the same
+        # fixtures: the real ones differ by query, and the point here is that every list the
+        # site serves renders.
+        if path in (
+            "/3/movie/popular",
+            "/3/movie/now_playing",
+            "/3/movie/upcoming",
+            "/3/discover/movie",
+            "/3/trending/movie/day",
+        ):
             return self.json({"page": 1, "results": self.fixtures["lists_movie"]})
-        if path in ("/3/tv/popular", "/3/tv/on_the_air"):
+        if path in (
+            "/3/tv/popular",
+            "/3/tv/on_the_air",
+            "/3/discover/tv",
+            "/3/trending/tv/day",
+        ):
             return self.json({"page": 1, "results": self.fixtures["lists_tv"]})
 
         for collection in ("media", "people"):

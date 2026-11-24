@@ -301,41 +301,69 @@ on first paint, and there is no visit to attribute.
 
 ## Discovery pages
 
-Five lists at `/discover/:slug` — top films, top shows, in cinemas, coming soon, on the air —
-each with a cast-synergy table. Refreshed into SQLite every six hours by a background job, so no
-page ever waits on TMDB and a TMDB outage costs freshness, not availability.
+Three sections — `/discover/top`, `/discover/new`, `/discover/upcoming` — each with a
+cast-synergy table. Every section has a second axis, exposed as a control rather than as more
+tabs:
 
-`GET /api/discover` lists them with their refresh times; `GET /api/discover/{slug}` returns one.
-A list that has never been built is a **404**, not an empty page: an empty list reads as "nothing
-is popular", which is a lie.
+| Section | Control | Values |
+| --- | --- | --- |
+| `top` | Ranked by | `all-time` (default), `trending` |
+| `new` | Where | `cinema` (default), `home` — films only; shows have `on-the-air` |
+| `upcoming` | — | no choice to offer, so no control |
+
+Each of those exists for both kinds, so nine snapshots in all: `top:movie:all-time`,
+`top:movie:trending`, `top:tv:all-time`, `top:tv:trending`, `new:movie:cinema`,
+`new:movie:home`, `new:tv:on-the-air`, `upcoming:movie`, `upcoming:tv`. Refreshed into SQLite
+every six hours by a background job, so no page ever waits on TMDB and an outage costs
+freshness, not availability. A refresh also prunes snapshots whose id is no longer in the list —
+otherwise every change to the section model leaves a row behind for ever.
+
+```
+GET /api/discover                         → sections, with the newest refresh time in each
+GET /api/discover/top?kind=movie&filter=trending
+→ { section, heading, blurb, kind, filter, kinds[], filters[], filter_group, refreshed_ts,
+    items[], synergy[] }
+```
+
+`kind` is `movie` (default) or `tv`; an unknown one is a **422**, and an unknown `filter` is a
+422 rather than a quiet fallback — serving the default list for a typo would look like a working
+page with the wrong contents. A list that has never been built is a **404**, not an empty page:
+an empty list reads as "nothing is popular", which is a lie.
+
+TMDB has no all-time list, so `all-time` is `vote_count.desc` with a floor (5000 films, 2000
+shows): cumulative popularity, so a film nobody watched this week still ranks. `home` is release
+types 4 and 5 — digital and physical — cut off at today, which is why the refresh substitutes
+`{today}` into the query. `TMDB_REGION` (default `US`) is required by the two lists keyed on
+release dates; only those send it.
 
 The synergy table is the interesting part. Twenty titles makes the pairwise intersection that
 powers the main comparison useless — 190 pairs, most of them empty. What is meaningful at that
 scale is an actor appearing in **two or more** of the list, which is what the job computes once
-per refresh and stores alongside the list. Rows link to `themoviedb.org/person/{id}`; this site
-has no person pages.
+per refresh and stores alongside the list.
 
 The page is a poster shelf rather than a numbered text list, and the synergy rows carry the
-actor's portrait — "the same face again" is a recognition, not something a column of names
-conveys. Both the shelf and the rows are links to TMDB, as is every title in the comparison
-results and every selected chip.
-
-`TMDB_REGION` (default `US`) is required by the two date-scoped lists — "upcoming" means nothing
-without a region. Only those two send it.
+actor's portrait and the titles they appear in, each one a link — "the same face again" is a
+recognition, not something a column of names conveys. A row stores the title's id and kind as
+well as its name, so the link does not have to guess the kind from the list.
 
 ## Navigation
 
-One header, `src/components/site-header.tsx`, used by the comparison tool, the lists, and the
+One header, `src/components/site-header.tsx`, used by the comparison tool, the sections, and the
 dashboard. Each surface supplies its own tabs; the chrome is shared, which is the only way three
 independently written headers stop drifting apart.
 
-The tabs are all links (`Titles`, `People`, then the five lists), including the two that used to
-be a radio group. Mode already cleared the selection when it changed, so a link behaves
-identically — and a link works before any JavaScript has run, which is the direction the front
-end is heading. List labels are deliberately short (`Films`, `Upcoming`): the full names
-(`Top films`, `Coming soon`) do not fit seven tabs across, and a clipped last label reads as
-broken rather than scrollable. On a phone the strip scrolls horizontally and the active tab is
-scrolled into view.
+Five tabs — `Titles | People`, then `Top | New | Upcoming`. The second axis of a section is a
+control on the page, not another tab: seven lists across did not fit, and `Films` sitting beside
+`Titles` said nothing about what the page was for. The controls are links too, so they work
+before any JavaScript has run; with JavaScript they rewrite the query and refetch.
+
+Every tab is a link, including the two that used to be a radio group — mode already cleared the
+selection when it changed, so a link behaves identically. `People` points at `/person`, *not*
+`/?mode=person`: the mode is read from the path, so the query parameter was silently ignored and
+the tab landed on the title comparison.
+
+Below `sm` the navigation takes its own row under the wordmark, where five tabs fit on one line;
+a scroll strip there clipped the last label, which reads as broken rather than scrollable.
 
 ## Admin API
 

@@ -1,22 +1,25 @@
 /**
- * The site's tabs: what you are comparing, then the lists you can browse.
+ * The site's tabs: what you are comparing, then the sections you can browse.
  *
  * All of them are links, including `Titles` and `People`. That is a change from the radio group
  * this replaced: switching mode already cleared the selection, so a link did the same thing —
  * and a link works before any JavaScript has run, which is the direction the front end is
- * heading. The strip scrolls horizontally on a narrow screen rather than wrapping into a second
- * row that would push the page down.
+ * heading.
+ *
+ * `People` points at `/person`, not `/?mode=person`: the app reads the mode from the path, so a
+ * query parameter was quietly ignored and the tab landed on the title comparison. Same for
+ * `/title`, which is the path form of the default mode.
  */
 
 import { useEffect, useRef } from 'preact/hooks';
-import { LISTS } from '../lib/lists';
+import { SECTIONS } from '../lib/lists';
 import type { Mode } from '../lib/types';
 
 interface SiteNavProps {
   /** The current mode, when this surface is the comparison tool. */
   mode?: Mode;
-  /** The current list slug, when this surface is a discovery page. */
-  slug?: string;
+  /** The current section, when this surface is a discovery page. */
+  section?: string;
 }
 
 function Tab({
@@ -41,19 +44,20 @@ function Tab({
   );
 }
 
-export function SiteNav({ mode, slug }: SiteNavProps) {
+export function SiteNav({ mode, section }: SiteNavProps) {
   const strip = useRef<HTMLElement>(null);
 
   // On a phone the strip scrolls, and the tab you are on can be past the right edge — landing on
-  // "On air" with no sign of which list is open is worse than a little scroll. Only the strip is
-  // scrolled, never the page.
+  // "Upcoming" with no sign of which section is open is worse than a little scroll. Only the
+  // strip is scrolled, never the page.
   useEffect(() => {
     const nav = strip.current;
     const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
     if (!nav || !active) return;
+    // Only when there is something to scroll: on a wrapped strip this is a no-op.
     const offset = active.offsetLeft - 8;
-    if (offset > 0) nav.scrollLeft = offset;
-  }, [slug, mode]);
+    if (offset > 0 && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = offset;
+  }, [section, mode]);
 
   // No `justify-end`: with a horizontally scrollable strip it anchors the content to the right,
   // so a phone opens with the *last* tabs visible and "Titles" scrolled out of reach.
@@ -61,20 +65,20 @@ export function SiteNav({ mode, slug }: SiteNavProps) {
     <nav
       ref={strip}
       aria-label="Sections"
-      className="-mx-1 flex max-w-full items-center gap-0.5 overflow-x-auto px-1 py-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      className="flex max-w-full flex-wrap items-center gap-0.5 sm:flex-nowrap"
     >
       <Tab href="/" active={mode === 'title'}>
         Titles
       </Tab>
-      <Tab href="/?mode=person" active={mode === 'person'}>
+      <Tab href="/person" active={mode === 'person'}>
         People
       </Tab>
 
       <span aria-hidden="true" className="mx-1.5 h-4 w-px shrink-0 bg-line" />
 
-      {LISTS.map((list) => (
-        <Tab key={list.slug} href={`/discover/${list.slug}`} active={slug === list.slug}>
-          {list.label}
+      {SECTIONS.map((entry) => (
+        <Tab key={entry.key} href={`/discover/${entry.key}`} active={section === entry.key}>
+          {entry.label}
         </Tab>
       ))}
     </nav>
