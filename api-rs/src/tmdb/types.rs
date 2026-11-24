@@ -52,6 +52,17 @@ pub struct CombinedCastCredit {
 pub struct Credits {
     #[serde(default)]
     pub cast: Vec<CastMember>,
+    /// Only read for directors, which the admin's franchise suggestions use. A title with no
+    /// crew here costs nothing: the field defaults to empty.
+    #[serde(default)]
+    pub crew: Vec<CrewMember>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CrewMember {
+    pub id: u32,
+    #[serde(default)]
+    pub job: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +75,10 @@ pub struct CastMember {
     #[serde(default)]
     pub roles: Vec<Role>,
     pub profile_path: Option<String>,
+    /// Billing position, 0-based: `0` is the name above the title. This is the difference
+    /// between a collaboration and a walk-on, and it is the only signal TMDB gives for it.
+    #[serde(default)]
+    pub order: Option<u32>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +101,48 @@ pub struct MediaDetail {
     pub poster_path: Option<String>,
     pub credits: Option<Credits>,
     pub aggregate_credits: Option<Credits>,
+    /// The franchise TMDB thinks this belongs to. A *suggestion* for the admin's queue: a
+    /// collection is narrower than a franchise (Iron Man, The Avengers and Guardians are three
+    /// collections and one franchise), so this never decides anything on its own.
+    #[serde(default)]
+    pub belongs_to_collection: Option<Collection>,
+    #[serde(default)]
+    pub keywords: Option<KeywordList>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Collection {
+    pub id: u32,
+}
+
+/// TMDB nests keywords differently by media type: films return `keywords`, shows return
+/// `results`. One struct reads both, so callers see a single shape.
+#[derive(Debug, Default, Deserialize)]
+pub struct KeywordList {
+    #[serde(default)]
+    pub keywords: Vec<Keyword>,
+    #[serde(default)]
+    pub results: Vec<Keyword>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Keyword {
+    pub id: u32,
+}
+
+impl KeywordList {
+    /// Every keyword id, whichever nest it arrived in, in a stable order and without duplicates.
+    pub fn ids(&self) -> Vec<u32> {
+        let mut ids: Vec<u32> = self
+            .keywords
+            .iter()
+            .chain(self.results.iter())
+            .map(|keyword| keyword.id)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
+    }
 }
 
 impl MediaDetail {
@@ -103,6 +160,41 @@ impl MediaDetail {
                 .as_deref()
                 .or(self.first_air_date.as_deref()),
         )
+    }
+
+    /// The collection TMDB groups this title under, when it has one.
+    pub fn collection_id(&self) -> Option<u32> {
+        self.belongs_to_collection
+            .as_ref()
+            .map(|collection| collection.id)
+    }
+
+    pub fn keyword_ids(&self) -> Vec<u32> {
+        self.keywords
+            .as_ref()
+            .map(KeywordList::ids)
+            .unwrap_or_default()
+    }
+
+    /// Directors of a film. Shows list episode directors per episode rather than in their
+    /// aggregate credits, so this is usually empty for them — the suggestion it feeds is a
+    /// heuristic, and a heuristic with no signal says nothing.
+    pub fn director_ids(&self) -> Vec<u32> {
+        let crew = self
+            .credits
+            .as_ref()
+            .or(self.aggregate_credits.as_ref())
+            .map(|credits| credits.crew.as_slice())
+            .unwrap_or_default();
+
+        let mut ids: Vec<u32> = crew
+            .iter()
+            .filter(|member| member.job.as_deref() == Some("Director"))
+            .map(|member| member.id)
+            .collect();
+        ids.sort_unstable();
+        ids.dedup();
+        ids
     }
 
     pub fn cast(&self) -> &[CastMember] {
@@ -152,6 +244,51 @@ impl CastMember {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Films nest keywords under `keywords`, shows under `results`. One reader, both shapes.
+    #[test]
+    fn keywords_are_read_from_either_nest() {
+        let film: MediaDetail =
+            serde_json::from_str(r#"{"id":1,"keywords":{"keywords":[{"id":9},{"id":3}]}}"#)
+                .expect("a film detail");
+        assert_eq!(film.keyword_ids(), [3, 9], "sorted and deduplicated");
+
+        let show: MediaDetail =
+            serde_json::from_str(r#"{"id":2,"keywords":{"results":[{"id":5}]}}"#)
+                .expect("a show detail");
+        assert_eq!(show.keyword_ids(), [5]);
+
+        let none: MediaDetail = serde_json::from_str(r#"{"id":3}"#).expect("a bare detail");
+        assert!(none.keyword_ids().is_empty());
+        assert!(none.collection_id().is_none());
+        assert!(none.director_ids().is_empty());
+    }
+
+    #[test]
+    fn directors_come_from_the_crew_and_nobody_else() {
+        let detail: MediaDetail = serde_json::from_str(
+            r#"{"id":603,"credits":{"cast":[{"id":6384,"order":0}],
+                 "crew":[{"id":7,"job":"Director"},{"id":8,"job":"Producer"},{"id":7,"job":"Director"}]}}"#,
+        )
+        .expect("a detail with a crew");
+
+        assert_eq!(
+            detail.director_ids(),
+            [7],
+            "one entry, whatever the credits say"
+        );
+        assert_eq!(detail.cast()[0].order, Some(0), "billing order is parsed");
+    }
+
+    #[test]
+    fn a_collection_is_a_suggestion_and_arrives_as_an_id() {
+        let detail: MediaDetail = serde_json::from_str(
+            r#"{"id":603,"belongs_to_collection":{"id":2344,"name":"The Matrix Collection"}}"#,
+        )
+        .expect("a detail in a collection");
+
+        assert_eq!(detail.collection_id(), Some(2344));
+    }
 
     #[test]
     fn movie_credits_roles_come_from_character() {

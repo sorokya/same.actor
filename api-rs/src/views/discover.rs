@@ -257,6 +257,9 @@ mod tests {
             poster: Some(format!("/{id}.jpg")),
             overview: None,
             rating,
+            collection_id: None,
+            director_ids: Vec::new(),
+            keyword_ids: Vec::new(),
         }
     }
 
@@ -272,6 +275,7 @@ mod tests {
                     id: *id,
                     kind: Kind::Movie,
                     name: (*name).to_owned(),
+                    order: None,
                 })
                 .collect(),
         }

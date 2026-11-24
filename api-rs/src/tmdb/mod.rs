@@ -22,6 +22,21 @@ use crate::intersect::{PersonClaim, TitleClaim};
 
 const LANGUAGE: &str = "en-US";
 
+/// What one title contributes to a discovery refresh.
+///
+/// The cast is what the synergy table is built from; the other three fields exist only to make
+/// the admin's franchise suggestions one click instead of a lookup. None of them *decides* a
+/// franchise: TMDB's collections are narrower than franchises and its keywords are noisy, so
+/// they are offered as suggestions and the maintainer chooses.
+#[derive(Debug, Clone)]
+pub struct TitleFacts {
+    pub meta: SelectionMeta,
+    pub cast: Vec<PersonClaim>,
+    pub collection_id: Option<u32>,
+    pub director_ids: Vec<u32>,
+    pub keyword_ids: Vec<u32>,
+}
+
 pub struct Tmdb {
     client: reqwest::Client,
     base: Url,
@@ -318,13 +333,26 @@ impl Tmdb {
         &self,
         selection: Selection,
     ) -> Result<(SelectionMeta, Vec<PersonClaim>), AppError> {
+        let facts = self.title_facts(selection).await?;
+        Ok((facts.meta, facts.cast))
+    }
+
+    /// Everything one title contributes to a discovery refresh.
+    ///
+    /// The collection, the directors and the keywords all arrive in the same
+    /// `append_to_response` as the cast, so asking for them costs no extra request — only a
+    /// slightly larger response, cached under the same key the comparison flow already uses.
+    pub async fn title_facts(&self, selection: Selection) -> Result<TitleFacts, AppError> {
         let id = selection.id.get().to_string();
 
         let detail: types::MediaDetail = match selection.kind {
             Kind::Movie => {
                 self.get(
                     &["movie", id.as_str()],
-                    &[("append_to_response", "credits"), ("language", LANGUAGE)],
+                    &[
+                        ("append_to_response", "credits,keywords"),
+                        ("language", LANGUAGE),
+                    ],
                 )
                 .await?
             }
@@ -332,7 +360,7 @@ impl Tmdb {
                 self.get(
                     &["tv", id.as_str()],
                     &[
-                        ("append_to_response", "aggregate_credits"),
+                        ("append_to_response", "aggregate_credits,keywords"),
                         ("language", LANGUAGE),
                     ],
                 )
@@ -364,11 +392,18 @@ impl Tmdb {
                     name,
                     image: self.image(c.profile_path.as_deref()),
                     characters: c.characters(),
+                    order: c.order,
                 })
             })
             .collect();
 
-        Ok((meta, claims))
+        Ok(TitleFacts {
+            meta,
+            cast: claims,
+            collection_id: detail.collection_id(),
+            director_ids: detail.director_ids(),
+            keyword_ids: detail.keyword_ids(),
+        })
     }
 
     /// Filmography of one selected person. Used when comparing people.

@@ -347,6 +347,16 @@ pub struct Item {
     pub poster: Option<String>,
     pub overview: Option<String>,
     pub rating: Option<f64>,
+    /// TMDB's collection for this title. A *suggestion* for the admin queue, never a franchise:
+    /// a collection is narrower than a franchise, and the maintainer decides.
+    #[serde(default)]
+    pub collection_id: Option<u32>,
+    /// Directors of the title, for "another film by the same director" suggestions.
+    #[serde(default)]
+    pub director_ids: Vec<u32>,
+    /// TMDB keyword ids (the MCU keyword, "based on novel", and so on), for the same reason.
+    #[serde(default)]
+    pub keyword_ids: Vec<u32>,
 }
 
 /// A title as a synergy row refers to it.
@@ -359,6 +369,10 @@ pub struct TitleRef {
     pub id: u32,
     pub kind: Kind,
     pub name: String,
+    /// Where the billing put *this person* in this title, 0-based. Set on the entries inside a
+    /// synergy row (a fact about the person) and left empty on a bare title reference.
+    #[serde(default)]
+    pub order: Option<u32>,
 }
 
 /// One row of the synergy table.
@@ -388,6 +402,8 @@ pub struct Credit {
     pub name: String,
     /// Portrait, when TMDB had one.
     pub image: Option<String>,
+    /// Billing position in this title. `None` when TMDB did not say.
+    pub order: Option<u32>,
 }
 
 /// Build the "appears in two or more" table.
@@ -400,14 +416,23 @@ pub fn synergy(per_title: &[(TitleRef, Vec<Credit>)]) -> Vec<SynergyRow> {
     for (title, cast) in per_title {
         // One person can be credited twice in the same title (two roles, or a documentary
         // appearance); that is still one title.
-        let mut seen_here: HashMap<u32, (&str, Option<String>)> = HashMap::new();
+        let mut seen_here: HashMap<u32, (&str, Option<String>, Option<u32>)> = HashMap::new();
         for credit in cast {
-            seen_here
-                .entry(credit.id)
-                .or_insert_with(|| (credit.name.as_str(), credit.image.clone()));
+            let slot =
+                seen_here
+                    .entry(credit.id)
+                    .or_insert((credit.name.as_str(), None, credit.order));
+            if slot.1.is_none() {
+                slot.1 = credit.image.clone();
+            }
+            // Credited twice in one title: the better billing is the one that counts.
+            slot.2 = match (slot.2, credit.order) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
         }
 
-        for (id, (name, image)) in seen_here {
+        for (id, (name, image, order)) in seen_here {
             let entry = people
                 .entry(id)
                 .or_insert_with(|| (name.to_owned(), image.clone(), Vec::new()));
@@ -416,7 +441,10 @@ pub fn synergy(per_title: &[(TitleRef, Vec<Credit>)]) -> Vec<SynergyRow> {
             if entry.1.is_none() {
                 entry.1 = image;
             }
-            entry.2.push(title.clone());
+            entry.2.push(TitleRef {
+                order,
+                ..title.clone()
+            });
         }
     }
 
@@ -544,19 +572,68 @@ pub async fn refresh_one(
             .collect()
     };
 
+    // Facts for every title, concurrently: the cast the table is built from, plus the
+    // collection, directors and keywords the admin's suggestions are made of. One call per
+    // title, the same call a comparison of that title makes, so they share a cache entry.
+    let mut tasks = JoinSet::new();
+    for entry in &raw {
+        let tmdb = Arc::clone(tmdb);
+        let kind = variant.kind;
+        let id = entry.id;
+
+        tasks.spawn(async move {
+            // A zero id is not a title; `?` inside the task returns None, which the collector
+            // below treats as "no facts for this one".
+            let selection = Selection {
+                id: NonZeroU32::new(id)?,
+                kind,
+            };
+
+            match tmdb.title_facts(selection).await {
+                Ok(facts) => Some((id, facts)),
+                Err(error) => {
+                    // One title without facts is a gap in the table, not a failed list.
+                    tracing::debug!(%id, %error, "no facts for a discovery title");
+                    None
+                }
+            }
+        });
+    }
+
+    let mut facts: HashMap<u32, crate::tmdb::TitleFacts> = HashMap::new();
+    while let Some(joined) = tasks.join_next().await {
+        if let Ok(Some((id, found))) = joined {
+            facts.insert(id, found);
+        }
+    }
+
     let items: Vec<Item> = raw
-        .into_iter()
-        .map(|entry| Item {
-            id: entry.id,
-            name: entry.display_name(),
-            year: entry.year(),
-            date: variant.date_of(&entry).map(str::to_owned),
-            poster: entry
-                .poster_path
-                .as_deref()
-                .map(|path| tmdb.image_url(path)),
-            overview: entry.overview.filter(|text| !text.trim().is_empty()),
-            rating: entry.vote_average.filter(|rating| *rating > 0.0),
+        .iter()
+        .map(|entry| {
+            let found = facts.get(&entry.id);
+
+            Item {
+                id: entry.id,
+                name: entry.display_name(),
+                year: entry.year(),
+                date: variant.date_of(entry).map(str::to_owned),
+                poster: entry
+                    .poster_path
+                    .as_deref()
+                    .map(|path| tmdb.image_url(path)),
+                overview: entry
+                    .overview
+                    .clone()
+                    .filter(|text| !text.trim().is_empty()),
+                rating: entry.vote_average.filter(|rating| *rating > 0.0),
+                collection_id: found.and_then(|found| found.collection_id),
+                director_ids: found
+                    .map(|found| found.director_ids.clone())
+                    .unwrap_or_default(),
+                keyword_ids: found
+                    .map(|found| found.keyword_ids.clone())
+                    .unwrap_or_default(),
+            }
         })
         .collect();
 
@@ -564,64 +641,32 @@ pub async fn refresh_one(
     // offered has not come out yet. Storing it means the page can say "nothing yet" instead of
     // claiming the list does not exist.
 
-    // Cast for every title, concurrently. Twenty calls per list, nine lists, every few hours —
-    // and they all land in the existing TMDB cache, so a comparison of the same titles is free
-    // afterwards.
-    let mut tasks = JoinSet::new();
-    for item in &items {
-        let tmdb = Arc::clone(tmdb);
-        let kind = variant.kind;
-        let id = item.id;
-        let title = TitleRef {
-            id: item.id,
-            kind,
-            name: item.name.clone(),
-        };
+    // Built in list order, so the titles inside a row follow the list's ranking without a sort.
+    let per_title: Vec<(TitleRef, Vec<Credit>)> = items
+        .iter()
+        .filter_map(|item| {
+            let found = facts.get(&item.id)?;
 
-        tasks.spawn(async move {
-            // A zero id is not a title; `?` inside the task returns None, which the collector
-            // below treats as "no credits for this one".
-            let selection = Selection {
-                id: NonZeroU32::new(id)?,
-                kind,
-            };
-
-            match tmdb.title_selection(selection).await {
-                Ok((_, cast)) => Some((
-                    title,
-                    cast.into_iter()
-                        .map(|claim| Credit {
-                            id: claim.id,
-                            name: claim.name,
-                            image: claim.image,
-                        })
-                        .collect::<Vec<_>>(),
-                )),
-                Err(error) => {
-                    // One title without credits is a gap in the table, not a failed list.
-                    tracing::debug!(%id, %error, "no credits for a discovery title");
-                    None
-                }
-            }
-        });
-    }
-
-    let mut per_title: Vec<(TitleRef, Vec<Credit>)> = Vec::with_capacity(items.len());
-    while let Some(joined) = tasks.join_next().await {
-        if let Ok(Some(entry)) = joined {
-            per_title.push(entry);
-        }
-    }
-
-    // Sorted back into list order. A `JoinSet` completes in whatever order the upstream answers,
-    // so without this the "which films" column changes order between refreshes — the page looks
-    // like it is shuffling itself for no reason.
-    per_title.sort_by_key(|(title, _)| {
-        items
-            .iter()
-            .position(|item| item.id == title.id)
-            .unwrap_or(usize::MAX)
-    });
+            Some((
+                TitleRef {
+                    id: item.id,
+                    kind: variant.kind,
+                    name: item.name.clone(),
+                    order: None,
+                },
+                found
+                    .cast
+                    .iter()
+                    .map(|claim| Credit {
+                        id: claim.id,
+                        name: claim.name.clone(),
+                        image: claim.image.clone(),
+                        order: claim.order,
+                    })
+                    .collect(),
+            ))
+        })
+        .collect();
 
     let rows = synergy(&per_title);
     let title_count = items.len();
@@ -718,6 +763,7 @@ mod tests {
             id,
             kind: Kind::Movie,
             name: name.to_owned(),
+            order: None,
         }
     }
 
@@ -728,6 +774,7 @@ mod tests {
                 id: *id,
                 name: (*name).to_owned(),
                 image: None,
+                order: None,
             })
             .collect()
     }
@@ -804,6 +851,113 @@ mod tests {
         assert_eq!(names, ["First", "Second", "Third"]);
     }
 
+    /// A row's titles carry the billing position, which is what tells a lead from a cameo.
+    #[test]
+    fn a_rows_titles_carry_the_billing_position() {
+        let credits = |order: Option<u32>| {
+            vec![
+                Credit {
+                    id: 6384,
+                    name: "Keanu Reeves".to_owned(),
+                    image: None,
+                    order,
+                },
+                Credit {
+                    id: 530,
+                    name: "Carrie-Anne Moss".to_owned(),
+                    image: None,
+                    order: order.map(|order| order + 1),
+                },
+            ]
+        };
+
+        let rows = synergy(&[
+            (title(603, "The Matrix"), credits(Some(0))),
+            (title(604, "Reloaded"), credits(Some(0))),
+        ]);
+
+        let keanu = rows
+            .iter()
+            .find(|row| row.person_id == 6384)
+            .expect("keanu");
+        assert_eq!(
+            keanu.titles.iter().map(|t| t.order).collect::<Vec<_>>(),
+            [Some(0), Some(0)]
+        );
+
+        let carrie = rows
+            .iter()
+            .find(|row| row.person_id == 530)
+            .expect("carrie-anne");
+        assert_eq!(
+            carrie.titles[0].order,
+            Some(1),
+            "billing is per person, not per title"
+        );
+    }
+
+    /// Credited twice in one title (two roles): the better billing is the one that counts.
+    #[test]
+    fn the_best_billing_wins_when_someone_is_credited_twice() {
+        let twice = vec![
+            Credit {
+                id: 1,
+                name: "Someone".to_owned(),
+                image: None,
+                order: Some(9),
+            },
+            Credit {
+                id: 1,
+                name: "Someone".to_owned(),
+                image: None,
+                order: Some(2),
+            },
+            Credit {
+                id: 2,
+                name: "Other".to_owned(),
+                image: None,
+                order: Some(5),
+            },
+        ];
+
+        let rows = synergy(&[
+            (title(1, "A"), twice),
+            (title(2, "B"), cast(&[(1, "Someone"), (2, "Other")])),
+        ]);
+        let first = rows.iter().find(|row| row.person_id == 1).expect("row");
+
+        assert_eq!(
+            first.titles[0].order,
+            Some(2),
+            "the lower billing index wins"
+        );
+        assert_eq!(first.titles[1].order, None, "no order upstream stays None");
+    }
+
+    /// A list written before the franchise fields existed must still parse: the payload is
+    /// stored JSON, and an upgrade must not turn stored lists into 500s.
+    #[test]
+    fn a_payload_from_before_the_franchise_fields_still_parses() {
+        let items: Vec<Item> = serde_json::from_str(
+            r#"[{"id":603,"name":"The Matrix","year":1999,"poster":null,"overview":null,"rating":8.2}]"#,
+        )
+        .expect("an older list still reads");
+
+        assert_eq!(items[0].name, "The Matrix");
+        assert!(items[0].collection_id.is_none());
+        assert!(items[0].director_ids.is_empty());
+        assert!(items[0].keyword_ids.is_empty());
+
+        let rows: Vec<SynergyRow> = serde_json::from_str(
+            r#"[{"person_id":530,"name":"Carrie-Anne Moss","image":null,"count":2,
+                 "titles":[{"id":603,"kind":"movie","name":"The Matrix"}]}]"#,
+        )
+        .expect("an older table still reads");
+
+        assert_eq!(rows[0].titles[0].name, "The Matrix");
+        assert!(rows[0].titles[0].order.is_none());
+    }
+
     #[test]
     fn the_table_is_capped() {
         // 300 people, each in two of three titles.
@@ -812,6 +966,7 @@ mod tests {
                 id,
                 name: format!("Person {id}"),
                 image: None,
+                order: None,
             })
             .collect();
         let rows = synergy(&[(title(1, "A"), cast_all.clone()), (title(2, "B"), cast_all)]);

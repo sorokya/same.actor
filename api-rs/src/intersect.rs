@@ -17,6 +17,9 @@ pub struct PersonClaim {
     pub image: Option<String>,
     /// TV shows can credit one actor in several roles. Always a list.
     pub characters: Vec<String>,
+    /// Billing position, 0-based. Unused by the comparison itself; the synergy views need it to
+    /// tell a lead from a walk-on.
+    pub order: Option<u32>,
 }
 
 /// One title's appearance in one person's filmography.
@@ -176,6 +179,7 @@ mod tests {
             name: name.to_owned(),
             image: None,
             characters: vec!["Someone".to_owned()],
+            order: None,
         }
     }
 
