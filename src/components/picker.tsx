@@ -59,6 +59,24 @@ export function Picker({ bootstrap }: PickerProps) {
   useEffect(() => setHighlight(0), [term]);
 
   /**
+   * Keep `?q=` in step with the box, including when it is emptied.
+   *
+   * The search field has its own clear affordance in every browser, and clearing it used to
+   * leave `?q=reloaded` sitting in the address bar — a link that no longer described the page.
+   * `replaceState`, not `pushState`: a search term is a property of the page, not a place you
+   * can go back to.
+   */
+  const rememberTerm = useCallback((next: string) => {
+    setTerm(next);
+
+    const url = new URL(window.location.href);
+    if (next.trim() === '') url.searchParams.delete('q');
+    else url.searchParams.set('q', next);
+
+    if (url.href !== window.location.href) window.history.replaceState(null, '', url);
+  }, []);
+
+  /**
    * Rewrite the URL, then ask the server for the results region and swap it in.
    *
    * The fetch is a navigation the browser could have done on its own — same URL, same HTML —
@@ -99,7 +117,7 @@ export function Picker({ bootstrap }: PickerProps) {
 
   const add = (result: SearchResult) => {
     if (full || meta.some((entry) => entry.id === result.id)) return;
-    setTerm('');
+    rememberTerm('');
     input.current?.focus();
     void commit([...meta, metaFrom(result)]);
   };
@@ -109,6 +127,7 @@ export function Picker({ bootstrap }: PickerProps) {
   };
 
   const clear = () => {
+    rememberTerm('');
     void commit([]);
   };
 
@@ -125,7 +144,7 @@ export function Picker({ bootstrap }: PickerProps) {
 
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === 'Escape') {
-      setTerm('');
+      rememberTerm('');
       return;
     }
     if (results.length === 0) return;
@@ -157,7 +176,7 @@ export function Picker({ bootstrap }: PickerProps) {
           autocomplete="off"
           spellcheck={false}
           aria-label={placeholder}
-          onInput={(event) => setTerm(event.currentTarget.value)}
+          onInput={(event) => rememberTerm(event.currentTarget.value)}
           onKeyDown={onKeyDown}
           className="w-full rounded-md border border-line bg-raise px-3 py-2.5 text-sm text-paper placeholder:text-dim/70 focus:border-dim focus:outline-none disabled:opacity-60"
         />

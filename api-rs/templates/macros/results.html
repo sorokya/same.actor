@@ -46,7 +46,7 @@
         <th scope="col" class="min-w-[9rem] border-l border-line-soft px-3 pt-2 pb-2 text-left align-top font-normal">
           <span aria-hidden="true" class="mb-1.5 block h-[2px] w-8 rounded-full" style="background: {{ column.tint }}"></span>
           <a href="{{ column.href }}" target="_blank" rel="noreferrer noopener" class="block hover:underline">
-            {% call cards::art(column.image, column.art_classes, 12, column.person) %}{% endcall %}
+            {% call cards::sized_art(column.image, "column", column.person) %}{% endcall %}
             <span class="mt-1.5 block truncate text-xs text-paper">{{ column.name }}</span>
             {% if !column.year.is_empty() %}
             <span class="tnum block font-mono text-[11px]" style="color: {{ column.tint }}">{{ column.year }}</span>
@@ -62,7 +62,7 @@
       <tr class="border-b border-line-soft last:border-0 hover:bg-raise/60">
         <th scope="row" class="sticky left-0 z-10 border-r border-line-soft bg-ink px-3 py-2 text-left font-normal">
           <a href="{{ row.href }}" target="_blank" rel="noreferrer noopener" class="flex items-center gap-2.5 hover:underline">
-            {% call cards::art(row.image, row.art_classes, 14, row.person) %}{% endcall %}
+            {% call cards::sized_art(row.image, "row", row.person) %}{% endcall %}
             <span class="min-w-0">
               <span class="block truncate text-[13px] text-paper">{{ row.name }}</span>
               {% if !row.year.is_empty() %}
@@ -94,7 +94,7 @@
   {% for row in view.rows %}
   <li class="rounded-md border border-line bg-raise p-3">
     <a href="{{ row.href }}" target="_blank" rel="noreferrer noopener" class="flex items-center gap-2.5">
-      {% call cards::art(row.image, row.art_classes_mobile, 16, row.person) %}{% endcall %}
+      {% call cards::sized_art(row.image, "mobile", row.person) %}{% endcall %}
       <span class="min-w-0">
         {# Two lines, not one: a truncated title on a card has no tooltip rescue. #}
         <span class="line-clamp-2 text-sm text-paper">{{ row.name }}</span>

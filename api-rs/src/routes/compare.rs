@@ -122,6 +122,9 @@ async fn response(
     if let Some(island) = state.assets.island.as_deref() {
         head = head.with_island(island);
     }
+    if let Some(boost) = state.assets.boost.as_deref() {
+        head = head.with_boost(boost);
+    }
 
     let mut page = ComparePage::new(head, mode, &selections, &matches, views, share_url);
 

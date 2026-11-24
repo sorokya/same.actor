@@ -35,6 +35,19 @@
 </span>
 {% endmacro %}
 
+{# Artwork in the results table. Sizes live here, in a template, because Tailwind only reads
+   templates and CSS: a class written in Rust (as `art_classes` used to be) is never scanned, so
+   the utility is never emitted and the image renders at its natural size. #}
+{% macro sized_art(image, variant, person) %}
+{% if variant == "column" %}
+{% if person %}{% call art(image, "h-6 w-6 rounded-full", 12, true) %}{% endcall %}{% else %}{% call art(image, "h-7 w-5 rounded-[3px]", 12, false) %}{% endcall %}{% endif %}
+{% elif variant == "row" %}
+{% if person %}{% call art(image, "h-9 w-8 rounded-full", 14, true) %}{% endcall %}{% else %}{% call art(image, "h-9 w-6 rounded-[3px]", 14, false) %}{% endcall %}{% endif %}
+{% else %}
+{% if person %}{% call art(image, "h-11 w-9 rounded-full", 16, true) %}{% endcall %}{% else %}{% call art(image, "h-11 w-7 rounded-[3px]", 16, false) %}{% endcall %}{% endif %}
+{% endif %}
+{% endmacro %}
+
 {# A poster cell that follows its container. #}
 {% macro poster_well(image) %}
 <span class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2">

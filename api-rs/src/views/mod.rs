@@ -40,8 +40,10 @@ pub struct Head {
     /// Absolute URL of the share card, or empty. Empty falls back to `twitter:card=summary`.
     pub image: String,
     pub css: String,
-    /// The picker island, for the pages that have one. Empty means no script at all.
+    /// The picker island, for the pages that have one.
     pub island: String,
+    /// The link booster. Empty on the dashboard, which stays free of scripts.
+    pub boost: String,
     pub nav: &'static str,
     pub noindex: bool,
     /// Which admin tab is current. Empty on every public page.
@@ -63,6 +65,7 @@ impl Head {
             image: String::new(),
             css: String::new(),
             island: String::new(),
+            boost: String::new(),
             nav,
             active: "",
             noindex: false,
@@ -77,6 +80,12 @@ impl Head {
 
     pub fn with_island(mut self, island: &str) -> Self {
         self.island = island.to_owned();
+        self
+    }
+
+    /// Opt into instant navigation. Every public page does; the dashboard does not.
+    pub fn with_boost(mut self, boost: &str) -> Self {
+        self.boost = boost.to_owned();
         self
     }
 

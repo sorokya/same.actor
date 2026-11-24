@@ -14,7 +14,7 @@ pub struct NotFoundPage {
 }
 
 impl NotFoundPage {
-    pub fn new(css: &Option<String>) -> Self {
+    pub fn new(css: &Option<String>, boost: &Option<String>) -> Self {
         let mut head = Head::new(
             "Nothing here — same.actor",
             "There is no page at this address.",
@@ -24,6 +24,9 @@ impl NotFoundPage {
 
         if let Some(css) = css.as_deref() {
             head = head.with_css(css);
+        }
+        if let Some(boost) = boost.as_deref() {
+            head = head.with_boost(boost);
         }
 
         Self { head }

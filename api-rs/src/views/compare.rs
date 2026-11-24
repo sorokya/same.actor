@@ -29,8 +29,6 @@ pub struct Column {
     pub year: String,
     pub image: String,
     pub person: bool,
-    /// Size and shape, decided here so the template never computes layout.
-    pub art_classes: &'static str,
     pub tint: &'static str,
 }
 
@@ -49,8 +47,6 @@ pub struct Row {
     pub year: String,
     pub image: String,
     pub person: bool,
-    pub art_classes: &'static str,
-    pub art_classes_mobile: &'static str,
     pub cells: Vec<Cell>,
 }
 
@@ -222,11 +218,6 @@ impl ComparePage {
                 year: year_of(selection.year),
                 image: selection.image.clone().unwrap_or_default(),
                 person: selection.kind == Kind::Person,
-                art_classes: if selection.kind == Kind::Person {
-                    "h-6 w-6 rounded-full"
-                } else {
-                    "h-7 w-5 rounded-[3px]"
-                },
                 tint: tint(index),
             })
             .collect();
@@ -264,16 +255,6 @@ impl ComparePage {
                     year,
                     image: image.unwrap_or_default(),
                     person,
-                    art_classes: if person {
-                        "h-9 w-8 rounded-full"
-                    } else {
-                        "h-9 w-6 rounded-[3px]"
-                    },
-                    art_classes_mobile: if person {
-                        "h-11 w-9 rounded-full"
-                    } else {
-                        "h-11 w-7 rounded-[3px]"
-                    },
                     cells: selections
                         .iter()
                         .map(|selection| Cell {

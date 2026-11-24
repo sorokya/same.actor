@@ -34,6 +34,9 @@
     {% if !head.image.is_empty() %}<meta name="twitter:image" content="{{ head.image }}" />{% endif %}
 
     {% if !head.css.is_empty() %}<link rel="stylesheet" href="{{ head.css }}" />{% endif %}
+    {% if !head.boost.is_empty() %}
+    <script type="module" src="{{ head.boost }}" defer></script>
+    {% endif %}
     {% if !head.island.is_empty() %}
     <script type="module" src="{{ head.island }}" defer></script>
     {% endif %}

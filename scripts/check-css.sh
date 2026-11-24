@@ -28,6 +28,7 @@ classes=(
   'sm:flex-row'    # the header's desktop layout
   'grid-cols-3'    # the poster shelf
   'line-clamp-2'   # titles in the results
+  'h-11'           # artwork in the results on a phone
 )
 
 missing=0

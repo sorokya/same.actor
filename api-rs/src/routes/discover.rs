@@ -251,6 +251,9 @@ pub async fn page(
     if let Some(css) = state.assets.css.as_deref() {
         head = head.with_css(css);
     }
+    if let Some(boost) = state.assets.boost.as_deref() {
+        head = head.with_boost(boost);
+    }
 
     head = head.with_canonical(format!(
         "{}{}",

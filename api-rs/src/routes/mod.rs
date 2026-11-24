@@ -99,7 +99,7 @@ pub async fn not_found(State(state): State<AppState>) -> Response {
 /// Render the 404 page. A page route that cannot find what it was asked for should answer with
 /// a page: a JSON error body in a browser is a wall of braces where an explanation belongs.
 pub fn not_found_page(state: &AppState) -> Response {
-    let page = crate::views::not_found::NotFoundPage::new(&state.assets.css);
+    let page = crate::views::not_found::NotFoundPage::new(&state.assets.css, &state.assets.boost);
 
     match crate::views::render(&page) {
         // A 404 is a page, and a page says what happened.

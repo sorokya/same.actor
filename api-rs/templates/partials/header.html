@@ -2,7 +2,7 @@
 {# One header for every page: the comparison tool, the browse sections and the dashboard. The
    chrome is shared here rather than in three components, which is what let the three drift
    apart in the first place. #}
-<header class="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
+<header data-chrome class="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
   <div
     class="mx-auto flex w-full {% if head.nav == "admin" %}max-w-5xl{% else %}max-w-3xl{% endif %} flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
   >

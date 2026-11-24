@@ -5,8 +5,9 @@ people and see exactly what they share.
 
 One Rust binary renders every page, serves the API and draws the share cards, on one origin at
 one version. Pages are HTML the server produced: a shared link shows its answer before a byte of
-JavaScript runs, and the only script the site loads is the picker — a ~24 kB island on the
-comparison pages. The browse pages and the dashboard load no script at all.
+JavaScript runs. Two scripts exist: the picker (~24 kB) on the comparison pages, and a ~1.8 kB
+link booster on every public page that fetches the next page and swaps it in instead of
+reloading. The dashboard loads neither.
 
 ## How it works
 
@@ -134,19 +135,41 @@ kind is only written in `title` mode, where a selection can be either a film or 
 
 | Page | Rendered by | Script |
 | --- | --- | --- |
-| `/`, `/person`, `/title/{picks}`, `/person/{picks}` | Rust | the island |
-| `/discover/{section}` | Rust | none |
+| `/`, `/person`, `/title/{picks}`, `/person/{picks}` | Rust | island + booster |
+| `/discover/{section}` | Rust | booster |
 | `/admin` and its pages | Rust | none |
-| unknown paths | Rust (404 page) | none |
+| unknown paths | Rust (404 page) | booster |
 
 The comparison pages ask the same route for `X-Fragment: results` after a selection changes, so
 the results markup exists in one template and the island never renders a table. Without
 JavaScript everything except picking still works, including a shared comparison link.
 
+### Navigation without reloads
+
+`src/boost.ts` intercepts clicks on links it can serve — same origin, left button, no modifiers,
+one of our page routes — fetches the page, and swaps `[data-swap]` plus the header. The URL goes
+into history and Back/Forward do the same swap in reverse, so the address bar never disagrees
+with the page. Anything unexpected (a non-HTML response, a page of a different shape, a network
+error) falls through to `location.assign`, which is what the click would have done anyway.
+
+Two things it has to get right, and did not at first: the search field's own clear button left
+`?q=` in the address bar describing a page that no longer existed, and Back changed the URL
+without changing the content because the island had no `popstate` listener — the booster owns
+`popstate` for every page and the island re-mounts on its `sameactor:swapped` event.
+
+### Classes and templates
+
 Templates are compiled into the binary, so a typo is a build error and not a 500. Classes live in
 the templates; `src/index.css` names `../api-rs/templates` with `@source` so Tailwind emits the
-utilities that only appear there. Forgetting that is silent in development and visible in
-production — the fix is to rebuild the stylesheet after adding a template.
+utilities that only appear there. Two ways to get this wrong, both silent:
+
+- A class written in **Rust** (`art_classes` used to be) is never scanned, so the utility is
+  never emitted and the element renders unstyled at its natural size. That is why the artwork
+  sizes in the results table live in `macros/cards.html`.
+- Tailwind pointed at a directory that **is not in the build context** emits a stylesheet with
+  no error and half the utilities. The Dockerfile's frontend stage has to copy
+  `api-rs/templates` for exactly this reason, and `scripts/check-css.sh` (the seventh gate)
+  greps the built stylesheet for a class from each template so it cannot happen quietly again.
 
 ## Layout
 
@@ -159,23 +182,28 @@ api-rs/
     paths.rs       parsing for /title/… and /person/…, mirroring src/lib/url.ts
     og.rs          Open Graph card: SVG in, PNG out (resvg, vendored fonts)
     tmdb/          upstream client: URL construction, auth, cache
-    routes/        search, findout, health, og (card image + meta tags)
+    routes/        pages (compare, discover, admin), search, findout, health, og
     error.rs       one error type, one place that maps it to a response
     ratelimit.rs   per-IP fixed window
+  templates/       askama: layouts, pages, macros — compiled in, so a typo is a build error
   tests/api.rs     HTTP-level tests against a stub TMDB
 src/
-  app.tsx          the screen
+  island.tsx       the picker's entry point; re-mounts after a boosted navigation
+  boost.ts         intercepts link clicks and popstate, swaps the page in
+  lib/nav.ts       fetch, parse, swap `[data-swap]`, update history — shared by both
   lib/api.ts       typed client; failures are values, not nulls
   lib/types.ts     mirrors api-rs/src/domain.rs
-  lib/url.ts       URL parsing and formatting (mirrors api-rs/src/paths.rs)
+  lib/url.ts       builds paths (the server parses them — one parser, not two)
   lib/palette.ts   one hue per selection, followed from chip to table column
-  components/      search panel, chips, result matrix, poster, icons, ui
+  components/      picker, chips, poster, ui
 docs/
   REVIEW.md        what was wrong with the previous implementation
   REWRITE-PLAN.md  how and why it was rebuilt
 scripts/
   cargo.sh         run a command in the pinned Rust container
   node.sh          run a command in the pinned Node container
+  check.sh         every gate, reported separately
+  check-css.sh     the built stylesheet covers the templates
   demo-stub.py     TMDB stand-in for local development
 api-rs/assets/fonts/
   DejaVu*.ttf      embedded in the binary so share cards render identically everywhere
@@ -353,9 +381,13 @@ an empty list reads as "nothing is popular", which is a lie.
 
 TMDB has no all-time list, so `all-time` is `vote_count.desc` with a floor (5000 films, 2000
 shows): cumulative popularity, so a film nobody watched this week still ranks. `home` is release
-types 4 and 5 — digital and physical — cut off at today, which is why the refresh substitutes
-`{today}` into the query. `TMDB_REGION` (default `US`) is required by the two lists keyed on
-release dates; only those send it.
+types 4 and 5 — digital and physical — cut off at today. `upcoming` is `discover` with a release
+date between today and ninety-plus days out, sorted by popularity, because TMDB's own
+`movie/upcoming` is documented as "released soon **or recently released**" and duly listed films
+that were already out. The refresh substitutes `{today}` and `{in:N}` into query values; a
+placeholder that survived into a URL would be sent to TMDB as a literal and quietly return
+nothing, so a test fails if any variant leaves one. `TMDB_REGION` (default `US`) is sent only by
+`new:movie:cinema`, the one list that is still keyed on theatrical release.
 
 The synergy table is the interesting part. Twenty titles makes the pairwise intersection that
 powers the main comparison useless — 190 pairs, most of them empty. What is meaningful at that
@@ -369,14 +401,14 @@ well as its name, so the link does not have to guess the kind from the list.
 
 ## Navigation
 
-One header, `src/components/site-header.tsx`, used by the comparison tool, the sections, and the
-dashboard. Each surface supplies its own tabs; the chrome is shared, which is the only way three
-independently written headers stop drifting apart.
+One header, `api-rs/templates/partials/header.html`, used by the comparison tool, the sections,
+and the dashboard. Each surface supplies its own tabs; the chrome is shared, which is the only
+way three independently written headers stop drifting apart.
 
 Five tabs — `Titles | People`, then `Top | New | Upcoming`. The second axis of a section is a
 control on the page, not another tab: seven lists across did not fit, and `Films` sitting beside
 `Titles` said nothing about what the page was for. The controls are links too, so they work
-before any JavaScript has run; with JavaScript they rewrite the query and refetch.
+before any JavaScript has run; the booster turns them into a fetch and a swap.
 
 Every tab is a link, including the two that used to be a radio group — mode already cleared the
 selection when it changed, so a link behaves identically. `People` points at `/person`, *not*
@@ -386,9 +418,17 @@ the tab landed on the title comparison.
 Below `sm` the navigation takes its own row under the wordmark, where five tabs fit on one line;
 a scroll strip there clipped the last label, which reads as broken rather than scrollable.
 
-## Admin API
+## Admin
 
-Everything lives under `/api/admin` and requires `ADMIN_TOKEN`. Two ways to present it:
+The dashboard is at `/admin` and is server-rendered: a login form posts the token, and the cookie
+it sets (`sa_admin`, HttpOnly) opens `/admin/overview`, `/admin/logs`, `/admin/suspicious`,
+`/admin/bans` and `/admin/health`. Filters are query strings — `?window=7d`, `?ip=…`, `?path=…`
+— so any view is a link you can keep, and no page there loads a script. Admin routes are exempt
+from bans, so a mistake cannot lock the operator out.
+
+The same data is under `/api/admin` for scripts and monitoring:
+
+Everything there requires `ADMIN_TOKEN`. Two ways to present it:
 
 ```sh
 # A script: straight bearer token.
@@ -458,7 +498,7 @@ themselves are never rate limited — a human must always be able to open a link
 ```sh
 ./scripts/check.sh              # every gate, each reported separately
 ./scripts/check.sh backend      # rustfmt, clippy, tests
-./scripts/check.sh frontend     # biome, tsc, build
+./scripts/check.sh frontend     # biome, tsc, build, stylesheet covers the templates
 
 ./scripts/cargo.sh cargo test     # unit + HTTP-level tests against a stub TMDB
 ./scripts/cargo.sh cargo clippy --all-targets -- -D warnings

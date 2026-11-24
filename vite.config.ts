@@ -19,10 +19,11 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: true,
     rollupOptions: {
-      // One entry: the picker island. There is no single-page app any more — every page is
-      // rendered by the server, and this is the only script the site loads.
+      // Two entries, and that is the whole front end: the picker (comparison pages only) and
+      // the link booster (every public page). No single-page app.
       input: {
         island: 'src/island.tsx',
+        boost: 'src/boost.ts',
       },
     },
     // The Rust side reads this to learn the hashed asset names: a template cannot hard-code

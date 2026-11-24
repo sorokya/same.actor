@@ -209,9 +209,16 @@ pub const VARIANTS: &[Variant] = &[
         filter: "",
         filter_label: "",
         source: Source {
-            path: "movie/upcoming",
-            params: &[],
-            regional: true,
+            // `movie/upcoming` is documented as "released soon *or recently released*", which
+            // is why it listed films that were already out. `discover` with a release-date
+            // floor is the only way to say "not out yet" and mean it.
+            path: "discover/movie",
+            params: &[
+                ("sort_by", "popularity.desc"),
+                ("primary_release_date.gte", "{today}"),
+                ("primary_release_date.lte", "{in:120}"),
+            ],
+            regional: false,
         },
     },
     Variant {
@@ -221,10 +228,13 @@ pub const VARIANTS: &[Variant] = &[
         filter: "",
         filter_label: "",
         source: Source {
+            // Same floor as the films, and the same ceiling: "coming soon" that reaches into
+            // next year is a list nobody reads.
             path: "discover/tv",
             params: &[
-                ("sort_by", "first_air_date.asc"),
+                ("sort_by", "popularity.desc"),
                 ("first_air_date.gte", "{today}"),
+                ("first_air_date.lte", "{in:120}"),
             ],
             regional: false,
         },
@@ -368,6 +378,40 @@ fn today_utc() -> String {
     civil_from_days(days as i64)
 }
 
+/// `YYYY-MM-DD` for N days from today. Negative N is allowed; nothing currently uses it, but
+/// there is no reason for the arithmetic to be one-way.
+fn date_in_days(days_ahead: i64) -> String {
+    let today = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|elapsed| (elapsed.as_secs() / 86_400) as i64)
+        .unwrap_or(0);
+
+    civil_from_days(today + days_ahead)
+}
+
+/// Fill in `{today}` and `{in:N}`.
+///
+/// A placeholder that survives into the URL would be sent to TMDB as a literal and quietly
+/// return nothing, so this is the only place either can be written.
+fn expand_placeholders(template: &str, today: &str) -> String {
+    let mut out = template.replace("{today}", today);
+
+    while let Some(start) = out.find("{in:") {
+        let Some(end) = out[start..].find('}').map(|offset| start + offset) else {
+            break;
+        };
+
+        let Ok(days) = out[start + 4..end].parse::<i64>() else {
+            break;
+        };
+
+        let date = date_in_days(days);
+        out.replace_range(start..=end, &date);
+    }
+
+    out
+}
+
 pub(crate) fn civil_from_days(days_since_epoch: i64) -> String {
     let z = days_since_epoch + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -400,7 +444,7 @@ pub async fn refresh_one(
         .source
         .params
         .iter()
-        .map(|(key, value)| ((*key).to_owned(), value.replace("{today}", &today)))
+        .map(|(key, value)| ((*key).to_owned(), expand_placeholders(value, &today)))
         .collect();
     let params: Vec<(&str, &str)> = owned
         .iter()
@@ -727,7 +771,7 @@ mod tests {
     #[test]
     fn only_the_lists_with_dates_are_regional() {
         for variant in VARIANTS {
-            let expected = variant.id == "new:movie:cinema" || variant.id == "upcoming:movie";
+            let expected = variant.id == "new:movie:cinema";
             assert_eq!(
                 variant.source.regional, expected,
                 "{} regional flag is wrong",
@@ -736,17 +780,56 @@ mod tests {
         }
     }
 
-    /// A `{today}` placeholder must never reach TMDB as a literal.
+    /// No placeholder may survive into a URL: TMDB would receive it as a literal string and
+    /// quietly return nothing, which looks like "no releases" rather than a bug.
     #[test]
-    fn only_the_home_and_upcoming_lists_ask_for_a_date() {
+    fn every_placeholder_is_expanded_before_it_becomes_a_query() {
+        let today = today_utc();
+
         for variant in VARIANTS {
-            let dated = variant
+            for (key, value) in variant.source.params {
+                let expanded = expand_placeholders(value, &today);
+                assert!(
+                    !expanded.contains('{') && !expanded.contains('}'),
+                    "{} left a placeholder in {key}: {expanded}",
+                    variant.id
+                );
+            }
+        }
+
+        assert_eq!(expand_placeholders("{today}", &today), today);
+        assert_eq!(expand_placeholders("{in:0}", &today), today);
+    }
+
+    /// The date arithmetic the windows depend on, checked against dates whose weekday and
+    /// month are known.
+    #[test]
+    fn a_future_date_is_a_plain_iso_date() {
+        let today = today_utc();
+        let later = expand_placeholders("{in:120}", &today);
+
+        assert_eq!(later.len(), 10, "got {later}");
+        assert!(later > today, "{later} should be after {today}");
+        assert!(later.starts_with("20"));
+    }
+
+    /// "Upcoming" means not out yet: a list that starts before today is the bug this replaced.
+    #[test]
+    fn the_upcoming_lists_ask_for_a_future_window() {
+        for id in ["upcoming:movie", "upcoming:tv"] {
+            let variant = by_id(id).expect(id);
+            let floor = variant
                 .source
                 .params
                 .iter()
-                .any(|(_, value)| value.contains("{today}"));
-            let expected = variant.id == "new:movie:home" || variant.id == "upcoming:tv";
-            assert_eq!(dated, expected, "{} date flag is wrong", variant.id);
+                .find(|(key, _)| key.ends_with(".gte"))
+                .map(|(_, value)| *value)
+                .expect("a release-date floor");
+
+            assert!(
+                floor.contains("{today}"),
+                "{id} must start at today, not at some fixed date: {floor}"
+            );
         }
     }
 

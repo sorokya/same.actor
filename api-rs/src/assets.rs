@@ -15,6 +15,8 @@ use serde::Deserialize;
 
 /// Where the island's entry point lives, as Vite records it.
 const ISLAND: &str = "src/island.tsx";
+/// The link booster: loaded by every public page, absent from the dashboard.
+const BOOST: &str = "src/boost.ts";
 
 #[derive(Debug, Clone, Default)]
 pub struct Assets {
@@ -22,6 +24,8 @@ pub struct Assets {
     pub css: Option<String>,
     /// The picker island, loaded only by pages that have one.
     pub island: Option<String>,
+    /// Intercepts link clicks and swaps pages in, on the pages that opt in.
+    pub boost: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -52,7 +56,12 @@ impl Assets {
 
         match Self::from_manifest(&manifest) {
             Ok(assets) => {
-                tracing::info!(css = ?assets.css, island = ?assets.island, "loaded asset manifest");
+                tracing::info!(
+                    css = ?assets.css,
+                    island = ?assets.island,
+                    boost = ?assets.boost,
+                    "loaded asset manifest"
+                );
                 assets
             }
             Err(error) => {
@@ -83,9 +92,13 @@ impl Assets {
             })
             .map(|file| format!("/{file}"));
 
-        let island = entries.get(ISLAND).map(|entry| format!("/{}", entry.file));
+        let entry = |key: &str| entries.get(key).map(|entry| format!("/{}", entry.file));
 
-        Ok(Self { css, island })
+        Ok(Self {
+            css,
+            island: entry(ISLAND),
+            boost: entry(BOOST),
+        })
     }
 }
 
@@ -104,6 +117,11 @@ mod tests {
         "file": "assets/island-def456.js",
         "src": "src/island.tsx",
         "isEntry": true
+      },
+      "src/boost.ts": {
+        "file": "assets/boost-abc789.js",
+        "src": "src/boost.ts",
+        "isEntry": true
       }
     }"#;
 
@@ -112,6 +130,7 @@ mod tests {
         let assets = Assets::from_manifest(MANIFEST).expect("manifest");
         assert_eq!(assets.css.as_deref(), Some("/assets/index-Ccu-D8U5.css"));
         assert_eq!(assets.island.as_deref(), Some("/assets/island-def456.js"));
+        assert_eq!(assets.boost.as_deref(), Some("/assets/boost-abc789.js"));
     }
 
     /// A CSS-only entry carries its own path rather than a `css` list.
@@ -124,6 +143,7 @@ mod tests {
 
         assert_eq!(assets.css.as_deref(), Some("/assets/index-zzz.css"));
         assert!(assets.island.is_none(), "no island was built");
+        assert!(assets.boost.is_none(), "no booster was built");
     }
 
     #[test]
