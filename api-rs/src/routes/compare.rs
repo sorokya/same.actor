@@ -138,7 +138,7 @@ async fn response(
     if matched == 0 {
         if let Ok(terms) = super::trending::terms(&state).await {
             let words: Vec<String> = terms.into_iter().map(|term| term.term).collect();
-            page = page.with_trending(&words);
+            page = page.with_trending(crate::views::compare::trend_links(&words, mode));
         }
     }
 

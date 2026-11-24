@@ -33,14 +33,6 @@ pub struct PageQuery {
     pub filter: Option<String>,
 }
 
-fn kind_label(kind: Kind) -> &'static str {
-    match kind {
-        Kind::Movie => "Films",
-        Kind::Tv => "Shows",
-        Kind::Person => "People",
-    }
-}
-
 fn kind_key(kind: Kind) -> &'static str {
     match kind {
         Kind::Movie => "movie",
@@ -188,12 +180,8 @@ pub async fn show(
 
     Ok(Json(DiscoverPageJson {
         section: loaded.section.key(),
-        heading: format!(
-            "{} {}",
-            loaded.section.heading(),
-            kind_label(loaded.kind).to_lowercase()
-        ),
-        blurb: loaded.section.blurb(),
+        heading: loaded.variant.heading().to_owned(),
+        blurb: loaded.variant.blurb(),
         kind: kind_key(loaded.kind),
         filter: loaded.variant.filter,
         kinds: vec![
@@ -233,17 +221,11 @@ pub async fn page(
         Err(error) => return Err(error),
     };
 
-    let heading = format!(
-        "{} {}",
-        loaded.section.heading(),
-        kind_label(loaded.kind).to_lowercase()
-    );
-
     let mut head = Head::new(
-        format!("{heading} — same.actor"),
+        format!("{} — same.actor", loaded.variant.heading()),
         format!(
             "{}. Refreshed every few hours.",
-            loaded.section.blurb().trim_end_matches('.')
+            loaded.variant.blurb().trim_end_matches('.')
         ),
         loaded.section.key(),
     );
@@ -272,7 +254,6 @@ pub async fn page(
             synergy: &loaded.synergy,
         },
         crate::clock::now_unix(),
-        &Section::ALL,
     );
 
     Ok(render(&view)?.into_response())

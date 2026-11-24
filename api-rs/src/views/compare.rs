@@ -85,12 +85,78 @@ pub struct ComparePage {
     pub results: Results,
     /// What people have been searching for today. Empty until a term is searched three times.
     pub trending: Vec<TrendLink>,
+    /// Starting points for an empty page: things worth typing when nothing is selected.
+    pub examples: Vec<TrendLink>,
 }
 
-/// One term in the trending strip, linked back into the search box.
+/// One term in a chip strip, linked back into the search box.
 pub struct TrendLink {
     pub term: String,
     pub href: String,
+    /// One of the hue names in index.css, so a row of chips is not a row of identical pills.
+    pub tint: &'static str,
+}
+
+/// The five hue names, cycling along a strip of chips.
+const TINT_NAMES: [&str; 5] = ["title", "person", "top", "new", "upcoming"];
+
+/// Where a search box lives for this mode: `/` or `/person`.
+fn search_path(mode: Mode) -> &'static str {
+    match mode {
+        Mode::Title => "/",
+        Mode::Person => "/person",
+    }
+}
+
+/// A chip that fills the search box with `term`.
+fn trend(term: &str, index: usize, path: &str) -> TrendLink {
+    TrendLink {
+        term: term.to_owned(),
+        href: format!("{path}?q={}", encode_query(term)),
+        tint: TINT_NAMES[index % TINT_NAMES.len()],
+    }
+}
+
+/// What to offer somebody who has not typed anything yet.
+///
+/// An empty search box asks the reader to remember a title unaided, and the honest answer is
+/// "I cannot think of one". These are titles and people with large, well-documented casts, so
+/// any two of them produce an answer rather than an apology — which is what an example is for.
+fn examples_for(mode: Mode) -> Vec<TrendLink> {
+    let path = search_path(mode);
+    let terms: &[&str] = match mode {
+        Mode::Title => &[
+            "The Matrix",
+            "Alien",
+            "Pulp Fiction",
+            "The Wire",
+            "Breaking Bad",
+            "Dune",
+        ],
+        Mode::Person => &[
+            "Willem Dafoe",
+            "Cate Blanchett",
+            "Samuel L. Jackson",
+            "Tilda Swinton",
+            "Brad Pitt",
+        ],
+    };
+
+    terms
+        .iter()
+        .enumerate()
+        .map(|(index, term)| trend(term, index, path))
+        .collect()
+}
+
+/// Turn trending terms into chips for the given mode.
+pub fn trend_links(terms: &[String], mode: Mode) -> Vec<TrendLink> {
+    let path = search_path(mode);
+    terms
+        .iter()
+        .enumerate()
+        .map(|(index, term)| trend(term, index, path))
+        .collect()
 }
 
 /// The results region on its own, for the island to swap in after a selection changes.
@@ -185,14 +251,8 @@ enum Entry<'a> {
 impl ComparePage {
     /// The strip is filled by the caller, which has the store: a page can then be built in a
     /// test without one.
-    pub fn with_trending(mut self, terms: &[String]) -> Self {
-        self.trending = terms
-            .iter()
-            .map(|term| TrendLink {
-                term: term.clone(),
-                href: format!("/?q={}", encode_query(term)),
-            })
-            .collect();
+    pub fn with_trending(mut self, links: Vec<TrendLink>) -> Self {
+        self.trending = links;
         self
     }
 
@@ -308,6 +368,7 @@ impl ComparePage {
             state_json: picker_state(mode, selections),
             share_url,
             trending: Vec::new(),
+            examples: examples_for(mode),
             results: Results {
                 selections: columns,
                 rows,

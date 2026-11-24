@@ -1,7 +1,7 @@
 version: 2
 
 updates:
-  # The frontend.
+  # The frontend. Dependabot's `npm` ecosystem reads pnpm-lock.yaml, so this stays as it is.
   - package-ecosystem: 'npm'
     directory: '/'
     schedule:

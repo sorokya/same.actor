@@ -24,6 +24,22 @@
 }
 
 @layer base {
+  /* Five hues, one per thing worth telling apart: the two comparison modes and the three
+     sections. Same values as the comparison table's column tints (TINTS in views/compare.rs), so
+     a title does not change colour between a table and a tab.
+
+     Declared here rather than in `@theme` on purpose: Tailwind emits a theme variable only when a
+     utility uses it, and nothing does — templates and inline styles read `var(--color-tint-…)`
+     directly, which Tailwind cannot see. In `@theme` these five vanished from the stylesheet and
+     every tab rendered in the default colour. */
+  :root {
+    --color-tint-title: #e8b14b;
+    --color-tint-person: #a996ff;
+    --color-tint-top: #f2799e;
+    --color-tint-new: #3ecfc0;
+    --color-tint-upcoming: #b6d15c;
+  }
+
   html {
     color-scheme: dark;
     scrollbar-color: var(--color-line) transparent;

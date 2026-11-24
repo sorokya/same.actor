@@ -11,17 +11,16 @@
 # Pinning a digest freezes that on purpose, and nothing here wants to.
 
 # --- frontend -----------------------------------------------------------------------------
-FROM docker.io/library/node:22-alpine AS web
+FROM docker.io/library/node:26-alpine AS web
 
 WORKDIR /web
 
-# pnpm, not npm. The version comes from `packageManager` in package.json, so this stage, CI and
-# scripts/node.sh all resolve the same one.
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable
-
+# pnpm, not npm. Node 25+ no longer ships corepack, so the version named in `packageManager` is
+# installed once, here — the same field CI reads and the same one scripts/node.sh uses. One pin,
+# three consumers, no version written down twice.
 COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+RUN npm install -g "pnpm@$(node -p 'require("./package.json").packageManager.split("@")[1]')" \
+    && pnpm install --frozen-lockfile
 
 COPY tsconfig.json vite.config.ts postcss.config.mjs ./
 COPY src ./src

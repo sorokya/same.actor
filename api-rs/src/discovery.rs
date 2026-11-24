@@ -81,6 +81,86 @@ impl Section {
     }
 }
 
+impl Variant {
+    /// The page heading.
+    ///
+    /// Written per list rather than assembled from a section and a kind: "New shows" is what the
+    /// old `format!` produced, and it says nothing — the list is shows with an episode in the
+    /// last few days, which is a fact about the calendar, not about newness.
+    pub fn heading(&self) -> &'static str {
+        match (self.section, self.kind, self.filter) {
+            (Section::Top, Kind::Movie, "all-time") => "Top films of all time",
+            (Section::Top, Kind::Movie, _) => "Trending films",
+            (Section::Top, Kind::Tv, "all-time") => "Top shows of all time",
+            (Section::Top, Kind::Tv, _) => "Trending shows",
+            (Section::New, Kind::Movie, "cinema") => "In cinemas now",
+            (Section::New, Kind::Movie, _) => "New at home",
+            (Section::New, Kind::Tv, _) => "On air now",
+            (Section::Upcoming, Kind::Movie, _) => "Films coming soon",
+            (Section::Upcoming, Kind::Tv, _) => "Shows coming soon",
+            // No list in VARIANTS is about people; a variant that was would still need a
+            // heading, and the section's own is a truthful fallback.
+            _ => self.section.heading(),
+        }
+    }
+
+    /// One sentence under the heading, saying what the list actually is.
+    pub fn blurb(&self) -> &'static str {
+        match (self.section, self.kind, self.filter) {
+            (Section::Top, Kind::Movie, "all-time") => {
+                "The films with the most votes ever cast, and the actors who keep turning up."
+            }
+            (Section::Top, Kind::Movie, _) => {
+                "What people are watching this week, and the casts they share."
+            }
+            (Section::Top, Kind::Tv, "all-time") => {
+                "The shows with the most votes ever cast, and the actors who keep turning up."
+            }
+            (Section::Top, Kind::Tv, _) => "What people are watching this week, and the casts they share.",
+            (Section::New, Kind::Movie, "cinema") => {
+                "Films in cinemas this week — and the actors who turn up in more than one."
+            }
+            (Section::New, Kind::Movie, _) => {
+                "Films that have just reached digital and disc, and the casts they share."
+            }
+            (Section::New, Kind::Tv, _) => {
+                "Shows with an episode in the last few days, and the actors who turn up in more than one."
+            }
+            (Section::Upcoming, Kind::Movie, _) => {
+                "Films with a release date still ahead of them. Nobody has seen these yet."
+            }
+            (Section::Upcoming, Kind::Tv, _) => {
+                "Shows that have not premiered yet. Nobody has seen these either."
+            }
+            _ => self.section.blurb(),
+        }
+    }
+
+    /// Which of a list entry's dates this list is about.
+    ///
+    /// A year is the right precision for a ranked list of films from 1972. It is the wrong one
+    /// for "what is on air", where the answer is the last episode, and for "coming soon", where
+    /// it is the date you would put in a calendar.
+    pub fn date_of<'a>(&self, entry: &'a crate::tmdb::types::ListItem) -> Option<&'a str> {
+        match (self.section, self.kind) {
+            (Section::Top, _) => None,
+            (Section::New, Kind::Tv) => entry.last_air_date.as_deref(),
+            (Section::Upcoming, Kind::Tv) => entry.first_air_date.as_deref(),
+            (Section::New, _) | (Section::Upcoming, _) => entry.release_date.as_deref(),
+        }
+    }
+
+    /// What the date means, for the card that shows it. Empty for lists that show a year.
+    pub fn date_label(&self) -> &'static str {
+        match (self.section, self.kind) {
+            (Section::Upcoming, Kind::Movie) => "Releases",
+            (Section::Upcoming, Kind::Tv) => "Premieres",
+            (Section::New, Kind::Tv) => "Aired",
+            _ => "",
+        }
+    }
+}
+
 /// How one list is fetched.
 #[derive(Debug)]
 pub struct Source {
@@ -271,6 +351,9 @@ pub struct Item {
     pub id: u32,
     pub name: String,
     pub year: Option<u16>,
+    /// The date this list is about, when a year is too coarse. `None` on the ranked lists.
+    #[serde(default)]
+    pub date: Option<String>,
     pub poster: Option<String>,
     pub overview: Option<String>,
     pub rating: Option<f64>,
@@ -459,6 +542,7 @@ pub async fn refresh_one(
             id: entry.id,
             name: entry.display_name(),
             year: entry.year(),
+            date: variant.date_of(&entry).map(str::to_owned),
             poster: entry
                 .poster_path
                 .as_deref()
@@ -811,6 +895,63 @@ mod tests {
         assert_eq!(later.len(), 10, "got {later}");
         assert!(later > today, "{later} should be after {today}");
         assert!(later.starts_with("20"));
+    }
+
+    /// The copy has to describe the list it is actually under: "New shows" was what a section
+    /// name plus a kind produced, and it told a reader nothing about why these shows were here.
+    #[test]
+    fn the_copy_says_what_the_list_is() {
+        assert_eq!(by_id("new:tv:on-the-air").unwrap().heading(), "On air now");
+        assert_eq!(
+            by_id("new:movie:cinema").unwrap().heading(),
+            "In cinemas now"
+        );
+        assert_eq!(
+            by_id("upcoming:movie").unwrap().heading(),
+            "Films coming soon"
+        );
+
+        // Two lists must not share a heading, or the tabs look broken.
+        let mut seen: Vec<&str> = VARIANTS.iter().map(|variant| variant.heading()).collect();
+        seen.sort_unstable();
+        let before = seen.len();
+        seen.dedup();
+        assert_eq!(seen.len(), before, "two lists share a heading");
+    }
+
+    /// A year is the right precision for a ranked list and the wrong one for a calendar.
+    #[test]
+    fn the_date_bearing_lists_ask_for_a_date() {
+        let entry = crate::tmdb::types::ListItem {
+            id: 1,
+            title: Some("A film".into()),
+            name: None,
+            release_date: Some("2026-12-01".into()),
+            first_air_date: Some("2026-11-01".into()),
+            last_air_date: Some("2026-11-20".into()),
+            poster_path: None,
+            overview: None,
+            vote_average: None,
+        };
+
+        assert!(by_id("top:movie:all-time")
+            .unwrap()
+            .date_of(&entry)
+            .is_none());
+        assert_eq!(
+            by_id("upcoming:movie").unwrap().date_of(&entry),
+            Some("2026-12-01")
+        );
+        assert_eq!(
+            by_id("upcoming:tv").unwrap().date_of(&entry),
+            Some("2026-11-01"),
+            "a show that has not premiered is dated by its premiere"
+        );
+        assert_eq!(
+            by_id("new:tv:on-the-air").unwrap().date_of(&entry),
+            Some("2026-11-20"),
+            "what is on air is dated by its last episode"
+        );
     }
 
     /// "Upcoming" means not out yet: a list that starts before today is the bug this replaced.

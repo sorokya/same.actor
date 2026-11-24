@@ -114,6 +114,32 @@ const MINUTE: i64 = 60;
 const HOUR: i64 = 60 * MINUTE;
 const DAY: i64 = 24 * HOUR;
 
+const MONTHS: [&str; 12] = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/// `2026-11-24` as `24 Nov 2026`.
+///
+/// The store keeps ISO dates because they sort and compare; a card should not show one. Anything
+/// that is not a well-formed date returns `None` so the caller can fall back to a year rather
+/// than print `0000-00-00` at somebody.
+pub fn format_date(iso: &str) -> Option<String> {
+    let bytes = iso.as_bytes();
+    if bytes.len() != 10 || bytes[4] != b'-' || bytes[7] != b'-' {
+        return None;
+    }
+
+    let year: i32 = iso[0..4].parse().ok()?;
+    let month: usize = iso[5..7].parse().ok()?;
+    let day: u32 = iso[8..10].parse().ok()?;
+
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) || year < 1800 {
+        return None;
+    }
+
+    Some(format!("{day} {} {year}", MONTHS[month - 1]))
+}
+
 /// `just now`, `12 minutes ago`, `3 hours ago`, `2 days ago`, then a date.
 ///
 /// A refresh timestamp rendered as `2026-11-24 00:41:07` reads like log output. The exact moment
@@ -200,5 +226,33 @@ mod tests {
         // 2026-11-24T06:01:40Z, checked against `datetime` rather than by hand.
         assert_eq!(absolute_time(1_795_500_100), "2026-11-24 06:01");
         assert_eq!(absolute_time(0), "1970-01-01 00:00");
+    }
+}
+
+#[cfg(test)]
+mod date_tests {
+    use super::format_date;
+
+    #[test]
+    fn an_iso_date_becomes_something_a_person_reads() {
+        assert_eq!(format_date("2026-11-24").as_deref(), Some("24 Nov 2026"));
+        assert_eq!(format_date("2027-01-02").as_deref(), Some("2 Jan 2027"));
+    }
+
+    /// TMDB sends `0000-00-00` for an unannounced release, and a card that prints it looks
+    /// broken. Anything unparseable has to come back empty so the caller can show a year.
+    #[test]
+    fn a_date_that_is_not_a_date_is_nothing() {
+        for bad in [
+            "",
+            "2026",
+            "2026-11",
+            "0000-00-00",
+            "2026-13-01",
+            "2026-11-32",
+            "not-a-date",
+        ] {
+            assert_eq!(format_date(bad), None, "{bad} should not format");
+        }
     }
 }

@@ -41,11 +41,6 @@ pub struct Card {
     pub titles: Vec<TitleLink>,
 }
 
-pub struct OtherSection {
-    pub heading: String,
-    pub href: String,
-}
-
 /// Everything a browse page renders, in one value.
 ///
 /// Grouped because a page needs all of it or none of it, and eight positional arguments is a
@@ -79,7 +74,6 @@ pub struct DiscoverPage {
     pub more_rows: Vec<Card>,
     pub more_count: usize,
     pub in_every: usize,
-    pub others: Vec<OtherSection>,
 }
 
 /// How many actor cards before the rest fold away.
@@ -105,10 +99,16 @@ pub fn title_href(kind: Kind, id: u32) -> String {
     format!("https://www.themoviedb.org/{}/{id}", kind_key(kind))
 }
 
-fn poster(item: &Item, kind: Kind, rank: usize) -> Poster {
-    let mut meta = match item.year {
-        Some(year) => year.to_string(),
-        None => "—".to_owned(),
+fn poster(item: &Item, kind: Kind, rank: usize, date_label: &str) -> Poster {
+    // A date beats a year wherever the list is about one: "Aired 23 Nov 2026" answers the
+    // question a year cannot, and the year is inside it anyway.
+    let mut meta = match item.date.as_deref().and_then(crate::views::format_date) {
+        Some(date) if date_label.is_empty() => date,
+        Some(date) => format!("{date_label} {date}"),
+        None => match item.year {
+            Some(year) => year.to_string(),
+            None => "—".to_owned(),
+        },
     };
 
     if let Some(rating) = item.rating {
@@ -143,7 +143,7 @@ fn card(row: &SynergyRow) -> Card {
 
 impl DiscoverPage {
     /// Build the page from a loaded snapshot.
-    pub fn new(head: Head, snapshot: &Snapshot<'_>, now: i64, other_sections: &[Section]) -> Self {
+    pub fn new(head: Head, snapshot: &Snapshot<'_>, now: i64) -> Self {
         let Snapshot {
             section,
             kind,
@@ -199,8 +199,8 @@ impl DiscoverPage {
         Self {
             head,
             section: section.key().to_owned(),
-            heading: format!("{} {}", section.heading(), kind_label(kind).to_lowercase()),
-            blurb: section.blurb().to_owned(),
+            heading: variant.heading().to_owned(),
+            blurb: variant.blurb().to_owned(),
             kinds,
             filters,
             filter_group: section.filter_group().to_owned(),
@@ -210,20 +210,12 @@ impl DiscoverPage {
             items: items
                 .iter()
                 .enumerate()
-                .map(|(index, item)| poster(item, kind, index + 1))
+                .map(|(index, item)| poster(item, kind, index + 1, variant.date_label()))
                 .collect(),
             rows,
             more_count: synergy.len(),
             more_rows,
             in_every,
-            others: other_sections
-                .iter()
-                .filter(|other| **other != section)
-                .map(|other| OtherSection {
-                    heading: other.heading().to_owned(),
-                    href: format!("/discover/{}", other.key()),
-                })
-                .collect(),
         }
     }
 }
@@ -237,6 +229,7 @@ mod tests {
             id,
             name: name.to_owned(),
             year,
+            date: None,
             poster: Some(format!("/{id}.jpg")),
             overview: None,
             rating,
@@ -273,7 +266,6 @@ mod tests {
                 synergy: rows,
             },
             1_795_500_000,
-            &Section::ALL,
         )
     }
 

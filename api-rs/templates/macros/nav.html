@@ -1,9 +1,32 @@
-{# A tab strip entry. `active` is decided in Rust from the page's own section, so the header
-   never disagrees with the page it is on. #}
-{% macro tab(href, label, active) %}
+{% import "macros/icons.html" as icons %}
+{# A tab strip entry.
+#
+# `active` is decided in Rust from the page's own section, so the header never disagrees with the
+# page it is on. `tint` names one of the hues in index.css (`title`, `person`, `top`, `new`,
+# `upcoming`): the icon always wears it, and the active tab wears it as a pill. That is the whole
+# navigation cue — colour to tell five tabs apart at a glance, and a filled pill for "you are
+# here". #}
+{% macro tab(href, label, active, icon, tint) %}
 <a
   href="{{ href }}"
   {% if active %}aria-current="page"{% endif %}
-  class="shrink-0 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors{% if active %} bg-paper text-ink{% else %} text-dim hover:bg-raise hover:text-paper{% endif %}"
->{{ label }}</a>
+  class="group inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 font-mono text-[11px] uppercase tracking-[0.12em] transition-colors{% if active %}{% else %} text-dim hover:bg-raise hover:text-paper{% endif %}"
+  {% if active %}style="--tint: var(--color-tint-{{ tint }}); color: var(--tint); background: color-mix(in oklab, var(--tint) 14%, transparent)"{% endif %}
+>
+  <span
+    class="shrink-0 transition-opacity{% if active %}{% else %} opacity-70 group-hover:opacity-100{% endif %}"
+    style="--tint: var(--color-tint-{{ tint }}); color: var(--tint)"
+  >
+    {% if icon == "film" %}{% call icons::film() %}{% endcall %}
+    {% elif icon == "person" %}{% call icons::person() %}{% endcall %}
+    {% elif icon == "flame" %}{% call icons::flame() %}{% endcall %}
+    {% elif icon == "clock" %}{% call icons::clock() %}{% endcall %}
+    {% elif icon == "shield" %}{% call icons::shield() %}{% endcall %}
+    {% elif icon == "pulse" %}{% call icons::pulse() %}{% endcall %}
+    {% elif icon == "spark" %}{% call icons::spark() %}{% endcall %}
+    {% else %}{% call icons::calendar() %}{% endcall %}
+    {% endif %}
+  </span>
+  {{ label }}
+</a>
 {% endmacro %}

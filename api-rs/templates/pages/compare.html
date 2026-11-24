@@ -3,8 +3,10 @@
 {% import "macros/cards.html" as cards %}
 
 {% block content %}
-<main data-swap class="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24">
-  <h1 class="text-2xl tracking-tight text-paper">{{ heading }}</h1>
+{# The mode's own hue, used by the rule under the heading and the example chips below. #}
+<main data-swap class="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24" style="--tint: var(--color-tint-{{ mode }})">
+  <span aria-hidden="true" class="block h-0.5 w-9 rounded-full" style="background: var(--tint)"></span>
+  <h1 class="mt-3 text-2xl tracking-tight text-paper">{{ heading }}</h1>
   <p class="mt-1 max-w-xl text-sm text-dim">{{ sub }}</p>
 
   {# The picker is the one island on the site: typing, keyboard navigation and instant results
@@ -33,6 +35,30 @@
 
   {# The island replaces the contents of this element after a selection changes. Without a
      script it is simply the results, correctly rendered by the server. #}
+  {# Starting points. A search box with no prompt is the emptiest thing on the site, and it asks
+     the reader to remember a title unaided; these are links, so they work before the island. #}
+  {% if results.selections.is_empty() %}
+  {% if !examples.is_empty() %}
+  <section class="mt-6" aria-labelledby="examples">
+    <h2 id="examples" class="label mb-2">Try one</h2>
+    <ul class="flex flex-wrap gap-1.5">
+      {% for link in examples %}
+      <li>
+        <a
+          href="{{ link.href }}"
+          class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition-colors"
+          style="--tint: var(--color-tint-{{ link.tint }}); color: var(--tint); border-color: color-mix(in oklab, var(--tint) 35%, var(--color-line))"
+        >
+          <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: var(--tint)"></span>
+          {{ link.term }}
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+  {% endif %}
+
   {# What people have been looking at today, rendered by the server: the strip is useful before
      the first pick, and it is the same cached list the JSON endpoint serves. #}
   {% if !trending.is_empty() %}
@@ -43,8 +69,11 @@
       <li>
         <a
           href="{{ link.href }}"
-          class="inline-block rounded-full border border-line px-2.5 py-1 text-xs text-dim transition-colors hover:border-dim hover:text-paper"
-        >{{ link.term }}</a>
+          class="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-xs text-dim transition-colors hover:border-dim hover:text-paper"
+        >
+          <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: var(--color-tint-{{ link.tint }})"></span>
+          {{ link.term }}
+        </a>
       </li>
       {% endfor %}
     </ul>

@@ -66,9 +66,10 @@ Open <http://127.0.0.1:3001>. The stub serves captured catalogue data from
 network access or a key.
 
 `scripts/cargo.sh` and `scripts/node.sh` name their images (`rust:1-slim-trixie`,
-`node:22-alpine`) and mount caches under `.containers/`. The pnpm version is not in either
-script: corepack reads `packageManager` from package.json, so the local run, CI and the image
-build resolve the same one.
+`node:26-alpine`) and mount caches under `.containers/`. The pnpm version is not in either
+script: it is read from `packageManager` in package.json — Node 26 dropped corepack, so each of
+the three consumers installs the same pinned pnpm directly, and `scripts/node.sh` keeps the
+installed copy on a mounted volume so every run after the first is offline.
 
 ### Local, with a real key
 
@@ -372,6 +373,18 @@ tabs:
 | `new` | Where | `cinema` (default), `home` — films only; shows have `on-the-air` |
 | `upcoming` | — | no choice to offer, so no control |
 
+Each list names itself. The heading used to be assembled from a section and a kind — "New
+shows" — which described the plumbing rather than the list; `new:tv:on-the-air` is "On air now",
+because that is the fact under it. `Variant::heading` and `Variant::blurb` hold the copy, and a
+test fails if two lists share a heading.
+
+The date-bearing lists show a date instead of a year, and the date means what that list is
+about: a premiere for `upcoming`, the last episode for `on-the-air`, the release date for a film
+in cinemas. `Variant::date_of` picks it; the ranked lists keep the year, because "1972" is the
+right precision for a film from 1972. The demo stub rewrites its captured fixtures relative to
+today, so the local pages show real dates instead of a snapshot's. An ISO date that TMDB does not
+have (`0000-00-00`) formats to nothing and the card falls back to the year.
+
 Each of those exists for both kinds, so nine snapshots in all: `top:movie:all-time`,
 `top:movie:trending`, `top:tv:all-time`, `top:tv:trending`, `new:movie:cinema`,
 `new:movie:home`, `new:tv:on-the-air`, `upcoming:movie`, `upcoming:tv`. Refreshed into SQLite
@@ -429,6 +442,20 @@ the tab landed on the title comparison.
 
 Below `sm` the navigation takes its own row under the wordmark, where five tabs fit on one line;
 a scroll strip there clipped the last label, which reads as broken rather than scrollable.
+
+Every tab carries an icon and a hue, and the hue is the tab's `aria-current` pill when active:
+amber for titles, violet for people, pink for Top, teal for New, green for Upcoming. The five
+values live once, in `src/index.css`, and a section page reuses its own for the rule above the
+heading, the rank badges and the active control, so a page's colour is the colour of the tab you
+arrived from. They are declared in `:root`, *not* in `@theme`: Tailwind only emits a theme
+variable when a utility uses it, and these are read by templates through `var()` — in `@theme`
+they would vanish from the stylesheet and every tab would render grey.
+
+An empty comparison page offers `Try one` — six titles or five people with large, well-documented
+casts, as links to `?q=<term>`. The island reads that parameter and opens the search, so the
+first tap produces a list of matches rather than a blank box; without the island the links are
+still links. (The booster sets the URL *before* swapping the page in, because the island reads
+`?q` on mount — pushing after the swap left the box empty at the right address.)
 
 ## Admin
 

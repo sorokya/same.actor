@@ -19,6 +19,7 @@ Fixtures are public catalogue data captured from the live API; no credentials ar
 """
 
 import argparse
+import datetime
 import json
 import pathlib
 import sys
@@ -56,14 +57,26 @@ class Handler(BaseHTTPRequestHandler):
             "/3/discover/movie",
             "/3/trending/movie/day",
         ):
-            return self.json({"page": 1, "results": self.fixtures["lists_movie"]})
+            return self.json(
+                {"page": 1, "results": self.dated(self.fixtures["lists_movie"], "release_date")}
+            )
         if path in (
             "/3/tv/popular",
             "/3/tv/on_the_air",
             "/3/discover/tv",
             "/3/trending/tv/day",
         ):
-            return self.json({"page": 1, "results": self.fixtures["lists_tv"]})
+            airing = path == "/3/tv/on_the_air"
+            return self.json(
+                {
+                    "page": 1,
+                    "results": self.dated(
+                        self.fixtures["lists_tv"],
+                        "first_air_date",
+                        airing=airing,
+                    ),
+                }
+            )
 
         for collection in ("media", "people"):
             entry = self.fixtures[collection].get(path)
@@ -71,6 +84,31 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(entry)
 
         self.json({"status_message": "The resource you requested could not be found."}, status=404)
+
+    def dated(self, entries: list, field: str, airing: bool = False) -> list:
+        """Rewrite the dates on a list fixture so they are relative to today.
+
+        The captured fixtures are a fixed snapshot, so an "upcoming" film in them has a release
+        date from years ago — which makes the page look wrong when it is not. Dates here move
+        with the clock: upcoming titles are a week apart into the future, and an on-the-air show
+        last aired a few days ago.
+        """
+        today = datetime.date.today()
+        out = []
+
+        for index, entry in enumerate(entries):
+            entry = dict(entry)
+
+            if airing:
+                entry["last_air_date"] = (today - datetime.timedelta(days=index + 1)).isoformat()
+            else:
+                entry[field] = (today + datetime.timedelta(days=7 * (index + 1))).isoformat()
+                if field == "first_air_date":
+                    entry["last_air_date"] = None
+
+            out.append(entry)
+
+        return out
 
     def json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload).encode()

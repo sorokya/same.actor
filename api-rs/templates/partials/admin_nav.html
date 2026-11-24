@@ -4,11 +4,11 @@
    and Sign out is a form, not a link, because it changes state. #}
 <div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
   <nav aria-label="Admin sections" class="flex flex-wrap items-center gap-0.5">
-    {% call nav::tab("/admin/overview", "Overview", head.active == "overview") %}{% endcall %}
-    {% call nav::tab("/admin/logs", "Logs", head.active == "logs") %}{% endcall %}
-    {% call nav::tab("/admin/suspicious", "Suspicious", head.active == "suspicious") %}{% endcall %}
-    {% call nav::tab("/admin/bans", "Bans", head.active == "bans") %}{% endcall %}
-    {% call nav::tab("/admin/health", "Health", head.active == "health") %}{% endcall %}
+    {% call nav::tab("/admin/overview", "Overview", head.active == "overview", "spark", "title") %}{% endcall %}
+    {% call nav::tab("/admin/logs", "Logs", head.active == "logs", "clock", "new") %}{% endcall %}
+    {% call nav::tab("/admin/suspicious", "Suspicious", head.active == "suspicious", "flame", "top") %}{% endcall %}
+    {% call nav::tab("/admin/bans", "Bans", head.active == "bans", "shield", "person") %}{% endcall %}
+    {% call nav::tab("/admin/health", "Health", head.active == "health", "pulse", "upcoming") %}{% endcall %}
   </nav>
 
   <form method="post" action="/admin/logout">

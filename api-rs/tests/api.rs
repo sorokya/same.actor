@@ -1986,7 +1986,7 @@ async fn a_refreshed_list_is_served_with_its_synergy() {
     )
     .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["heading"], "Top films");
+    assert_eq!(body["heading"], "Top films of all time");
 
     // The control offers the second axis, and says which one is showing.
     assert_eq!(body["filter"], "all-time");

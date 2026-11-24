@@ -15,14 +15,14 @@
     {% include "partials/admin_nav.html" %}
     {% else %}
     <nav aria-label="Sections" class="flex max-w-full flex-wrap items-center gap-0.5 sm:flex-nowrap">
-      {% call nav::tab("/", "Titles", head.nav == "title") %}{% endcall %}
-      {% call nav::tab("/person", "People", head.nav == "person") %}{% endcall %}
+      {% call nav::tab("/", "Titles", head.nav == "title", "film", "title") %}{% endcall %}
+      {% call nav::tab("/person", "People", head.nav == "person", "person", "person") %}{% endcall %}
 
       <span aria-hidden="true" class="mx-1.5 h-4 w-px shrink-0 bg-line"></span>
 
-      {% call nav::tab("/discover/top", "Top", head.nav == "top") %}{% endcall %}
-      {% call nav::tab("/discover/new", "New", head.nav == "new") %}{% endcall %}
-      {% call nav::tab("/discover/upcoming", "Upcoming", head.nav == "upcoming") %}{% endcall %}
+      {% call nav::tab("/discover/top", "Top", head.nav == "top", "flame", "top") %}{% endcall %}
+      {% call nav::tab("/discover/new", "New", head.nav == "new", "clock", "new") %}{% endcall %}
+      {% call nav::tab("/discover/upcoming", "Upcoming", head.nav == "upcoming", "calendar", "upcoming") %}{% endcall %}
     </nav>
     {% endif %}
   </div>

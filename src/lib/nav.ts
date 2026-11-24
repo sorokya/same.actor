@@ -78,14 +78,20 @@ export async function navigate(url: string, options: { push?: boolean } = {}): P
 
     const html = await response.text();
     const next = new DOMParser().parseFromString(html, 'text/html');
+    const previous = window.location.href;
 
-    if (!swapDocument(next)) throw new Error('the page has a different shape');
+    // The URL goes in before the swap, not after: the island mounts during the swap and reads
+    // `?q=` from the address bar to fill its search box. Pushing afterwards meant every example
+    // link arrived at the right URL with an empty box.
+    if (push) window.history.pushState(null, '', url);
 
-    if (push) {
-      window.history.pushState(null, '', url);
-      window.scrollTo(0, 0);
+    if (!swapDocument(next)) {
+      if (push) window.history.replaceState(null, '', previous);
+      throw new Error('the page has a different shape');
     }
+
     // Going back, the browser restores the scroll itself — but only if we leave it alone.
+    if (push) window.scrollTo(0, 0);
   } catch {
     // Whatever went wrong, the browser can do this correctly.
     if (push) window.location.assign(url);

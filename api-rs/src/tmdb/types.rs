@@ -209,6 +209,9 @@ pub struct ListItem {
     pub name: Option<String>,
     pub release_date: Option<String>,
     pub first_air_date: Option<String>,
+    /// Present on TV list responses. "What is on air" is a question about the last episode, not
+    /// about when the show started.
+    pub last_air_date: Option<String>,
     pub poster_path: Option<String>,
     pub overview: Option<String>,
     pub vote_average: Option<f64>,
