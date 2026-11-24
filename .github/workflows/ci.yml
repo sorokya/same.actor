@@ -16,7 +16,7 @@ jobs:
       run:
         working-directory: api-rs
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -39,7 +39,7 @@ jobs:
     name: Frontend (Preact/TypeScript)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # The pnpm version comes from `packageManager` in package.json, so CI, Docker and
       # scripts/node.sh cannot drift apart. `cache: pnpm` keys off pnpm-lock.yaml.
@@ -82,7 +82,7 @@ jobs:
       REGISTRY: ghcr.io
       IMAGE_NAME: ${{ github.repository }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v3
