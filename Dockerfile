@@ -11,7 +11,7 @@
 # Pinning a digest freezes that on purpose, and nothing here wants to.
 
 # --- frontend -----------------------------------------------------------------------------
-FROM docker.io/library/node:22-alpine AS web
+FROM docker.io/library/node:26-alpine AS web
 
 WORKDIR /web
 
