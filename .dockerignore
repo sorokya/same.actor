@@ -1,0 +1,15 @@
+# Keep the build context to sources.
+#
+# Without this, `COPY api-rs/ ./` drags in any local target directory and the whole context
+# includes `node_modules` and `.containers/` — hundreds of megabytes uploaded for a build that
+# installs its own dependencies anyway.
+.git
+.github
+.containers
+node_modules
+dist
+data
+*.db
+*.db-wal
+*.db-shm
+docs

@@ -41,21 +41,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The pnpm version comes from `packageManager` in package.json, so CI, Docker and
+      # scripts/node.sh cannot drift apart. `cache: pnpm` keys off pnpm-lock.yaml.
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: npm run lint
+        run: pnpm run lint
 
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm run typecheck
 
       - name: Build
-        run: npm run build
+        run: pnpm run build
 
       # Tailwind scans the templates for class names and fails silently when it cannot see
       # them. This is the only step that notices a stylesheet with half the utilities missing.

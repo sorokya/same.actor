@@ -27,6 +27,16 @@ instead of a bare URL.
 
 ### Docker (the real thing)
 
+The image has three stages: `web` builds the stylesheet and scripts with pnpm, `builder` uses
+cargo-chef so a source edit recompiles one crate rather than the dependency graph, and the
+runtime is alpine with ca-certificates and the musl binary in it — 23 MB in total, none of it a
+toolchain.
+
+The `HEALTHCHECK` is a busybox `wget` (curl would be 1.5 MB for one request). Podman on a
+sysvinit host does not run healthchecks on a timer — there is no systemd to drive them — so it
+reports `starting` until `podman healthcheck run <container>` is called once. The command itself
+is correct; only the schedule is missing.
+
 ```sh
 docker build -t same-actor .
 docker run --rm -p 3001:3001 -e TMDB_TOKEN=... same-actor
@@ -37,9 +47,9 @@ docker run --rm -p 3001:3001 -e TMDB_TOKEN=... same-actor
 Nothing is installed on the host: `podman` is the only requirement.
 
 ```sh
-# frontend: typecheck, lint, build
-./scripts/node.sh npm ci
-./scripts/node.sh npm run build
+# frontend: install, typecheck, lint, build
+./scripts/node.sh pnpm install
+./scripts/node.sh pnpm run build
 
 # backend: build, lint, test
 ./scripts/cargo.sh cargo build
@@ -55,8 +65,10 @@ Open <http://127.0.0.1:3001>. The stub serves captured catalogue data from
 `scripts/fixtures/tmdb.json`, so search, both comparison modes and the whole UI work without
 network access or a key.
 
-The first `cargo` or `npm` run builds the toolchain image, which is defined in
-`docker/toolchain.Dockerfile` and referenced only by `scripts/`.
+`scripts/cargo.sh` and `scripts/node.sh` name their images (`rust:1-slim-trixie`,
+`node:22-alpine`) and mount caches under `.containers/`. The pnpm version is not in either
+script: corepack reads `packageManager` from package.json, so the local run, CI and the image
+build resolve the same one.
 
 ### Local, with a real key
 
@@ -201,7 +213,7 @@ docs/
   REWRITE-PLAN.md  how and why it was rebuilt
 scripts/
   cargo.sh         run a command in the pinned Rust container
-  node.sh          run a command in the pinned Node container
+  node.sh          run a command in the pinned Node container, with pnpm on PATH
   check.sh         every gate, reported separately
   check-css.sh     the built stylesheet covers the templates
   demo-stub.py     TMDB stand-in for local development

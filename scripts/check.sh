@@ -47,9 +47,12 @@ if [ "$target" = "all" ] || [ "$target" = "backend" ]; then
 fi
 
 if [ "$target" = "all" ] || [ "$target" = "frontend" ]; then
-  gate "biome check" ./scripts/node.sh sh -c 'npx biome check src'
-  gate "tsc --noEmit" ./scripts/node.sh sh -c 'npx tsc --noEmit'
-  gate "vite build" ./scripts/node.sh sh -c 'npx vite build'
+  # `pnpm exec` rather than `pnpx`: these binaries are in node_modules, and `pnpx`/`pnpm dlx`
+  # means "fetch it if it is missing", which is how a gate ends up testing a different version
+  # from the one that was installed.
+  gate "biome check" ./scripts/node.sh pnpm exec biome check src
+  gate "tsc --noEmit" ./scripts/node.sh pnpm exec tsc --noEmit
+  gate "vite build" ./scripts/node.sh pnpm exec vite build
   # Tailwind fails silently when it cannot see a source, so the built stylesheet is checked
   # for utilities that only appear in templates.
   gate "css covers templates" ./scripts/check-css.sh
