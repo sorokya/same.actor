@@ -25,6 +25,119 @@ const LANGUAGE: &str = "en-US";
 /// TMDB's page size for list endpoints. A short page means the end of the list.
 const PAGE_SIZE: usize = 20;
 
+/// The floor between two upstream requests, across the whole process.
+///
+/// TMDB's published guidance is an upper limit "somewhere in the 40 requests per second range",
+/// with the explicit request that a caller respects a 429 rather than probe for the edge. 45ms is
+/// about 22 a second — half the stated ceiling, which leaves room for a retry burst and keeps a
+/// hundred-title refresh from looking like bulk scraping.
+const MIN_REQUEST_INTERVAL: Duration = Duration::from_millis(45);
+
+/// How many times one request may be attempted before the caller hears about it.
+const MAX_ATTEMPTS: u32 = 4;
+
+/// What to do about a response.
+#[derive(Debug, PartialEq, Eq)]
+enum Next {
+    /// Read the body.
+    Use,
+    /// Wait, then try again.
+    Retry(Duration),
+    /// Give up and tell the caller why.
+    Fail(Status),
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Status {
+    NotFound,
+    RateLimited(u64),
+    Upstream,
+}
+
+/// The retry decision, as a pure function of the status and the attempt number.
+///
+/// Split out so the policy can be tested without a network: a 429 must be retried after its
+/// `Retry-After`, a 5xx after a backoff, and a 4xx that is not 429 must never be retried — asking
+/// again for something TMDB says does not exist is how a polite client becomes a rude one.
+fn on_status(status: StatusCode, retry_after: Option<u64>, attempt: u32) -> Next {
+    if status.is_success() {
+        return Next::Use;
+    }
+
+    let last = attempt >= MAX_ATTEMPTS;
+
+    if status == StatusCode::TOO_MANY_REQUESTS {
+        let wait = Duration::from_secs(retry_after.unwrap_or(2));
+        return if last {
+            Next::Fail(Status::RateLimited(wait.as_secs()))
+        } else {
+            Next::Retry(wait)
+        };
+    }
+
+    if status.is_server_error() {
+        return if last {
+            Next::Fail(Status::Upstream)
+        } else {
+            Next::Retry(backoff(attempt))
+        };
+    }
+
+    if status == StatusCode::NOT_FOUND {
+        return Next::Fail(Status::NotFound);
+    }
+
+    Next::Fail(Status::Upstream)
+}
+
+/// Exponential backoff with jitter: 250ms, 500ms, 1s, capped at four seconds.
+///
+/// The jitter is not decoration. A hundred titles fail together when an upstream does, and
+/// without it they all come back at the same instant and do it again.
+fn backoff(attempt: u32) -> Duration {
+    // 250ms, 500ms, 1s, 2s, then 4s for everything after that.
+    let exponent = attempt.saturating_sub(1).min(4);
+    let base = 250u64.saturating_mul(1u64 << exponent).min(4_000);
+
+    let mut bytes = [0u8; 2];
+    let jitter = match getrandom::fill(&mut bytes) {
+        Ok(()) => u64::from(u16::from_le_bytes(bytes)) % 250,
+        Err(_) => 0,
+    };
+
+    Duration::from_millis(base + jitter)
+}
+
+/// A process-wide floor between requests.
+///
+/// A permit is taken *before* the sleep, so concurrent callers queue rather than all waking at
+/// once: twenty in flight become twenty starts spread 45ms apart, not twenty simultaneous ones.
+struct Pace {
+    next: tokio::sync::Mutex<tokio::time::Instant>,
+    interval: Duration,
+}
+
+impl Pace {
+    fn new(interval: Duration) -> Self {
+        Self {
+            next: tokio::sync::Mutex::new(tokio::time::Instant::now()),
+            interval,
+        }
+    }
+
+    async fn wait(&self) {
+        let at = {
+            let mut next = self.next.lock().await;
+            let now = tokio::time::Instant::now();
+            let at = (*next).max(now);
+            *next = at + self.interval;
+            at
+        };
+
+        tokio::time::sleep_until(at).await;
+    }
+}
+
 /// What one title contributes to a discovery refresh.
 ///
 /// The cast is what the synergy table is built from; the other three fields exist only to make
@@ -50,6 +163,8 @@ pub struct Tmdb {
     /// Raster images (posters, portraits) as fetched. Separate from `cache` because these
     /// are bytes from the image CDN, not JSON, and they are much bigger.
     image_cache: Cache<String, Arc<Vec<u8>>>,
+    /// One floor shared by every request this process makes, refreshes included.
+    pace: Pace,
 }
 
 /// Largest image worth keeping in memory. TMDB's `w185` thumbnails are tens of kilobytes;
@@ -86,6 +201,7 @@ impl Tmdb {
             auth: config.tmdb_auth,
             cache,
             image_cache,
+            pace: Pace::new(MIN_REQUEST_INTERVAL),
         })
     }
 
@@ -189,28 +305,7 @@ impl Tmdb {
             tracing::debug!(key = %key, "cache hit");
             (*hit).clone()
         } else {
-            let mut request = self.client.get(url);
-            if self.auth == TmdbAuth::Bearer {
-                request = request.bearer_auth(&self.token);
-            }
-
-            let response = request
-                .send()
-                .await
-                .map_err(|e| AppError::Upstream(format!("{key}: {e}")))?;
-
-            let status = response.status();
-            match status {
-                s if s.is_success() => {}
-                StatusCode::NOT_FOUND => return Err(AppError::NotFound),
-                StatusCode::TOO_MANY_REQUESTS => {
-                    let retry_after = retry_after(&response).unwrap_or(2);
-                    return Err(AppError::RateLimited {
-                        retry_after_secs: retry_after,
-                    });
-                }
-                _ => return Err(AppError::Upstream(format!("{key}: status {status}"))),
-            }
+            let response = self.send(&url, &key).await?;
 
             let value: Value = response
                 .json()
@@ -225,6 +320,66 @@ impl Tmdb {
 
         serde_json::from_value(value)
             .map_err(|e| AppError::Upstream(format!("{key}: unexpected schema: {e}")))
+    }
+
+    /// One upstream request, paced and retried.
+    ///
+    /// Every attempt passes the process-wide pacer first, so a hundred concurrent callers become
+    /// a steady stream rather than a burst. A 429 is retried after its own `Retry-After`; a 5xx
+    /// and a dead connection are retried with backoff; anything else fails at once, because
+    /// asking again for a title TMDB says does not exist is how a polite client becomes a rude
+    /// one.
+    async fn send(&self, url: &Url, key: &str) -> Result<reqwest::Response, AppError> {
+        let mut attempt = 1;
+
+        loop {
+            let mut request = self.client.get(url.clone());
+            if self.auth == TmdbAuth::Bearer {
+                request = request.bearer_auth(&self.token);
+            }
+
+            self.pace.wait().await;
+
+            let outcome = request.send().await;
+
+            let problem = match outcome {
+                Ok(response) => {
+                    let status = response.status();
+                    match on_status(status, retry_after(&response), attempt) {
+                        Next::Use => return Ok(response),
+                        Next::Fail(Status::NotFound) => return Err(AppError::NotFound),
+                        Next::Fail(Status::RateLimited(retry_after_secs)) => {
+                            return Err(AppError::RateLimited { retry_after_secs })
+                        }
+                        Next::Fail(Status::Upstream) => {
+                            return Err(AppError::Upstream(format!("{key}: status {status}")))
+                        }
+                        Next::Retry(wait) => {
+                            tracing::warn!(%key, %status, ?wait, attempt, "waiting before retry");
+                            wait
+                        }
+                    }
+                }
+                // A timeout or a refused connection is worth another go; a malformed URL is not.
+                Err(error)
+                    if (error.is_timeout() || error.is_connect()) && attempt < MAX_ATTEMPTS =>
+                {
+                    let wait = backoff(attempt);
+                    tracing::warn!(%key, %error, ?wait, attempt, "retrying after a transport error");
+                    wait
+                }
+                Err(error) => return Err(AppError::Upstream(format!("{key}: {error}"))),
+            };
+
+            tokio::time::sleep(problem).await;
+            attempt += 1;
+
+            if attempt > MAX_ATTEMPTS {
+                return Err(AppError::Upstream(format!(
+                    "{key}: gave up after {MAX_ATTEMPTS} attempts"
+                )));
+            }
+        }
     }
 
     pub async fn search(&self, mode: Mode, term: &str) -> Result<Vec<SearchResult>, AppError> {
@@ -338,7 +493,19 @@ impl Tmdb {
                 query.push(("region", region));
             }
 
-            let response: types::ListResponse = self.get(&segments, &query).await?;
+            // A page that fails after the first keeps what came before it: a list of eighty
+            // titles with a gap beats no list at all, and the refresh runs again later.
+            let response: types::ListResponse = match self.get(&segments, &query).await {
+                Ok(response) => response,
+                Err(error) => {
+                    if out.is_empty() {
+                        return Err(error);
+                    }
+                    tracing::warn!(%path, %page, %error, "stopping at this page, keeping {} titles", out.len());
+                    break;
+                }
+            };
+
             let short = response.results.len() < PAGE_SIZE;
 
             for item in response.results {
@@ -546,6 +713,86 @@ fn known_for(items: &[types::MultiResult]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// TMDB asks to be respected rather than probed: a 429 is retried after the wait it names,
+    /// and two seconds when it does not name one.
+    #[test]
+    fn a_429_is_retried_after_its_retry_after() {
+        assert_eq!(
+            on_status(StatusCode::TOO_MANY_REQUESTS, Some(7), 1),
+            Next::Retry(Duration::from_secs(7))
+        );
+        assert_eq!(
+            on_status(StatusCode::TOO_MANY_REQUESTS, None, 2),
+            Next::Retry(Duration::from_secs(2))
+        );
+    }
+
+    /// Eventually it is the caller's problem, and it says how long to wait.
+    #[test]
+    fn a_429_that_never_clears_is_reported_with_its_wait() {
+        assert_eq!(
+            on_status(StatusCode::TOO_MANY_REQUESTS, Some(3), MAX_ATTEMPTS),
+            Next::Fail(Status::RateLimited(3))
+        );
+    }
+
+    /// A 403 or a 404 is an answer, not a hiccup: retrying it is how a client becomes a nuisance.
+    #[test]
+    fn a_4xx_that_is_not_429_is_never_retried() {
+        assert_eq!(
+            on_status(StatusCode::FORBIDDEN, None, 1),
+            Next::Fail(Status::Upstream)
+        );
+        assert_eq!(
+            on_status(StatusCode::NOT_FOUND, None, 1),
+            Next::Fail(Status::NotFound)
+        );
+    }
+
+    /// A 5xx is worth another go, until the attempts are spent.
+    #[test]
+    fn a_5xx_is_retried_with_backoff_until_the_attempts_run_out() {
+        match on_status(StatusCode::INTERNAL_SERVER_ERROR, None, 1) {
+            Next::Retry(wait) => assert!(wait >= Duration::from_millis(250), "{wait:?}"),
+            other => panic!("expected a retry, got {other:?}"),
+        }
+
+        assert_eq!(
+            on_status(StatusCode::BAD_GATEWAY, None, MAX_ATTEMPTS),
+            Next::Fail(Status::Upstream)
+        );
+    }
+
+    /// Backoff has to grow, has to stop growing, and has to be jittered — a hundred titles fail
+    /// together, and without jitter they all come back at the same instant and fail together.
+    #[test]
+    fn backoff_grows_then_stops() {
+        let first = backoff(1);
+        let second = backoff(2);
+        let last = backoff(9);
+
+        assert!(first >= Duration::from_millis(250) && first < Duration::from_millis(500));
+        assert!(second >= Duration::from_millis(500) && second < Duration::from_millis(750));
+        assert!(last >= Duration::from_millis(4_000) && last < Duration::from_millis(4_250));
+    }
+
+    /// The pacer must space requests out rather than let a batch through at once.
+    #[tokio::test]
+    async fn the_pacer_spaces_requests_apart() {
+        let pace = Pace::new(Duration::from_millis(20));
+        let start = tokio::time::Instant::now();
+
+        for _ in 0..5 {
+            pace.wait().await;
+        }
+
+        assert!(
+            start.elapsed() >= Duration::from_millis(80),
+            "five requests at 20ms each cannot happen in {:?}",
+            start.elapsed()
+        );
+    }
 
     fn tmdb() -> Tmdb {
         let config = Config {

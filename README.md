@@ -419,6 +419,31 @@ every six hours by a background job, so no page ever waits on TMDB and an outage
 freshness, not availability. A refresh also prunes snapshots whose id is no longer in the list —
 otherwise every change to the section model leaves a row behind for ever.
 
+A list is five TMDB pages — a hundred titles — because twenty mostly shares nothing, and a cast
+matrix over twenty titles is a grid with one dot per row. Titles that no actor appears in twice
+are then dropped: they are stored, they are simply not columns. The page says both numbers.
+
+### Upstream rate
+
+TMDB's published guidance is an upper limit "somewhere in the 40 requests per second range", with
+an explicit request to respect a 429 rather than probe for the edge. So:
+
+- **Every request passes one process-wide floor of 45ms**, about 22 a second. A permit is taken
+  before the sleep, so twenty concurrent refresh tasks become twenty starts spread 45ms apart
+  rather than twenty simultaneous ones. Measured against a stub: 164 requests, median gap 45ms,
+  peak 23 a second.
+- **A 429 is retried after its own `Retry-After`** (two seconds when it names none), up to four
+  attempts, then it surfaces as a rate-limit error the caller can report. Verified against a stub
+  that refuses a title twice: two attempts one second apart, and the title lands in the list.
+- **A 5xx or a dead connection is retried with jittered backoff** — 250ms, 500ms, 1s, 2s, then 4s.
+  The jitter matters because a hundred titles fail together when an upstream does, and without it
+  they all return at the same instant.
+- **Any other 4xx is never retried.** Asking again for a title TMDB says does not exist is how a
+  polite client becomes a rude one.
+- **A page that fails keeps the pages before it.** Eighty titles with a gap beats no list, and the
+  refresh runs again in six hours. One title without facts is a gap in the matrix, not a failed
+  list.
+
 ```
 GET /api/discover                         → sections, with the newest refresh time in each
 GET /api/discover/top?kind=movie&filter=trending
