@@ -36,7 +36,7 @@ RUN pnpm run build
 # musl throughout: `rust:alpine` targets x86_64-unknown-linux-musl, so the binary does not care
 # which libc the runtime image carries. `make` is for crates whose build scripts shell out —
 # rusqlite's bundled SQLite goes through `cc`, which the image already has.
-FROM docker.io/library/rust:alpine3.23 AS chef
+FROM docker.io/library/rust:alpine3.24 AS chef
 
 RUN apk add --no-cache musl-dev make \
     && cargo install --locked cargo-chef
@@ -59,7 +59,7 @@ COPY api-rs/ ./
 RUN cargo build --release
 
 # --- runtime ------------------------------------------------------------------------------
-FROM docker.io/library/alpine:3.23
+FROM docker.io/library/alpine:3.24
 
 # ca-certificates is the only thing the binary needs at runtime: TMDB and the geo database are
 # both HTTPS. The healthcheck uses busybox's wget rather than pulling in curl for one request.
