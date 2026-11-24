@@ -57,6 +57,11 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Tailwind scans the templates for class names and fails silently when it cannot see
+      # them. This is the only step that notices a stylesheet with half the utilities missing.
+      - name: Stylesheet covers the templates
+        run: ./scripts/check-css.sh
+
   publish:
     name: Publish image
     needs: [backend, frontend]

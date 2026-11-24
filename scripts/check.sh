@@ -50,6 +50,9 @@ if [ "$target" = "all" ] || [ "$target" = "frontend" ]; then
   gate "biome check" ./scripts/node.sh sh -c 'npx biome check src'
   gate "tsc --noEmit" ./scripts/node.sh sh -c 'npx tsc --noEmit'
   gate "vite build" ./scripts/node.sh sh -c 'npx vite build'
+  # Tailwind fails silently when it cannot see a source, so the built stylesheet is checked
+  # for utilities that only appear in templates.
+  gate "css covers templates" ./scripts/check-css.sh
 fi
 
 echo

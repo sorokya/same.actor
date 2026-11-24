@@ -12,6 +12,10 @@ RUN npm ci
 COPY tsconfig.json vite.config.ts postcss.config.mjs ./
 COPY src ./src
 COPY public ./public
+# Tailwind scans these for class names (`@source` in src/index.css). Without them the build
+# succeeds and produces a stylesheet with none of the template's utilities — every page
+# half-styled, no error anywhere.
+COPY api-rs/templates ./api-rs/templates
 RUN npm run build
 
 # --- backend ------------------------------------------------------------------------------
