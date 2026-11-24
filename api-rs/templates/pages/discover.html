@@ -41,9 +41,10 @@
   </div>
 
   <p class="label mt-4">
-    {# The list is longer than the matrix: a hundred titles are read so that the twenty with a
-       shared cast can be found. Saying both numbers is what makes that honest. #}
-    {% if synergy.columns.len() == item_count %}{{ item_count }} titles{% else %}{{ synergy.columns.len() }} of {{ item_count }} titles{% endif %} · refreshed
+    {# The page is about people, so it says how many it is showing. The titles are what they
+       appear in — every one of them, which is the point. #}
+    {{ actor_count }}{% if actors_hidden > 0 %} of {{ actor_count + actors_hidden }}{% endif %} actors
+    · {{ synergy.columns.len() }} titles · refreshed
     <span title="{{ refreshed_absolute }}">{{ refreshed_relative }}</span>
   </p>
 

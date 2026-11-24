@@ -40,21 +40,13 @@ pub fn colour(sort_order: i64) -> &'static str {
     PALETTE[sort_order.rem_euclid(PALETTE.len() as i64) as usize]
 }
 
-/// The most repeat actors a title may have and still appear.
+/// How many actors a page shows.
 ///
-/// A hundred titles is a hundred columns, and the pages were showing every one of them: franchise
-/// blocks where six people recur in each of six films, drawn sixty times over. The matrix answers
-/// "who works together", and a title sharing half its cast with four other titles is not a link,
-/// it is a franchise — which the group header already says. So a column stays only while its
-/// repeat cast is small: the thin connections are the interesting ones, and the page is a reading
-/// of a list rather than a dump of it.
-///
-/// Filtering here also thins the rows: an actor whose titles lose them a second appearance drops
-/// out, which is why this runs to a fixed point.
-const MAX_SHARED_CAST: usize = 2;
-
-/// How many actor rows the matrix draws before it stops.
-pub const MAX_ROWS: usize = 60;
+/// The page is about people — "who keeps turning up" — so the limit is on actors, not on titles.
+/// Twenty of them bring in every title they appear in, which is what makes a franchise appear as
+/// a block of columns rather than being thinned out of existence: the cast is the subject and the
+/// titles are evidence. A hundred titles is fine; a hundred *rows* is not a page.
+pub const MAX_ROWS: usize = 20;
 
 /// What the reader has switched off.
 #[derive(Debug, Default, Clone)]
@@ -312,72 +304,8 @@ pub fn build(
     let hidden_actors = actors.len().saturating_sub(MAX_ROWS);
     actors.truncate(MAX_ROWS);
 
-    // Thin the columns until nothing is left to drop. Two things remove a column: nobody appears
-    // in it twice (it has no story), and its repeat cast is too large (it is a franchise, and the
-    // group header already says so). Dropping a column can drop an actor below two appearances,
-    // and dropping an actor thins the columns again, so this runs to a fixed point rather than
-    // guessing how many passes it needs.
-    for _ in 0..16 {
-        let mut counts = vec![0usize; columns.len()];
-        for actor in &actors {
-            for index in &actor.titles {
-                if let Some(slot) = counts.get_mut(*index) {
-                    *slot += 1;
-                }
-            }
-        }
-
-        let keep: HashSet<usize> = counts
-            .iter()
-            .enumerate()
-            .filter(|(_, count)| **count > 0 && **count <= MAX_SHARED_CAST)
-            .map(|(index, _)| index)
-            .collect();
-
-        let before = actors.len() + columns.len();
-
-        for actor in &mut actors {
-            actor.titles.retain(|index| keep.contains(index));
-        }
-        actors.retain(|actor| actor.titles.len() >= 2);
-        columns.retain(|column| keep.contains(&(column.position - 2)));
-
-        let mut index = 0;
-        while index < columns.len() {
-            columns[index].position = index + 2;
-            index += 1;
-        }
-
-        // Re-index the actors against the columns that survived. Sorted: a HashSet iterates in
-        // whatever order its hasher likes, and an actor's titles have to stay ascending or the
-        // run line draws backwards.
-        let mut kept: Vec<usize> = keep.iter().copied().collect();
-        kept.sort_unstable();
-
-        let moved: HashMap<usize, usize> = kept
-            .into_iter()
-            .enumerate()
-            .map(|(new, old)| (old, new))
-            .collect();
-
-        for actor in &mut actors {
-            actor.titles = actor
-                .titles
-                .iter()
-                .filter_map(|index| moved.get(index).copied())
-                .collect();
-        }
-
-        if actors.len() + columns.len() == before {
-            break;
-        }
-    }
-
-    // The group header describes the columns that are left, not the ones there used to be: a
-    // span of six over two surviving columns would point at somebody else's franchise.
-    let regrouped = regroup(&mut columns, &groups);
-    groups = regrouped;
-
+    // The columns are whatever these actors appear in: nothing is dropped for having a crowd,
+    // because a crowd is a franchise and a franchise is the answer to "who keeps turning up".
     let used: HashSet<usize> = actors
         .iter()
         .flat_map(|actor| actor.titles.iter().copied())
@@ -543,32 +471,6 @@ pub fn pairs(matrix: &Matrix) -> Pairs {
         cells,
         most,
     }
-}
-
-/// Renumber the columns' groups against the columns that survived, keeping their order.
-fn regroup(columns: &mut [Column], groups: &[Group]) -> Vec<Group> {
-    let mut out: Vec<Group> = Vec::new();
-    let mut moved: HashMap<usize, usize> = HashMap::new();
-
-    for (index, column) in columns.iter_mut().enumerate() {
-        let next = *moved.entry(column.group).or_insert_with(|| {
-            let mut group = groups.get(column.group).cloned().unwrap_or_else(|| Group {
-                name: "Other".to_owned(),
-                slug: String::new(),
-                colour: UNGROUPED,
-                span: 0,
-            });
-            group.span = 0;
-            out.push(group);
-            out.len() - 1
-        });
-
-        out[next].span += 1;
-        column.group = next;
-        column.position = index + 2;
-    }
-
-    out
 }
 
 /// How many titles two actors have in common.
@@ -923,38 +825,55 @@ mod tests {
         assert_eq!(co_stars(&matrix, 10).len(), 0);
     }
 
-    /// The shared-cast cap is what keeps a hundred-title list readable, and it thins from both
-    /// ends: a title with a crowd in it goes, and so does anyone left with a single appearance.
-    /// `MAX_ROWS` cannot bind while this holds — every column has at most two actors, each of
-    /// whom needs two titles, so rows never outnumber columns — but it stays as the guard it was
-    /// for the day the cap is loosened.
+    /// The page budgets actors, not titles. A franchise with six recurring faces is the most
+    /// interesting thing a list has — a title is not dropped for having a crowd in it.
     #[test]
-    fn a_crowded_title_is_dropped_and_its_actors_with_it() {
-        let items = (1..=7).map(|id| item(id, "A title")).collect::<Vec<_>>();
-        let rows = vec![
-            row(10, "Through", &[(1, None), (2, None)]),
-            // Three people in one title, each of them also in a title of their own: the crowd
-            // is in column 3, and the columns it dragged in are only there because of it.
-            row(11, "Crowd a", &[(3, None), (5, None)]),
-            row(12, "Crowd b", &[(3, None), (6, None)]),
-            row(13, "Crowd c", &[(3, None), (7, None)]),
-        ];
+    fn a_crowded_title_is_kept() {
+        let items = (1..=3).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        let rows = (0..6)
+            .map(|index| {
+                row(
+                    10 + index,
+                    &format!("Actor {index}"),
+                    &[(1, None), (2, None), (3, None)],
+                )
+            })
+            .collect::<Vec<_>>();
 
         let matrix = build_default(&items, &rows, &HashMap::new());
 
         let kept: Vec<u32> = matrix.columns.iter().map(|column| column.id).collect();
-        assert_eq!(kept, [1, 2], "only the pair that is actually a pair");
-
-        let names: Vec<&str> = matrix
-            .actors
-            .iter()
-            .map(|actor| actor.name.as_str())
-            .collect();
-        assert_eq!(names, ["Through"]);
         assert_eq!(
-            matrix.actors[0].titles,
-            vec![0, 1],
-            "the pair that survived"
+            kept,
+            [1, 2, 3],
+            "six faces in three films is a franchise, not a crowd"
+        );
+        assert_eq!(matrix.actors.len(), 6);
+    }
+
+    /// Twenty actors, and the titles they appear in — all of them. The rest are counted, not
+    /// silently dropped.
+    #[test]
+    fn the_page_spends_its_budget_on_actors() {
+        let items = (1..=40).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        // Each actor is in three titles of their own, so every column has exactly one face and
+        // nothing is thinned for any other reason.
+        let rows = (0..MAX_ROWS as u32 + 5)
+            .map(|index| {
+                let start = index % 20 + 1;
+                let titles = vec![(start, None), (start + 10, None), (start + 20, None)];
+                row(index, &format!("Actor {index:02}"), &titles)
+            })
+            .collect::<Vec<_>>();
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        assert_eq!(matrix.actors.len(), MAX_ROWS, "twenty people, not sixty");
+        assert_eq!(matrix.hidden_actors, 5, "and the rest are counted");
+        assert!(
+            matrix.columns.len() > MAX_ROWS,
+            "twenty actors can bring in more than twenty titles: {}",
+            matrix.columns.len()
         );
     }
 

@@ -7,7 +7,7 @@
     {% if !synergy.groups.is_empty() %}
     <div
       class="grid items-end"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
     >
       <span></span>
       {% for group in synergy.groups %}
@@ -20,9 +20,33 @@
     </div>
     {% endif %}
 
+    {# Title names run above the posters, rotated: a poster says nothing about which film it is
+       until you recognise the artwork, and the columns are the evidence, not the subject. #}
     <div
       class="grid items-end"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
+    >
+      <span></span>
+      {% for column in synergy.columns %}
+      <span
+        class="flex justify-center pb-1"
+        style="grid-column: {{ column.position }}"
+      >
+        <a
+          href="{{ column.href }}"
+          target="_blank"
+          rel="noreferrer noopener"
+          class="truncate text-[10px] leading-none text-dim hover:text-paper"
+          style="writing-mode: vertical-rl; transform: rotate(180deg); max-height: 9rem"
+          title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
+        >{{ column.name }}</a>
+      </span>
+      {% endfor %}
+    </div>
+
+    <div
+      class="grid items-end"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
     >
       <span></span>
       {% for column in synergy.columns %}
@@ -49,7 +73,7 @@
        a link to it. It works with no script; the island turns the click into a swap. #}
     <div
       class="grid items-center"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
     >
       <span class="label pr-2">Repeat cast</span>
       {% for column in synergy.columns %}
@@ -67,7 +91,7 @@
     {% for row in synergy.rows %}
     <div
       class="sync-row grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
       data-titles="{{ row.data }}"
       data-actor="{{ row.id }}"
     >

@@ -264,6 +264,10 @@ pub struct DiscoverPage {
     pub refreshed_relative: String,
     pub refreshed_absolute: String,
     pub item_count: usize,
+    /// How many actors the page shows, and how many it left out: the limit is on people, so the
+    /// line that says what you are looking at is about people.
+    pub actor_count: usize,
+    pub actors_hidden: usize,
     pub synergy: SynergyView,
 }
 
@@ -935,6 +939,8 @@ impl DiscoverPage {
             refreshed_relative: relative_time(refreshed_ts, now),
             refreshed_absolute: absolute_time(refreshed_ts),
             item_count: items.len(),
+            actor_count: view.rows.len(),
+            actors_hidden: view.hidden_actors,
             synergy: view,
         }
     }

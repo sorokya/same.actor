@@ -91,6 +91,15 @@ export function Picker({ bootstrap }: PickerProps) {
         (pick) => next.find((entry) => entry.id === pick.id)?.name ?? null,
       );
 
+      // Empty and non-empty are different pages: the empty one offers "Start here" and centres
+      // itself, the other shows results. A fragment swap can only replace the results, so
+      // crossing that boundary is a real navigation — otherwise clearing leaves the page wearing
+      // the chrome of a state it is no longer in.
+      if ((meta.length === 0) !== (next.length === 0)) {
+        window.location.assign(path);
+        return;
+      }
+
       setMeta(next);
       window.history.pushState(null, '', path);
       setBusy(true);
@@ -112,7 +121,7 @@ export function Picker({ bootstrap }: PickerProps) {
         setBusy(false);
       }
     },
-    [mode],
+    [meta.length, mode],
   );
 
   const add = (result: SearchResult) => {

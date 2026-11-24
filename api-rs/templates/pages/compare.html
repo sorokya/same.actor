@@ -47,7 +47,7 @@
   {# Worked examples: a pair already in the comparison, one click away. This is what the page is
      for, shown before asking anybody to think of a film. The pair and the person connecting
      them come out of a stored list, so the card cannot go stale. #}
-  {% if !pairs.is_empty() %}
+  {% if results.selections.is_empty() && !pairs.is_empty() %}
   <section class="mt-8" aria-labelledby="start-here">
     <h2 id="start-here" class="label mb-2.5">Start here</h2>
     {# Two columns once there is a row to fill; one card takes the width it is given, because a

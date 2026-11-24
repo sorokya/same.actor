@@ -2,6 +2,12 @@
    the prefers-reduced-motion reset, which must beat utilities that ship transitions. */
 @import "tailwindcss";
 
+/* Reserve the scrollbar whether or not a page scrolls: the header is centred, so a page that
+   loses its scrollbar shifts every navigation item by fifteen pixels. */
+html {
+  scrollbar-gutter: stable;
+}
+
 /* Templates live outside `src/`, so they are named explicitly rather than relying on automatic
    detection: a class that only appears in a template is a class the build must still emit. */
 @source "../api-rs/templates";

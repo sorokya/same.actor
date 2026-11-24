@@ -419,44 +419,17 @@ background job on the same TTL as everything else — a day by default — so no
 TMDB and an outage costs freshness, not availability. A refresh also prunes snapshots whose id is no longer in the list —
 otherwise every change to the section model leaves a row behind for ever.
 
-A list is five TMDB pages — a hundred titles — because twenty mostly shares nothing, and a cast
-matrix over twenty titles is a grid with one dot per row. The page then keeps only the titles with
-a **thin** connection: a column stays while at most two of its people appear in another title of
-the list (`MAX_SHARED_CAST` in `synergy.rs`).
+A list is five TMDB pages — a hundred titles — because twenty mostly shares nothing. The page
+then spends a budget on **people**: the twenty actors with the most credits in the list
+(`MAX_ROWS` in `synergy.rs`), and every title they appear in becomes a column. The limit is on
+the cast, not on the titles, because the page is about who keeps turning up — a franchise with six
+recurring faces is the most interesting thing a list has, and thinning titles for having a crowd
+in them deleted exactly that.
 
-That cap is what makes a hundred titles readable. Without it the page is franchise blocks — six
-people recurring across six films, drawn six times over — and the interesting links (the actor who
-crosses from Marvel to a Tarantino film) are buried. A title sharing half its cast with four other
-titles is not a link, it is a franchise, and the group header already says so. Filtering runs to a
-fixed point because dropping a column can drop an actor below a second appearance, which thins the
-columns again. On a stub list of 22 titles, 8 dense franchise films and 13 of their actors drop
-out, leaving 14 titles and 13 actors. The page says both numbers: "14 of 22 titles".
+So the header says what you are looking at: "20 of 33 actors · 47 titles". Titles nobody appears
+in twice are still dropped — a column with no dots has no story.
 
-### Response cache and retention
-
-Every TMDB response is kept twice: in memory, and in a `tmdb_cache` table keyed by the request
-URL with the instant it was fetched. The disk tier is not there to serve ordinary traffic — memory
-does that — it is there for restarts. A deployment used to empty the cache, and the next refresh
-rebuilt nine lists from a hundred upstream calls apiece. Measured against a stub: a cold start
-cost 169 requests, and the same database in a new process cost 49, because every title detail was
-already on disk.
-
-The list endpoints are the exception: a refresh reads them **upstream, always**. Reading back the
-list the job itself stored a TTL ago would turn the refresh into a very careful way of doing
-nothing.
-Title details are the opposite — a cast does not change hourly, so they are allowed the full TTL.
-
-TMDB's API Terms of Use say: *"Cache, for longer than 6 months, any information obtained through
-or from TMDB or the TMDB APIs."* That is a ceiling on retention, and one that has to be enforced
-rather than assumed — a job that has been off for seven months is exactly when it would be
-violated. So the scheduled maintenance sweeps `tmdb_cache`, `lists` and `list_synergy` at the
-six-month mark. In normal operation it deletes nothing: snapshots and cached responses both live a
-day.
-
-A cached body that no longer parses is dropped and refetched, which is what makes it safe to
-change the shapes this code reads without a cache migration.
-
-### Upstream rate
+### Upstream rate### Upstream rate
 
 TMDB's published guidance is an upper limit "somewhere in the 40 requests per second range", with
 an explicit request to respect a 429 rather than probe for the edge. So:
@@ -577,6 +550,9 @@ say on its own.
 - **Titles are columns, grouped by franchise**, in the order the franchises were curated. That is
   what makes the staircase appear: an actor in three Marvel films draws a long run, and an actor
   who crosses from Marvel to a Tarantino film draws one that crosses a block boundary.
+- **Each column is named above its poster**, rotated, because a poster is only identifiable if you
+  already recognise the artwork. Under it sits the column's own control: the count of people in
+  that title who appear again, which is also the link that pins the column.
 - **Actors are rows, ordered by where their run starts**, so reading down the left edge is reading
   the list in order.
 - **Everything is server-rendered.** The filters are links (`?hide=marvel`, `?cameos=0`), pins are

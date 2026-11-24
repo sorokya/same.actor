@@ -3,8 +3,11 @@
    chrome is shared here rather than in three components, which is what let the three drift
    apart in the first place. #}
 <header data-chrome class="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
+  {# One width on every page. The header used to take the width of the content, so the nav — which
+     is right-aligned in it — moved by hundreds of pixels when you went from a compare page to a
+     browse page. The content keeps its own width; the chrome does not follow it. #}
   <div
-    class="mx-auto flex w-full {% if head.wide %}max-w-7xl{% elif head.nav == "admin" %}max-w-5xl{% else %}max-w-3xl{% endif %} flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
+    class="mx-auto flex w-full max-w-7xl flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
   >
     <a
       href="/"
