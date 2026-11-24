@@ -45,61 +45,156 @@
     <span title="{{ refreshed_absolute }}">{{ refreshed_relative }}</span>
   </p>
 
-  <section class="mt-6" aria-labelledby="the-list">
-    <h2 id="the-list" class="label mb-3 flex items-center gap-2">
+  {# The franchise filter and the cameo switch. Both are links, so the page works before any
+     script arrives — and the URL is the whole state, so it can be shared. #}
+  {% if !synergy.chips.is_empty() || synergy.cameo_hidden %}
+  <div class="mt-4 flex flex-wrap items-center gap-1.5">
+    {% for chip in synergy.chips %}
+    <a
+      href="{{ chip.href }}"
+      aria-pressed="{% if chip.shown %}true{% else %}false{% endif %}"
+      class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors{% if chip.shown %}{% else %} opacity-45 hover:opacity-80{% endif %}"
+      style="--tint: {{ chip.colour }}; border-color: color-mix(in oklab, {{ chip.colour }} 40%, var(--color-line)); color: {{ chip.colour }}"
+      title="{% if chip.shown %}Hide{% else %}Show{% endif %} {{ chip.name }}"
+    >
+      <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: {{ chip.colour }}"></span>
+      {{ chip.name }}
+    </a>
+    {% endfor %}
+
+    <a
+      href="{{ synergy.cameo_href }}"
+      aria-pressed="{% if synergy.cameo_hidden %}true{% else %}false{% endif %}"
+      class="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[11px] text-dim transition-colors hover:border-dim hover:text-paper{% if synergy.cameo_hidden %} text-paper{% endif %}"
+      title="Drop appearances billed below the cutoff"
+    >
+      Hide cameos{% if synergy.cameo_hidden %} <span class="text-accent">on</span>{% endif %}
+    </a>
+  </div>
+  {% endif %}
+
+  <section class="mt-6" aria-labelledby="matrix">
+    <h2 id="matrix" class="label mb-3 flex items-center gap-2">
       <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: var(--tint)"></span>
-      The list
+      Cast matrix
     </h2>
 
-    <ol class="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-6">
-      {% for item in items %}
-      <li>
-        <a href="{{ item.href }}" target="_blank" rel="noreferrer noopener" class="group block">
-          <div class="relative">
-            {% call cards::poster_well(item.image) %}{% endcall %}
-            <span class="tnum absolute left-1 top-1 rounded bg-ink/85 px-1.5 py-0.5 font-mono text-[10px] backdrop-blur" style="color: var(--tint)">{{ item.rank }}</span>
+    {% if !synergy.empty.is_empty() %}
+    <p class="rounded-md border border-line bg-raise px-3 py-3 text-sm text-dim">
+      {{ synergy.empty }}
+      <a href="{{ synergy.reset }}" class="text-accent hover:underline">Reset the filters</a>
+    </p>
+    {% else %}
+    <div class="grid gap-5 xl:grid-cols-[fit-content(44rem)_16rem] xl:justify-start">
+      {# Wide by nature: twenty titles at 40px a column. It scrolls inside its own box rather than
+         making the page scroll, which would take the header with it. #}
+      <div class="overflow-x-auto">
+        <div class="inline-block align-top">
+          <div
+            class="grid items-end"
+            style="grid-template-columns: 10rem repeat({{ synergy.columns.len() }}, 2.5rem)"
+          >
+            <span></span>
+            {% for group in synergy.groups %}
+            <span
+              class="truncate px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.1em]"
+              style="grid-column: span {{ group.span }}; color: {{ group.colour }}"
+              title="{{ group.name }}"
+            >{{ group.name }}</span>
+            {% endfor %}
           </div>
 
-          {# Two lines of room whether the title needs them or not, so the dates under a row of
-             cards sit on one line instead of following each title's wrapping. #}
-          <p class="mt-1.5 line-clamp-2 min-h-[2.1em] text-xs leading-snug text-paper group-hover:text-accent">{{ item.name }}</p>
-          <p class="tnum mt-0.5 flex items-center gap-1 font-mono text-[10px] text-dim">
-            {% if !item.date.is_empty() %}<span class="shrink-0" aria-hidden="true">{% call icons::calendar() %}{% endcall %}</span><span>{{ item.date }}</span>{% else %}{{ item.meta }}{% endif %}
-          </p>
-        </a>
-      </li>
-      {% endfor %}
-    </ol>
-  </section>
+          <div
+            class="grid items-end"
+            style="grid-template-columns: 10rem repeat({{ synergy.columns.len() }}, 2.5rem)"
+          >
+            <span></span>
+            {% for column in synergy.columns %}
+            <a
+              href="{{ column.href }}"
+              target="_blank"
+              rel="noreferrer noopener"
+              style="grid-column: {{ column.position }}"
+              class="block px-0.5{% if column.pinned %} ring-1 ring-accent{% endif %}"
+              title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
+            >
+              {% call cards::poster_bg(column.poster) %}{% endcall %}
+            </a>
+            {% endfor %}
+          </div>
 
-  <section class="mt-12" aria-labelledby="synergy">
-    <div class="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-      <h2 id="synergy" class="label">Actors in two or more</h2>
-      {% if in_every > 0 %}
-      <p class="label">
-        {{ in_every }} {% if in_every == 1 %}appears{% else %}appear{% endif %} in every title
-      </p>
-      {% endif %}
+          {% for row in synergy.rows %}
+          <div
+            class="grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"
+            style="grid-template-columns: 10rem repeat({{ synergy.columns.len() }}, 2.5rem)"
+            data-titles="{{ row.data }}"
+          >
+            <a
+              href="{{ row.href }}"
+              target="_blank"
+              rel="noreferrer noopener"
+              class="truncate pr-2 text-[11px] leading-snug {% if row.pinned %}text-paper{% else %}text-dim hover:text-paper{% endif %}"
+            >{{ row.name }}</a>
+
+            {# The run: a line from this actor's first title to their last, which is what makes a
+               cluster read as a staircase rather than as scattered dots. #}
+            {% if row.has_run %}
+            <span
+              aria-hidden="true"
+              class="h-px self-center"
+              style="grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
+            ></span>
+            {% endif %}
+
+            {% for at in row.at %}
+            <span class="flex justify-center" style="grid-column: {{ at }}">
+              <span class="h-2.5 w-2.5 rounded-full ring-2 ring-ink/40" style="background: {{ row.colour }}"></span>
+            </span>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <aside class="self-start rounded-md border border-line bg-raise/40 p-3" aria-labelledby="panel">
+        <h2 id="panel" class="label mb-1 truncate">{{ synergy.panel.heading }}</h2>
+        <p class="mb-2.5 text-[11px] leading-snug text-dim">{{ synergy.panel.note }}</p>
+
+        {% if !synergy.panel.entries.is_empty() %}
+        <ul class="space-y-1.5">
+          {% for entry in synergy.panel.entries %}
+          <li class="flex items-center gap-2">
+            <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: {{ entry.colour }}"></span>
+            <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+            <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ entry.detail }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-[11px] text-dim">Nothing crosses a franchise in this list.</p>
+        {% endif %}
+
+        {% if !synergy.panel.related.is_empty() %}
+        <h3 class="label mt-4 mb-1.5">{{ synergy.panel.related_heading }}</h3>
+        <ul class="space-y-1.5">
+          {% for entry in synergy.panel.related %}
+          <li class="flex items-center gap-2">
+            <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+            <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ entry.detail }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </aside>
     </div>
 
-    {% if rows.is_empty() %}
-    <p class="text-xs text-dim">Nobody appears twice in this list.</p>
-    {% else %}
-    <ul class="grid gap-1.5 sm:grid-cols-2">
-      {% for card in rows %}{% call cards::synergy_card(card) %}{% endcall %}{% endfor %}
-    </ul>
+    <p class="mt-3 text-[11px] text-dim">
+      A dot is one credit; the line is that actor's run from their first title here to their last.
+      Poster columns are grouped by franchise, in the order the franchises were curated.
+    </p>
 
-    {# The tail folds away with `<details>`: 250 cards in one column is a page nobody scrolls,
-       and this needs no script to open. #}
-    {% if !more_rows.is_empty() %}
-    <details class="mt-2">
-      <summary class="cursor-pointer text-xs text-dim hover:text-paper">
-        Show all {{ more_count }} ({{ more_rows.len() }} more)
-      </summary>
-      <ul class="mt-1.5 grid gap-1.5 sm:grid-cols-2">
-        {% for card in more_rows %}{% call cards::synergy_card(card) %}{% endcall %}{% endfor %}
-      </ul>
-    </details>
+    {% if synergy.hidden_actors > 0 %}
+    <p class="label mt-3">{{ synergy.hidden_actors }} more actors not shown</p>
     {% endif %}
     {% endif %}
   </section>

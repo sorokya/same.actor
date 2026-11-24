@@ -22,17 +22,11 @@ use crate::domain::{Kind, Selection};
 use crate::error::AppError;
 use crate::state::AppState;
 use crate::store::franchises::{Assign, Cameo, Franchise};
+use crate::synergy::{is_cameo, CAMEO_CUTOFF};
 use crate::views::franchise::{
     CameosPage, CastRow, FranchisePage, FranchisesPage, QueuePage, QueueRow, Suggestion, TitleRow,
 };
 use crate::views::render;
-
-/// Billing positions at or beyond this are treated as cameos unless an override says otherwise.
-///
-/// Fifteen is a starting guess, not a measurement: it was picked to be past the leads and the
-/// strong supporting cast of a twenty-title list. It is one constant, and the override table is
-/// what makes being wrong about it cheap.
-pub const CAMEO_CUTOFF: u32 = 15;
 
 /// The curation pages, mounted under `/admin/franchises`.
 pub fn router() -> Router<AppState> {
@@ -595,15 +589,6 @@ pub async fn cameos(
     };
 
     Ok(render(&page)?.into_response())
-}
-
-/// The cutoff's verdict: anyone billed at or below it is cast, everyone else is a cameo.
-fn is_cameo(order: Option<u32>) -> bool {
-    match order {
-        // TMDB did not say where they are billed, so there is no evidence of a cameo.
-        None => false,
-        Some(order) => order >= CAMEO_CUTOFF,
-    }
 }
 
 #[derive(Debug, Deserialize)]

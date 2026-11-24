@@ -31,6 +31,14 @@ pub struct Loaded {
 pub struct PageQuery {
     pub kind: Option<String>,
     pub filter: Option<String>,
+    /// Franchise slugs the reader switched off, comma separated.
+    pub hide: Option<String>,
+    /// `0` when cameos are hidden. Absent means they are shown, which is the default.
+    pub cameos: Option<String>,
+    /// A pinned actor, for the side panel and the row highlight.
+    pub actor: Option<u32>,
+    /// A pinned title, the other half of the same idea.
+    pub title: Option<u32>,
 }
 
 fn kind_key(kind: Kind) -> &'static str {
@@ -243,6 +251,17 @@ pub async fn page(
         canonical_path(loaded.section, loaded.kind, loaded.variant.filter)
     ));
 
+    let derived = crate::views::discover::Derived {
+        placements: state.store.placements().await?,
+        overrides: state.store.all_cameos().await?,
+        filter: synergy_filter(query.hide.as_deref(), query.cameos.as_deref()),
+        focus: match (query.actor, query.title) {
+            (Some(actor), _) => crate::views::discover::Focus::Actor(actor),
+            (None, Some(title)) => crate::views::discover::Focus::Title(title),
+            _ => crate::views::discover::Focus::Bridges,
+        },
+    };
+
     let view = DiscoverPage::new(
         head,
         &Snapshot {
@@ -254,9 +273,27 @@ pub async fn page(
             synergy: &loaded.synergy,
         },
         crate::clock::now_unix(),
+        &derived,
     );
 
     Ok(render(&view)?.into_response())
+}
+
+/// The matrix filters, read out of the query string.
+///
+/// `cameos=0` means "hidden", because a switch whose default is off reads better as a parameter
+/// that only appears when it is on.
+fn synergy_filter(hide: Option<&str>, cameos: Option<&str>) -> crate::synergy::Filter {
+    crate::synergy::Filter {
+        hide: hide
+            .unwrap_or_default()
+            .split(',')
+            .map(str::trim)
+            .filter(|slug| !slug.is_empty())
+            .map(str::to_owned)
+            .collect(),
+        hide_cameos: cameos == Some("0"),
+    }
 }
 
 /// The canonical path for a list. The default page for a section is the bare path, so

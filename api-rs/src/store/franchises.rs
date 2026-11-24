@@ -278,6 +278,27 @@ pub(super) fn cameos(conn: &Connection, kind: &str, media_id: u32) -> rusqlite::
     rows.collect()
 }
 
+/// Every cameo override, keyed by `(kind, media id, person id)`.
+///
+/// The synergy views filter appearances against the cutoff on every render, so they need the
+/// overrides in one read rather than one query per title.
+pub(super) fn all_cameos(conn: &Connection) -> rusqlite::Result<HashMap<(String, u32, u32), bool>> {
+    let mut stmt = conn.prepare("SELECT kind, media_id, person_id, cameo FROM cameo_overrides")?;
+
+    let rows = stmt.query_map([], |row| {
+        Ok((
+            (
+                row.get::<_, String>(0)?,
+                row.get::<_, u32>(1)?,
+                row.get::<_, u32>(2)?,
+            ),
+            row.get::<_, i64>(3)? == 1,
+        ))
+    })?;
+
+    rows.collect()
+}
+
 /// Where every assigned title sits, keyed by kind and id.
 pub(super) fn placements(conn: &Connection) -> rusqlite::Result<HashMap<(String, u32), Placement>> {
     let mut stmt = conn.prepare(
@@ -317,6 +338,11 @@ impl Store {
     /// Every assignment, for the views that cluster by franchise.
     pub async fn placements(&self) -> Result<HashMap<(String, u32), Placement>, AppError> {
         self.read(placements).await
+    }
+
+    /// Every override, for the views that filter appearances.
+    pub async fn all_cameos(&self) -> Result<HashMap<(String, u32, u32), bool>, AppError> {
+        self.read(all_cameos).await
     }
 
     pub async fn cameos(&self, kind: String, media_id: u32) -> Result<Vec<Cameo>, AppError> {

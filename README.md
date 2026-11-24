@@ -484,6 +484,27 @@ first tap produces a list of matches rather than a blank box; without the island
 still links. (The booster sets the URL *before* swapping the page in, because the island reads
 `?q` on mount — pushing after the swap left the box empty at the right address.)
 
+## The cast matrix
+
+Each browse page (`/discover/top`, `/new`, `/upcoming`) ends in a matrix: actors down the side,
+titles across the top, a dot where an actor is credited and a line joining their first title to
+their last. It replaced the poster grid and the "actors in two or more" cards, which answered "who
+is in a lot of these" and never "who works together".
+
+- **Titles are columns, grouped by franchise**, in the order the franchises were curated. That is
+  what makes the staircase appear: an actor in three Marvel films draws a long run, and an actor
+  who crosses from Marvel to a Tarantino film draws one that crosses a block boundary.
+- **Actors are rows, ordered by where their run starts**, so reading down the left edge is reading
+  the list in order.
+- **Everything is server-rendered.** The filters are links (`?hide=marvel`, `?cameos=0`), pins are
+  `?actor=` and `?title=`, and the panel beside the matrix shows bridges by default — the actors
+  who span two or more franchises, which is the fact the flat list could not show.
+- **The derivation is pure** (`synergy.rs`): a function of the stored list, the curated franchises
+  and the request's filters. No upstream call, no cached matrix per combination — twenty titles and
+  forty actors are cheap enough to compute per request.
+- **Cameo hiding is off by default** and drops appearances billed at or beyond position 15, unless
+  an override says otherwise. Hiding people silently would make the page under-report a cast.
+
 ## Franchises
 
 The synergy views cluster titles by **franchise**, and TMDB cannot supply that: its collections are

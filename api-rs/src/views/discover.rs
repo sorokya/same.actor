@@ -6,8 +6,12 @@
 
 use askama::Template;
 
-use crate::discovery::{Item, Section, SynergyRow, TitleRef, Variant};
+use std::collections::HashMap;
+
+use crate::discovery::{Item, Section, SynergyRow, Variant};
 use crate::domain::Kind;
+use crate::store::franchises::Placement;
+use crate::synergy::{self, Filter};
 
 use super::{absolute_time, relative_time, Head};
 
@@ -19,29 +23,104 @@ pub struct Choice {
     pub active: bool,
 }
 
-pub struct Poster {
-    pub href: String,
-    pub image: String,
+/// One franchise's run of columns, for the matrix header.
+pub struct GroupView {
     pub name: String,
-    /// Pre-formatted: a template should not be deciding how to round a rating.
+    pub colour: &'static str,
+    /// How many columns it spans.
+    pub span: usize,
+}
+
+/// A title, as a column of the matrix.
+pub struct ColumnView {
+    pub href: String,
+    pub name: String,
+    pub poster: String,
+    /// 1-based grid column; the actor names take the first one.
+    pub position: usize,
+    pub colour: &'static str,
+    pub group_name: String,
+    pub pinned: bool,
+    /// "1999 · 8.2", or the date when the list is about one. The matrix has no room for it on
+    /// the header, so it rides in the tooltip: the year is not worth a column, but losing it
+    /// would be losing information the old poster grid had.
     pub meta: String,
-    /// The date this list is about ("24 Nov 2026"), for the lists where a year is too coarse.
-    /// Empty on the ranked lists, which fall back to `meta`.
-    pub date: String,
-    pub rank: usize,
 }
 
-pub struct TitleLink {
-    pub href: String,
-    pub name: String,
-}
-
-pub struct Card {
+/// An actor, as a row.
+pub struct RowView {
     pub href: String,
     pub name: String,
     pub image: String,
-    pub count: usize,
-    pub titles: Vec<TitleLink>,
+    /// Grid columns this actor's dots occupy, 1-based.
+    pub at: Vec<usize>,
+    /// The run line, as the two grid lines it spans.
+    pub run_start: usize,
+    pub run_end: usize,
+    pub has_run: bool,
+    pub colour: &'static str,
+    /// Ticks: "603,604", so the island can light up a row without a payload.
+    pub data: String,
+    pub pinned: bool,
+}
+
+/// A franchise the reader can switch off.
+pub struct ChipView {
+    pub name: String,
+    pub colour: &'static str,
+    /// Whether its columns are currently shown.
+    pub shown: bool,
+    /// The same page with this franchise flipped.
+    pub href: String,
+}
+
+pub struct PanelEntry {
+    pub href: String,
+    pub name: String,
+    pub image: String,
+    pub detail: String,
+    pub colour: &'static str,
+}
+
+/// The side panel: bridges by default, or whatever the URL pinned.
+pub struct PanelView {
+    pub heading: String,
+    pub note: String,
+    pub entries: Vec<PanelEntry>,
+    pub related_heading: String,
+    pub related: Vec<PanelEntry>,
+    pub reset: String,
+}
+
+/// What the URL asked to look at.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    Bridges,
+    Actor(u32),
+    Title(u32),
+}
+
+/// Everything the matrix needs that is not in the stored list.
+pub struct Derived {
+    pub placements: HashMap<(String, u32), Placement>,
+    pub overrides: HashMap<(String, u32, u32), bool>,
+    pub filter: Filter,
+    pub focus: Focus,
+}
+
+pub struct SynergyView {
+    pub groups: Vec<GroupView>,
+    pub columns: Vec<ColumnView>,
+    pub rows: Vec<RowView>,
+    pub chips: Vec<ChipView>,
+    pub cameo_hidden: bool,
+    pub cameo_href: String,
+    /// Actors the row cap left out.
+    pub hidden_actors: usize,
+    pub panel: PanelView,
+    pub empty: String,
+    /// The page with every synergy filter dropped, for the empty state's reset link.
+    pub reset: String,
 }
 
 /// Everything a browse page renders, in one value.
@@ -70,17 +149,8 @@ pub struct DiscoverPage {
     pub refreshed_relative: String,
     pub refreshed_absolute: String,
     pub item_count: usize,
-    pub items: Vec<Poster>,
-    /// The first screenful of actor cards.
-    pub rows: Vec<Card>,
-    /// The rest, behind a `<details>`: 250 cards in one list is a page nobody scrolls.
-    pub more_rows: Vec<Card>,
-    pub more_count: usize,
-    pub in_every: usize,
+    pub synergy: SynergyView,
 }
-
-/// How many actor cards before the rest fold away.
-const VISIBLE: usize = 24;
 
 fn kind_key(kind: Kind) -> &'static str {
     match kind {
@@ -102,56 +172,300 @@ pub fn title_href(kind: Kind, id: u32) -> String {
     format!("https://www.themoviedb.org/{}/{id}", kind_key(kind))
 }
 
-fn poster(item: &Item, kind: Kind, rank: usize) -> Poster {
-    // A date beats a year wherever the list is about one: "24 Nov 2026" answers the question a
-    // year cannot, and the year is inside it anyway. It carries a calendar glyph in the template,
-    // so the word that used to sit in front of it ("Releases", "Aired") was saying the same
-    // thing twice at a smaller size.
-    let date = item
-        .date
-        .as_deref()
-        .and_then(crate::views::format_date)
-        .unwrap_or_default();
+/// The same page with one synergy filter flipped.
+///
+/// `base` already carries the section's kind and ranking, so this only has to append the synergy
+/// parameters, and it drops the ones that would be at their default: a URL that says
+/// `cameos=1&hide=` is a URL with two lies in it.
+fn with_filters(base: &str, filter: &Filter, cameos: bool) -> String {
+    let mut url = base.to_owned();
+    let mut separator = if url.contains('?') { '&' } else { '?' };
 
-    let mut meta = match item.year {
+    let mut hidden: Vec<&str> = filter.hide.iter().map(String::as_str).collect();
+    hidden.sort_unstable();
+
+    if !hidden.is_empty() {
+        url.push(separator);
+        separator = '&';
+        url.push_str("hide=");
+        url.push_str(&hidden.join(","));
+    }
+
+    if cameos {
+        url.push(separator);
+        url.push_str("cameos=0");
+    }
+
+    url
+}
+
+/// What a column's tooltip says: the date the list is about, or the year and rating.
+fn column_meta(column: &synergy::Column) -> String {
+    if let Some(date) = column.date.as_deref().and_then(crate::views::format_date) {
+        return date;
+    }
+
+    let mut meta = match column.year {
         Some(year) => year.to_string(),
         None => "—".to_owned(),
     };
 
-    if let Some(rating) = item.rating {
+    if let Some(rating) = column.rating {
         meta.push_str(&format!(" · {rating:.1}"));
     }
 
-    Poster {
-        href: title_href(kind, item.id),
-        image: item.poster.clone().unwrap_or_default(),
-        name: item.name.clone(),
-        meta,
-        date,
-        rank,
+    meta
+}
+
+/// Build the matrix view: the columns, the rows, the chips, and the panel the URL asked for.
+fn synergy_view(
+    kind: Kind,
+    matrix: &synergy::Matrix,
+    derived: &Derived,
+    base: &str,
+) -> SynergyView {
+    let groups: Vec<GroupView> = matrix
+        .groups
+        .iter()
+        .map(|group| GroupView {
+            name: group.name.clone(),
+            colour: group.colour,
+            span: group.span,
+        })
+        .collect();
+
+    let columns: Vec<ColumnView> = matrix
+        .columns
+        .iter()
+        .map(|column| ColumnView {
+            href: title_href(column.kind, column.id),
+            name: column.name.clone(),
+            poster: column.poster.clone().unwrap_or_default(),
+            position: column.position,
+            colour: matrix.groups[column.group].colour,
+            group_name: matrix.groups[column.group].name.clone(),
+            pinned: derived.focus == Focus::Title(column.id),
+            meta: column_meta(column),
+        })
+        .collect();
+
+    let rows: Vec<RowView> = matrix
+        .actors
+        .iter()
+        .map(|actor| {
+            let first = actor.titles.first().copied().unwrap_or(0);
+            let last = actor.titles.last().copied().unwrap_or(0);
+            let colour = matrix
+                .columns
+                .get(first)
+                .map(|column| matrix.groups[column.group].colour)
+                .unwrap_or(synergy::UNGROUPED);
+
+            let data = actor
+                .titles
+                .iter()
+                .filter_map(|index| matrix.columns.get(*index))
+                .map(|column| column.id.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+
+            RowView {
+                href: format!("https://www.themoviedb.org/person/{}", actor.person_id),
+                name: actor.name.clone(),
+                image: actor.image.clone().unwrap_or_default(),
+                at: actor.titles.iter().map(|index| index + 2).collect(),
+                run_start: first + 2,
+                run_end: last + 3,
+                has_run: actor.titles.len() > 1,
+                colour,
+                data,
+                pinned: derived.focus == Focus::Actor(actor.person_id),
+            }
+        })
+        .collect();
+
+    let chips: Vec<ChipView> = matrix
+        .groups
+        .iter()
+        .filter(|group| !group.slug.is_empty())
+        .map(|group| {
+            let mut flipped = derived.filter.clone();
+            if !flipped.hide.remove(&group.slug) {
+                flipped.hide.insert(group.slug.clone());
+            }
+
+            ChipView {
+                name: group.name.clone(),
+                colour: group.colour,
+                shown: !derived.filter.hides(&group.slug),
+                href: with_filters(base, &flipped, derived.filter.hide_cameos),
+            }
+        })
+        .collect();
+
+    let cameo_href = with_filters(base, &derived.filter, !derived.filter.hide_cameos);
+
+    let panel = panel_view(kind, matrix, derived, base);
+
+    let empty = if matrix.columns.is_empty() {
+        "Every title in this list is hidden by the franchise filter.".to_owned()
+    } else if matrix.actors.is_empty() {
+        "Nobody appears in two of the titles left.".to_owned()
+    } else {
+        String::new()
+    };
+
+    SynergyView {
+        groups,
+        columns,
+        rows,
+        chips,
+        cameo_hidden: derived.filter.hide_cameos,
+        cameo_href,
+        hidden_actors: matrix.hidden_actors,
+        panel,
+        empty,
+        reset: base.to_owned(),
     }
 }
 
-fn card(row: &SynergyRow) -> Card {
-    Card {
-        href: format!("https://www.themoviedb.org/person/{}", row.person_id),
-        name: row.name.clone(),
-        image: row.image.clone().unwrap_or_default(),
-        count: row.count,
-        titles: row
-            .titles
-            .iter()
-            .map(|title: &TitleRef| TitleLink {
-                href: title_href(title.kind, title.id),
-                name: title.name.clone(),
-            })
-            .collect(),
+/// The side panel: a pinned actor or title when the URL names one, bridges otherwise.
+fn panel_view(kind: Kind, matrix: &synergy::Matrix, derived: &Derived, base: &str) -> PanelView {
+    let person = |person_id: u32| format!("https://www.themoviedb.org/person/{person_id}");
+
+    let detail = |titles: usize| match titles {
+        1 => "1 title".to_owned(),
+        count => format!("{count} titles"),
+    };
+
+    match derived.focus {
+        Focus::Actor(person_id) => {
+            let their_titles: Vec<PanelEntry> = matrix
+                .actors
+                .iter()
+                .find(|actor| actor.person_id == person_id)
+                .map(|actor| {
+                    actor
+                        .titles
+                        .iter()
+                        .filter_map(|index| matrix.columns.get(*index))
+                        .map(|column| {
+                            let group = &matrix.groups[column.group];
+                            PanelEntry {
+                                href: title_href(column.kind, column.id),
+                                name: column.name.clone(),
+                                image: column.poster.clone().unwrap_or_default(),
+                                detail: group.name.clone(),
+                                colour: group.colour,
+                            }
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+
+            let related: Vec<PanelEntry> = synergy::co_stars(matrix, person_id)
+                .into_iter()
+                .map(|(id, name, count)| PanelEntry {
+                    href: person(id),
+                    name,
+                    image: String::new(),
+                    detail: format!("{count} together"),
+                    colour: synergy::UNGROUPED,
+                })
+                .collect();
+
+            let name = matrix
+                .actors
+                .iter()
+                .find(|actor| actor.person_id == person_id)
+                .map(|actor| actor.name.clone())
+                .unwrap_or_else(|| format!("#{person_id}"));
+
+            PanelView {
+                heading: name,
+                note: their_titles.len().to_string() + " in this list",
+                entries: their_titles,
+                related_heading: "Shares two or more with".to_owned(),
+                related,
+                reset: base.to_owned(),
+            }
+        }
+
+        Focus::Title(media_id) => {
+            let column = matrix.columns.iter().find(|column| column.id == media_id);
+            let group = column.map(|column| &matrix.groups[column.group]);
+
+            let entries: Vec<PanelEntry> = matrix
+                .actors
+                .iter()
+                .filter(|actor| {
+                    actor
+                        .titles
+                        .iter()
+                        .filter_map(|index| matrix.columns.get(*index))
+                        .any(|found| found.id == media_id)
+                })
+                .map(|actor| PanelEntry {
+                    href: person(actor.person_id),
+                    name: actor.name.clone(),
+                    image: actor.image.clone().unwrap_or_default(),
+                    detail: detail(actor.titles.len()),
+                    colour: group
+                        .map(|group| group.colour)
+                        .unwrap_or(synergy::UNGROUPED),
+                })
+                .collect();
+
+            PanelView {
+                heading: column.map(|column| column.name.clone()).unwrap_or_default(),
+                note: detail(entries.len()) + " shared with this list",
+                entries,
+                related_heading: String::new(),
+                related: Vec::new(),
+                reset: base.to_owned(),
+            }
+        }
+
+        Focus::Bridges => {
+            let entries: Vec<PanelEntry> = synergy::bridges(matrix)
+                .into_iter()
+                .map(|(id, name, count)| {
+                    let colour = matrix
+                        .actors
+                        .iter()
+                        .find(|actor| actor.person_id == id)
+                        .and_then(|actor| actor.titles.first())
+                        .and_then(|index| matrix.columns.get(*index))
+                        .map(|column| matrix.groups[column.group].colour)
+                        .unwrap_or(synergy::UNGROUPED);
+
+                    PanelEntry {
+                        href: person(id),
+                        name,
+                        image: String::new(),
+                        detail: detail(count),
+                        colour,
+                    }
+                })
+                .collect();
+
+            let _ = kind;
+
+            PanelView {
+                heading: "Bridges".to_owned(),
+                note: "Actors who cross from one franchise to another".to_owned(),
+                entries,
+                related_heading: String::new(),
+                related: Vec::new(),
+                reset: base.to_owned(),
+            }
+        }
     }
 }
 
 impl DiscoverPage {
     /// Build the page from a loaded snapshot.
-    pub fn new(head: Head, snapshot: &Snapshot<'_>, now: i64) -> Self {
+    pub fn new(head: Head, snapshot: &Snapshot<'_>, now: i64, derived: &Derived) -> Self {
         let Snapshot {
             section,
             kind,
@@ -206,19 +520,16 @@ impl DiscoverPage {
             })
             .collect();
 
-        let cards: Vec<Card> = synergy.iter().map(card).collect();
-        let (rows, more_rows) = if cards.len() > VISIBLE {
-            let mut cards = cards;
-            let rest = cards.split_off(VISIBLE);
-            (cards, rest)
-        } else {
-            (cards, Vec::new())
-        };
+        let matrix = synergy::build(
+            kind,
+            items,
+            synergy,
+            &derived.placements,
+            &derived.overrides,
+            &derived.filter,
+        );
 
-        let in_every = synergy
-            .iter()
-            .filter(|row| row.count == items.len())
-            .count();
+        let view = synergy_view(kind, &matrix, derived, &href(kind, variant.filter));
 
         Self {
             head,
@@ -231,15 +542,7 @@ impl DiscoverPage {
             refreshed_relative: relative_time(refreshed_ts, now),
             refreshed_absolute: absolute_time(refreshed_ts),
             item_count: items.len(),
-            items: items
-                .iter()
-                .enumerate()
-                .map(|(index, item)| poster(item, kind, index + 1))
-                .collect(),
-            rows,
-            more_count: synergy.len(),
-            more_rows,
-            in_every,
+            synergy: view,
         }
     }
 }
@@ -247,6 +550,7 @@ impl DiscoverPage {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::discovery::TitleRef;
 
     fn item(id: u32, name: &str, year: Option<u16>, rating: Option<f64>) -> Item {
         Item {
@@ -260,6 +564,15 @@ mod tests {
             collection_id: None,
             director_ids: Vec::new(),
             keyword_ids: Vec::new(),
+        }
+    }
+
+    fn derived() -> Derived {
+        Derived {
+            placements: HashMap::new(),
+            overrides: HashMap::new(),
+            filter: Filter::default(),
+            focus: Focus::Bridges,
         }
     }
 
@@ -282,6 +595,10 @@ mod tests {
     }
 
     fn build(items: &[Item], rows: &[SynergyRow]) -> DiscoverPage {
+        build_with(items, rows, derived())
+    }
+
+    fn build_with(items: &[Item], rows: &[SynergyRow], derived: Derived) -> DiscoverPage {
         let variant = crate::discovery::by_id("top:movie:all-time").expect("variant");
         DiscoverPage::new(
             Head::new("Top films", "desc", "top"),
@@ -294,6 +611,7 @@ mod tests {
                 synergy: rows,
             },
             1_795_500_000,
+            &derived,
         )
     }
 
@@ -349,6 +667,7 @@ mod tests {
                 synergy: &[],
             },
             0,
+            &derived(),
         );
 
         let shows = trending
@@ -372,6 +691,7 @@ mod tests {
                 synergy: &[],
             },
             0,
+            &derived(),
         );
 
         let shows = cinemas
@@ -383,52 +703,192 @@ mod tests {
     }
 
     #[test]
-    fn ratings_and_years_are_pre_formatted() {
-        let page = build(&[item(603, "The Matrix", Some(1999), Some(8.25))], &[]);
-        assert_eq!(page.items[0].meta, "1999 · 8.2");
-
-        let page = build(&[item(605, "Undated", None, None)], &[]);
-        assert_eq!(page.items[0].meta, "—", "no year and no rating is a dash");
-    }
-
-    /// Titles inside a card carry their own kind, so a show in a show list links as a show.
-    #[test]
-    fn card_titles_link_to_the_right_tmdb_kind() {
+    fn a_column_links_to_tmdb_with_the_lists_own_kind() {
         let page = build(
             &[item(603, "The Matrix", Some(1999), None)],
             &[row(6384, "Keanu Reeves", &[(603, "The Matrix")], 2)],
         );
 
         assert_eq!(
-            page.rows[0].titles[0].href,
+            page.synergy.columns[0].href,
             "https://www.themoviedb.org/movie/603"
         );
-        assert_eq!(page.rows[0].href, "https://www.themoviedb.org/person/6384");
+        assert_eq!(page.synergy.columns[0].meta, "1999");
+    }
+
+    /// The matrix has no room for a date, but it must not lose one either.
+    #[test]
+    fn a_dated_list_carries_the_date_into_the_tooltip() {
+        let mut dated = item(603, "The Matrix", Some(1999), None);
+        dated.date = Some("2026-12-01".to_owned());
+
+        let page = build(&[dated], &[]);
+        assert_eq!(page.synergy.columns[0].meta, "1 Dec 2026");
     }
 
     #[test]
-    fn the_tail_of_the_table_folds_behind_details() {
+    fn rows_carry_the_grid_positions_the_template_draws_from() {
+        let items = vec![
+            item(1, "One", None, None),
+            item(2, "Two", None, None),
+            item(3, "Three", None, None),
+        ];
+        let rows = vec![row(10, "Present", &[(1, "One"), (3, "Three")], 2)];
+
+        let page = build(&items, &rows);
+        let drawn = &page.synergy.rows[0];
+
+        assert_eq!(
+            drawn.at,
+            vec![2, 4],
+            "name column is first, then one per title"
+        );
+        assert_eq!(
+            (drawn.run_start, drawn.run_end),
+            (2, 5),
+            "the run spans first to last"
+        );
+        assert!(drawn.has_run);
+        assert_eq!(drawn.data, "1,3", "the island reads the titles off the row");
+    }
+
+    #[test]
+    fn the_row_cap_is_reported_rather_than_silently_dropping_people() {
         let items = vec![item(1, "One", None, None), item(2, "Two", None, None)];
-        let rows: Vec<SynergyRow> = (0..30)
+        let rows: Vec<SynergyRow> = (0..crate::synergy::MAX_ROWS as u32 + 4)
             .map(|id| row(id, "Someone", &[(1, "One"), (2, "Two")], 2))
             .collect();
 
         let page = build(&items, &rows);
-        assert_eq!(page.rows.len(), VISIBLE);
-        assert_eq!(page.more_rows.len(), 30 - VISIBLE);
-        assert_eq!(page.more_count, 30);
+        assert_eq!(page.synergy.rows.len(), crate::synergy::MAX_ROWS);
+        assert_eq!(page.synergy.hidden_actors, 4);
     }
 
-    /// "4 appear in every title" is only true if the count matches the list length.
     #[test]
-    fn only_people_in_every_title_are_counted_there() {
+    fn a_chip_links_to_the_same_page_with_that_franchise_flipped() {
+        let items = vec![
+            item(1, "Iron Man", None, None),
+            item(2, "The Avengers", None, None),
+        ];
+        let mut derived = derived();
+        derived.placements = [
+            (
+                ("movie".to_owned(), 1),
+                Placement {
+                    franchise_id: 1,
+                    slug: "marvel".to_owned(),
+                    name: "Marvel".to_owned(),
+                    sort_order: 0,
+                },
+            ),
+            (
+                ("movie".to_owned(), 2),
+                Placement {
+                    franchise_id: 1,
+                    slug: "marvel".to_owned(),
+                    name: "Marvel".to_owned(),
+                    sort_order: 0,
+                },
+            ),
+        ]
+        .into_iter()
+        .collect();
+
+        let page = build_with(&items, &[], derived);
+        assert_eq!(page.synergy.chips.len(), 1, "one franchise, one chip");
+        assert!(page.synergy.chips[0].shown, "on by default");
+        assert!(
+            page.synergy.chips[0].href.ends_with("hide=marvel"),
+            "switching it off is a URL: {}",
+            page.synergy.chips[0].href
+        );
+    }
+
+    #[test]
+    fn a_filtered_away_list_says_so_instead_of_drawing_nothing() {
+        let items = vec![
+            item(1, "Iron Man", None, None),
+            item(2, "The Avengers", None, None),
+        ];
+        let mut derived = derived();
+        derived.placements = [(
+            ("movie".to_owned(), 1),
+            Placement {
+                franchise_id: 1,
+                slug: "marvel".to_owned(),
+                name: "Marvel".to_owned(),
+                sort_order: 0,
+            },
+        )]
+        .into_iter()
+        .collect();
+        derived.filter.hide.insert("marvel".to_owned());
+
+        let page = build_with(&items, &[], derived);
+        assert!(
+            !page.synergy.empty.is_empty(),
+            "an empty state, not a blank grid"
+        );
+        assert_eq!(page.synergy.columns.len(), 1);
+    }
+
+    /// A pinned actor is the panel's subject, and the row says so for the reader and the island.
+    #[test]
+    fn a_pinned_actor_selects_the_panel_and_marks_the_row() {
         let items = vec![item(1, "One", None, None), item(2, "Two", None, None)];
         let rows = vec![
-            row(1, "In Both", &[(1, "One"), (2, "Two")], 2),
-            row(2, "In One", &[(1, "One")], 1),
+            row(10, "Pinned", &[(1, "One"), (2, "Two")], 2),
+            row(11, "Other", &[(1, "One"), (2, "Two")], 2),
         ];
 
-        let page = build(&items, &rows);
-        assert_eq!(page.in_every, 1);
+        let mut derived = derived();
+        derived.focus = Focus::Actor(10);
+
+        let page = build_with(&items, &rows, derived);
+
+        assert_eq!(page.synergy.panel.heading, "Pinned");
+        assert!(page.synergy.rows.iter().any(|row| row.pinned));
+        assert_eq!(
+            page.synergy.rows.iter().filter(|row| row.pinned).count(),
+            1,
+            "only the pinned one"
+        );
+        assert_eq!(
+            page.synergy.panel.related.len(),
+            1,
+            "the other actor shares both titles with them"
+        );
+    }
+
+    #[test]
+    fn with_nothing_pinned_the_panel_offers_bridges() {
+        let items = vec![
+            item(1, "Iron Man", None, None),
+            item(2, "Pulp Fiction", None, None),
+            item(3, "The Avengers", None, None),
+        ];
+        let rows = vec![row(
+            10,
+            "Bridges",
+            &[(1, "Iron Man"), (2, "Pulp Fiction")],
+            2,
+        )];
+
+        let mut derived = derived();
+        derived.placements = [(
+            ("movie".to_owned(), 1),
+            Placement {
+                franchise_id: 1,
+                slug: "marvel".to_owned(),
+                name: "Marvel".to_owned(),
+                sort_order: 0,
+            },
+        )]
+        .into_iter()
+        .collect();
+
+        let page = build_with(&items, &rows, derived);
+        assert_eq!(page.synergy.panel.heading, "Bridges");
+        assert_eq!(page.synergy.panel.entries.len(), 1);
     }
 }

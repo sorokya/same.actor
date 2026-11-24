@@ -37,6 +37,7 @@ pub mod routes;
 pub mod session;
 pub mod state;
 pub mod store;
+pub mod synergy;
 pub mod tmdb;
 pub mod views;
 

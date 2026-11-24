@@ -48,6 +48,20 @@
 {% endif %}
 {% endmacro %}
 
+{# A poster cell whose artwork is a background image rather than an `<img>`.
+   A background that fails to load paints nothing, leaving the placeholder glyph underneath; an
+   `<img>` that 404s draws the browser's broken-image icon on top of it, which reads as a bug in
+   the page rather than a gap in the data. Used where the cell is small and the artwork is
+   decoration — the matrix's column headers. #}
+{% macro poster_bg(image) %}
+<span
+  class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2"
+  {% if !image.is_empty() %}style="background-image: url('{{ image }}'); background-size: cover; background-position: center"{% endif %}
+>
+  <span class="absolute inset-0 flex items-center justify-center text-dim/60" aria-hidden="true">{% call film_icon(45) %}{% endcall %}</span>
+</span>
+{% endmacro %}
+
 {# A poster cell that follows its container. #}
 {% macro poster_well(image) %}
 <span class="relative flex aspect-[2/3] w-full items-center justify-center overflow-hidden rounded-[3px] border border-line-soft bg-raise-2">
