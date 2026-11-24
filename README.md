@@ -170,6 +170,30 @@ Two things it has to get right, and did not at first: the search field's own cle
 without changing the content because the island had no `popstate` listener — the booster owns
 `popstate` for every page and the island re-mounts on its `sameactor:swapped` event.
 
+### The empty page
+
+A page with nothing selected is the site's most-visited state and its weakest: a search box asks
+a first-time visitor to remember one film, and then a second. It now opens with `Start here` —
+two **pairs**, each one click from a finished comparison, with the actor who connects them named
+underneath.
+
+The pairs are derived, not written down. `views/examples.rs` reads a stored discovery snapshot
+and looks for the two facts that make a good example:
+
+- for titles, an actor the list credits in two of its films — their two films, linked
+- for people, two actors the list credits in one shared title — those two, linked, with the film
+  that connects them
+
+That avoids the maintenance trap of a hand-written list: ids move, pairings stop making sense, and
+nothing tests them. A snapshot already knows who appears in what, because the synergy table needed
+the same fact. It costs one SQLite read and no upstream call, returns nothing when no refresh has
+run yet (the curated chips carry the page), and deduplicates: two actors in the same two films is
+a real case, and two identical cards side by side reads as a rendering bug.
+
+Below that sit the colour-coded search chips and a three-line "how it works" strip, and the whole
+block is centred in the viewport rather than pinned under the header, so a short page reads as a
+landing page instead of a form with a void beneath it.
+
 ### Classes and templates
 
 Templates are compiled into the binary, so a typo is a build error and not a 500. Classes live in
@@ -196,6 +220,7 @@ api-rs/
     og.rs          Open Graph card: SVG in, PNG out (resvg, vendored fonts)
     tmdb/          upstream client: URL construction, auth, cache
     routes/        pages (compare, discover, admin), search, findout, health, og
+    views/examples.rs  worked example pairs, derived from a stored list
     error.rs       one error type, one place that maps it to a response
     ratelimit.rs   per-IP fixed window
   templates/       askama: layouts, pages, macros — compiled in, so a typo is a build error

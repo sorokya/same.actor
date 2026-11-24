@@ -10,6 +10,7 @@
 pub mod admin;
 pub mod compare;
 pub mod discover;
+pub mod examples;
 pub mod not_found;
 
 use askama::Template;

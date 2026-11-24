@@ -140,6 +140,11 @@ async fn response(
             let words: Vec<String> = terms.into_iter().map(|term| term.term).collect();
             page = page.with_trending(crate::views::compare::trend_links(&words, mode));
         }
+
+        // Worked examples, for the page that has nothing selected. Derived from a stored
+        // snapshot, so this costs one SQLite read and no upstream call — and it degrades to
+        // the curated chips when no refresh has run yet.
+        page.pairs = crate::views::examples::for_mode(&state, mode).await;
     }
 
     if fragment_requested(&headers) {

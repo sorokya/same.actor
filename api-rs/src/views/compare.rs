@@ -11,6 +11,7 @@ use askama::Template;
 
 use crate::domain::{Kind, Matches, Mode, PersonMatch, SelectionMeta, TitleMatch};
 
+use super::examples::Example;
 use super::Head;
 
 /// The palette, mirrored from `src/lib/palette.ts`. A column is identifiable by colour, which
@@ -85,7 +86,10 @@ pub struct ComparePage {
     pub results: Results,
     /// What people have been searching for today. Empty until a term is searched three times.
     pub trending: Vec<TrendLink>,
-    /// Starting points for an empty page: things worth typing when nothing is selected.
+    /// Pairs worth clicking, for a page with nothing selected yet. Empty when no snapshot has
+    /// been refreshed, or when the list they come from has no pair in it.
+    pub pairs: Vec<Example>,
+    /// Starting points for a search, when a whole pair is too much to choose.
     pub examples: Vec<TrendLink>,
 }
 
@@ -368,6 +372,7 @@ impl ComparePage {
             state_json: picker_state(mode, selections),
             share_url,
             trending: Vec::new(),
+            pairs: Vec::new(),
             examples: examples_for(mode),
             results: Results {
                 selections: columns,

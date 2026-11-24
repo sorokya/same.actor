@@ -88,6 +88,77 @@ pub fn canonical(mode: Mode, picks: &[Selection]) -> String {
     format!("/{mode_segment}/{}", parts.join(","))
 }
 
+/// A title or person name reduced to the shape the client already uses.
+///
+/// `src/lib/url.ts` normalises with NFKD and strips combining marks; Rust has no such
+/// normalisation without a dependency, so the common accented Latin letters are mapped by hand.
+/// The two only have to agree well enough that a link does not look broken — the id in front of
+/// the slug is what the parser reads, and it is authoritative.
+fn slugify(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut dash = false;
+
+    for character in name.chars() {
+        let plain = match character {
+            'à' | 'á' | 'â' | 'ã' | 'ä' | 'å' | 'ā' => 'a',
+            'ç' | 'ć' | 'č' => 'c',
+            'è' | 'é' | 'ê' | 'ë' | 'ē' | 'ę' => 'e',
+            'ì' | 'í' | 'î' | 'ï' | 'ī' => 'i',
+            'ñ' | 'ń' => 'n',
+            'ò' | 'ó' | 'ô' | 'õ' | 'ö' | 'ø' | 'ō' => 'o',
+            'ù' | 'ú' | 'û' | 'ü' | 'ū' => 'u',
+            'ý' | 'ÿ' => 'y',
+            'ž' | 'ź' | 'ż' => 'z',
+            'š' | 'ś' => 's',
+            'ł' => 'l',
+            'ß' => 's',
+            other => other,
+        };
+
+        if let Some(letter) = plain
+            .to_lowercase()
+            .next()
+            .filter(char::is_ascii_alphanumeric)
+        {
+            if dash && !out.is_empty() {
+                out.push('-');
+            }
+            out.push(letter);
+            dash = false;
+        } else {
+            dash = true;
+        }
+    }
+
+    out.truncate(48);
+    out.trim_end_matches('-').to_owned()
+}
+
+/// The path a comparison of these picks lives at, with slugs.
+///
+/// Mirrors `toPath` in `src/lib/url.ts`: the kind is written only in title mode, where a pick can
+/// be a film or a show, and the id always comes before the slug so trimming the name still works.
+pub fn comparison(mode: Mode, picks: &[(Kind, u32, &str)]) -> String {
+    let segments: Vec<String> = picks
+        .iter()
+        .map(|(kind, id, name)| {
+            let slug = slugify(name);
+            let prefix = match mode {
+                Mode::Title => format!("{}-", kind.as_str()),
+                Mode::Person => String::new(),
+            };
+
+            if slug.is_empty() {
+                format!("{prefix}{id}")
+            } else {
+                format!("{prefix}{id}-{slug}")
+            }
+        })
+        .collect();
+
+    format!("/{}/{}", mode.as_str(), segments.join(","))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,13 +1,23 @@
 {% extends "layouts/base.html" %}
 {% import "macros/results.html" as results %}
 {% import "macros/cards.html" as cards %}
+{% import "macros/icons.html" as icons %}
 
 {% block content %}
 {# The mode's own hue, used by the rule under the heading and the example chips below. #}
-<main data-swap class="mx-auto w-full max-w-3xl flex-1 px-4 pt-8 pb-24" style="--tint: var(--color-tint-{{ mode }})">
+<main
+  data-swap
+  class="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 pt-8 {% if results.selections.is_empty() %}justify-center pb-14{% else %}pb-24{% endif %}"
+  style="--tint: var(--color-tint-{{ mode }})"
+>
   <span aria-hidden="true" class="block h-0.5 w-9 rounded-full" style="background: var(--tint)"></span>
+  {% if results.selections.is_empty() %}
+  <h1 class="mt-3 text-3xl tracking-tight text-paper">{{ heading }}</h1>
+  <p class="mt-2 max-w-xl text-sm leading-relaxed text-dim">{{ sub }}</p>
+  {% else %}
   <h1 class="mt-3 text-2xl tracking-tight text-paper">{{ heading }}</h1>
   <p class="mt-1 max-w-xl text-sm text-dim">{{ sub }}</p>
+  {% endif %}
 
   {# The picker is the one island on the site: typing, keyboard navigation and instant results
      are the parts that genuinely need a component. It replaces this markup when it mounts, so
@@ -35,12 +45,50 @@
 
   {# The island replaces the contents of this element after a selection changes. Without a
      script it is simply the results, correctly rendered by the server. #}
-  {# Starting points. A search box with no prompt is the emptiest thing on the site, and it asks
-     the reader to remember a title unaided; these are links, so they work before the island. #}
+  {# Worked examples: a pair already in the comparison, one click away. This is what the page is
+     for, shown before asking anybody to think of a film. The pair and the person connecting
+     them come out of a stored list, so the card cannot go stale. #}
+  {% if !pairs.is_empty() %}
+  <section class="mt-8" aria-labelledby="start-here">
+    <h2 id="start-here" class="label mb-2.5">Start here</h2>
+    <ul class="grid gap-2 sm:grid-cols-2">
+      {% for pair in pairs %}
+      <li>
+        <a
+          href="{{ pair.href }}"
+          class="group flex h-full items-start gap-3 rounded-lg border border-line bg-raise p-3 transition-colors hover:border-dim hover:bg-raise-2"
+        >
+          <span class="flex shrink-0 items-start gap-1.5">
+            {% call cards::art(pair.left.image, "h-16 w-11 rounded-[3px]", 16, false) %}{% endcall %}
+            {% call cards::art(pair.right.image, "h-16 w-11 rounded-[3px]", 16, false) %}{% endcall %}
+          </span>
+
+          <span class="min-w-0 py-0.5">
+            <span class="block text-sm leading-snug text-paper transition-colors group-hover:text-accent">
+              {{ pair.left.name }} <span class="text-dim">and</span> {{ pair.right.name }}
+            </span>
+            <span class="mt-2 flex items-center gap-1.5 text-xs text-dim">
+              {% if pair.connector_is_person %}
+              {% call cards::art(pair.connector.image, "h-5 w-5 rounded-full", 10, true) %}{% endcall %}
+              {% else %}
+              {% call cards::art(pair.connector.image, "h-6 w-4 rounded-[2px]", 10, false) %}{% endcall %}
+              {% endif %}
+              <span class="truncate">{{ pair.connector.name }} {{ pair.phrase }}</span>
+            </span>
+          </span>
+        </a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% endif %}
+
+  {# Starting points for a search. A search box with no prompt asks the reader to remember a title
+     unaided; these are links, so they work before the island. #}
   {% if results.selections.is_empty() %}
   {% if !examples.is_empty() %}
   <section class="mt-6" aria-labelledby="examples">
-    <h2 id="examples" class="label mb-2">Try one</h2>
+    <h2 id="examples" class="label mb-2">Or search for one</h2>
     <ul class="flex flex-wrap gap-1.5">
       {% for link in examples %}
       <li>
@@ -77,6 +125,35 @@
       </li>
       {% endfor %}
     </ul>
+  </section>
+  {% endif %}
+
+  {% if results.selections.is_empty() %}
+  <section class="mt-10 rounded-lg border border-line bg-raise/50 p-4" aria-labelledby="how">
+    <h2 id="how" class="label mb-3">How it works</h2>
+    <ol class="grid gap-3 sm:grid-cols-3">
+      <li class="flex gap-2.5">
+        <span class="mt-0.5 shrink-0" style="color: var(--color-tint-title)">{% call icons::film() %}{% endcall %}</span>
+        <span>
+          <span class="block text-xs text-paper">Pick two to five</span>
+          <span class="block text-[11px] leading-snug text-dim">The URL keeps the selection.</span>
+        </span>
+      </li>
+      <li class="flex gap-2.5">
+        <span class="mt-0.5 shrink-0" style="color: var(--color-tint-new)">{% call icons::pulse() %}{% endcall %}</span>
+        <span>
+          <span class="block text-xs text-paper">Credits are intersected</span>
+          <span class="block text-[11px] leading-snug text-dim">Actual cast lists, compared.</span>
+        </span>
+      </li>
+      <li class="flex gap-2.5">
+        <span class="mt-0.5 shrink-0" style="color: var(--color-tint-top)">{% call icons::person() %}{% endcall %}</span>
+        <span>
+          <span class="block text-xs text-paper">Everyone who appears twice</span>
+          <span class="block text-[11px] leading-snug text-dim">With the role in each one.</span>
+        </span>
+      </li>
+    </ol>
   </section>
   {% endif %}
 
