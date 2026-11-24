@@ -24,6 +24,7 @@ pub struct Choice {
 }
 
 /// One franchise's run of columns, for the matrix header.
+#[derive(Clone)]
 pub struct GroupView {
     pub name: String,
     pub colour: &'static str,
@@ -32,7 +33,9 @@ pub struct GroupView {
 }
 
 /// A title, as a column of the matrix.
+#[derive(Clone)]
 pub struct ColumnView {
+    pub id: u32,
     pub href: String,
     pub name: String,
     pub poster: String,
@@ -48,7 +51,9 @@ pub struct ColumnView {
 }
 
 /// An actor, as a row.
+#[derive(Clone)]
 pub struct RowView {
+    pub id: u32,
     pub href: String,
     pub name: String,
     pub image: String,
@@ -65,6 +70,7 @@ pub struct RowView {
 }
 
 /// A franchise the reader can switch off.
+#[derive(Clone)]
 pub struct ChipView {
     pub name: String,
     pub colour: &'static str,
@@ -74,6 +80,7 @@ pub struct ChipView {
     pub href: String,
 }
 
+#[derive(Clone)]
 pub struct PanelEntry {
     pub href: String,
     pub name: String,
@@ -83,6 +90,7 @@ pub struct PanelEntry {
 }
 
 /// The side panel: bridges by default, or whatever the URL pinned.
+#[derive(Clone)]
 pub struct PanelView {
     /// Whether the panel is worth drawing at all. Bridges with nothing in them is a box that
     /// says "no" — the matrix should take the space instead.
@@ -93,6 +101,13 @@ pub struct PanelView {
     pub related_heading: String,
     pub related: Vec<PanelEntry>,
     pub reset: String,
+}
+
+/// The synergy block on its own, for the island to swap in after a filter change.
+#[derive(Template)]
+#[template(path = "fragments/synergy.html")]
+pub struct SynergyFragment {
+    pub synergy: SynergyView,
 }
 
 /// What the URL asked to look at.
@@ -111,6 +126,7 @@ pub struct Derived {
     pub focus: Focus,
 }
 
+#[derive(Clone)]
 pub struct SynergyView {
     pub groups: Vec<GroupView>,
     pub columns: Vec<ColumnView>,
@@ -227,20 +243,30 @@ fn synergy_view(
     derived: &Derived,
     base: &str,
 ) -> SynergyView {
-    let groups: Vec<GroupView> = matrix
-        .groups
-        .iter()
-        .map(|group| GroupView {
-            name: group.name.clone(),
-            colour: group.colour,
-            span: group.span,
-        })
-        .collect();
+    // A header row that says "Other" over every column is answering a question nobody asked:
+    // when nothing belongs to a curated franchise there is no grouping to announce, so the row
+    // is dropped entirely.
+    let any_franchise = matrix.groups.iter().any(|group| !group.slug.is_empty());
+
+    let groups: Vec<GroupView> = if any_franchise {
+        matrix
+            .groups
+            .iter()
+            .map(|group| GroupView {
+                name: group.name.clone(),
+                colour: group.colour,
+                span: group.span,
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let columns: Vec<ColumnView> = matrix
         .columns
         .iter()
         .map(|column| ColumnView {
+            id: column.id,
             href: title_href(column.kind, column.id),
             name: column.name.clone(),
             poster: column.poster.clone().unwrap_or_default(),
@@ -264,15 +290,18 @@ fn synergy_view(
                 .map(|column| matrix.groups[column.group].colour)
                 .unwrap_or(synergy::UNGROUPED);
 
+            // Space separated: CSS `~=` and `classList`-free matching want word boundaries, and
+            // the island splits on whitespace.
             let data = actor
                 .titles
                 .iter()
                 .filter_map(|index| matrix.columns.get(*index))
                 .map(|column| column.id.to_string())
                 .collect::<Vec<_>>()
-                .join(",");
+                .join(" ");
 
             RowView {
+                id: actor.person_id,
                 href: format!("https://www.themoviedb.org/person/{}", actor.person_id),
                 name: actor.name.clone(),
                 image: actor.image.clone().unwrap_or_default(),
@@ -288,7 +317,7 @@ fn synergy_view(
         .collect();
 
     let chips: Vec<ChipView> = matrix
-        .groups
+        .franchises
         .iter()
         .filter(|group| !group.slug.is_empty())
         .map(|group| {
@@ -755,7 +784,10 @@ mod tests {
             "the run spans first to last"
         );
         assert!(drawn.has_run);
-        assert_eq!(drawn.data, "1,3", "the island reads the titles off the row");
+        assert_eq!(
+            drawn.data, "1 3",
+            "space separated: the island splits on whitespace"
+        );
     }
 
     #[test]

@@ -37,6 +37,9 @@
     {% if !head.boost.is_empty() %}
     <script type="module" src="{{ head.boost }}" defer></script>
     {% endif %}
+    {% if !head.synergy.is_empty() %}
+    <script type="module" src="{{ head.synergy }}" defer></script>
+    {% endif %}
     {% if !head.island.is_empty() %}
     <script type="module" src="{{ head.island }}" defer></script>
     {% endif %}

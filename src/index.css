@@ -91,6 +91,36 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* The matrix, when the island is answering a hover or a focus.
+     Dimming is the operation, not highlighting: with twenty columns the eye cannot find a run
+     until everything else recedes. Only the island sets these classes, so with no script the
+     matrix renders exactly as the server drew it. */
+  .sync-row,
+  .sync-dot,
+  .sync-col {
+    transition:
+      opacity 120ms ease-out,
+      background-color 120ms ease-out;
+  }
+
+  .sync-row.off {
+    opacity: 0.3;
+  }
+
+  .sync-dot.off {
+    opacity: 0.15;
+  }
+
+  .sync-row.on {
+    background-color: color-mix(in oklab, var(--color-raise) 60%, transparent);
+  }
+
+  /* The poster well inside a lit column: `> span` is the one the template renders. */
+  .sync-col.on > span {
+    outline: 1px solid color-mix(in oklab, var(--color-accent) 55%, transparent);
+    outline-offset: 1px;
+  }
+
   /* A hairline that fades out, so section rules don't hit the viewport edge flat. */
   .rule {
     height: 1px;

@@ -17,6 +17,8 @@ use serde::Deserialize;
 const ISLAND: &str = "src/island.tsx";
 /// The link booster: loaded by every public page, absent from the dashboard.
 const BOOST: &str = "src/boost.ts";
+/// The synergy island: the browse pages only.
+const SYNERGY: &str = "src/synergy.ts";
 
 #[derive(Debug, Clone, Default)]
 pub struct Assets {
@@ -26,6 +28,8 @@ pub struct Assets {
     pub island: Option<String>,
     /// Intercepts link clicks and swaps pages in, on the pages that opt in.
     pub boost: Option<String>,
+    /// Hover highlighting, pinning and filter swaps on the browse pages.
+    pub synergy: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -60,6 +64,7 @@ impl Assets {
                     css = ?assets.css,
                     island = ?assets.island,
                     boost = ?assets.boost,
+                    synergy = ?assets.synergy,
                     "loaded asset manifest"
                 );
                 assets
@@ -98,6 +103,7 @@ impl Assets {
             css,
             island: entry(ISLAND),
             boost: entry(BOOST),
+            synergy: entry(SYNERGY),
         })
     }
 }
@@ -122,6 +128,11 @@ mod tests {
         "file": "assets/boost-abc789.js",
         "src": "src/boost.ts",
         "isEntry": true
+      },
+      "src/synergy.ts": {
+        "file": "assets/synergy-fff111.js",
+        "src": "src/synergy.ts",
+        "isEntry": true
       }
     }"#;
 
@@ -131,6 +142,7 @@ mod tests {
         assert_eq!(assets.css.as_deref(), Some("/assets/index-Ccu-D8U5.css"));
         assert_eq!(assets.island.as_deref(), Some("/assets/island-def456.js"));
         assert_eq!(assets.boost.as_deref(), Some("/assets/boost-abc789.js"));
+        assert_eq!(assets.synergy.as_deref(), Some("/assets/synergy-fff111.js"));
     }
 
     /// A CSS-only entry carries its own path rather than a `css` list.

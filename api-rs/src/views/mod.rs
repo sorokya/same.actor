@@ -46,6 +46,8 @@ pub struct Head {
     pub island: String,
     /// The link booster. Empty on the dashboard, which stays free of scripts.
     pub boost: String,
+    /// The synergy island. Only the browse pages have a matrix to enhance.
+    pub synergy: String,
     pub nav: &'static str,
     pub noindex: bool,
     /// Which admin tab is current. Empty on every public page.
@@ -66,6 +68,7 @@ impl Head {
     ) -> Self {
         Self {
             wide: false,
+            synergy: String::new(),
             title: title.into(),
             description: description.into(),
             canonical: String::new(),
@@ -93,6 +96,12 @@ impl Head {
 
     pub fn with_island(mut self, island: &str) -> Self {
         self.island = island.to_owned();
+        self
+    }
+
+    /// Opt into the matrix island: hover highlighting, pinning and filter swaps.
+    pub fn with_synergy(mut self, script: &str) -> Self {
+        self.synergy = script.to_owned();
         self
     }
 

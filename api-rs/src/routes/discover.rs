@@ -214,6 +214,7 @@ pub async fn show(
 pub async fn page(
     State(state): State<AppState>,
     Path(section_key): Path<String>,
+    headers: axum::http::HeaderMap,
     AppQuery(query): AppQuery<PageQuery>,
 ) -> Result<Response, AppError> {
     let loaded = match load(
@@ -247,6 +248,9 @@ pub async fn page(
     if let Some(boost) = state.assets.boost.as_deref() {
         head = head.with_boost(boost);
     }
+    if let Some(synergy) = state.assets.synergy.as_deref() {
+        head = head.with_synergy(synergy);
+    }
 
     head = head.with_canonical(format!(
         "{}{}",
@@ -279,7 +283,32 @@ pub async fn page(
         &derived,
     );
 
+    // The island asks for this region alone when a filter changes: the page is bigger than the
+    // change, and a swap keeps the scroll position and the focus where they were.
+    if fragment_requested(headers, "synergy") {
+        let fragment = crate::views::discover::SynergyFragment {
+            synergy: view.synergy.clone(),
+        };
+
+        let mut response = render(&fragment)?.into_response();
+        response.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static("no-store"),
+        );
+
+        return Ok(response);
+    }
+
     Ok(render(&view)?.into_response())
+}
+
+/// Whether the caller asked for one region instead of the page.
+fn fragment_requested(headers: axum::http::HeaderMap, region: &str) -> bool {
+    headers
+        .get(crate::routes::compare::FRAGMENT)
+        .and_then(|value| value.to_str().ok())
+        .map(|value| value.eq_ignore_ascii_case(region))
+        .unwrap_or(false)
 }
 
 /// The matrix filters, read out of the query string.

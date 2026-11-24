@@ -105,7 +105,11 @@ pub struct Actor {
 
 #[derive(Debug, Clone, Default)]
 pub struct Matrix {
+    /// The groups the columns are drawn in, after filtering.
     pub groups: Vec<Group>,
+    /// Every franchise represented in this list, hidden ones included. The filter chips are
+    /// built from this: a chip that disappears when it is switched off leaves no way back.
+    pub franchises: Vec<Group>,
     pub columns: Vec<Column>,
     pub actors: Vec<Actor>,
     /// How many actors the cap left out.
@@ -136,6 +140,25 @@ pub fn build(
     filter: &Filter,
 ) -> Matrix {
     let kind_key = kind.as_str();
+
+    // Every franchise the list touches, before any filter is applied.
+    let mut franchises: Vec<Group> = Vec::new();
+    for item in items {
+        let Some(placement) = placements.get(&(kind_key.to_owned(), item.id)) else {
+            continue;
+        };
+
+        if franchises.iter().any(|group| group.slug == placement.slug) {
+            continue;
+        }
+
+        franchises.push(Group {
+            name: placement.name.clone(),
+            slug: placement.slug.clone(),
+            colour: colour(placement.sort_order),
+            span: 0,
+        });
+    }
 
     // Titles that survive the franchise filter, keeping the list's ranking as the tie-break.
     let mut visible: Vec<(usize, Option<&Placement>)> = Vec::new();
@@ -278,6 +301,7 @@ pub fn build(
 
     Matrix {
         groups,
+        franchises,
         columns,
         actors,
         hidden_actors,
@@ -474,6 +498,45 @@ mod tests {
         assert_eq!(matrix.columns.len(), 1, "only the ungrouped title is left");
         assert_eq!(matrix.actors.len(), 0, "nobody appears twice any more");
         assert_eq!(matrix.groups.len(), 1);
+    }
+
+    /// Switching a chip off must leave the chip: a control that vanishes cannot be undone.
+    #[test]
+    fn a_hidden_franchise_is_still_listed_as_a_chip() {
+        let items = vec![
+            item(1, "Iron Man"),
+            item(2, "The Avengers"),
+            item(3, "Pulp Fiction"),
+        ];
+        let placements: HashMap<_, _> = [
+            placement(1, "marvel", "Marvel", 0),
+            placement(2, "marvel", "Marvel", 0),
+        ]
+        .into_iter()
+        .collect();
+
+        let filter = Filter {
+            hide: ["marvel".to_owned()].into_iter().collect(),
+            hide_cameos: false,
+        };
+
+        let matrix = build(
+            Kind::Movie,
+            &items,
+            &[],
+            &placements,
+            &HashMap::new(),
+            &filter,
+        );
+
+        assert_eq!(matrix.columns.len(), 1, "the Marvel columns are gone");
+        assert!(matrix.groups.iter().all(|group| group.slug != "marvel"));
+        assert_eq!(
+            matrix.franchises.len(),
+            1,
+            "but the franchise is still offered"
+        );
+        assert_eq!(matrix.franchises[0].slug, "marvel");
     }
 
     #[test]

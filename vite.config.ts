@@ -24,6 +24,7 @@ export default defineConfig({
       input: {
         island: 'src/island.tsx',
         boost: 'src/boost.ts',
+        synergy: 'src/synergy.ts',
       },
     },
     // The Rust side reads this to learn the hashed asset names: a template cannot hard-code

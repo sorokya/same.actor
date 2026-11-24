@@ -1,0 +1,178 @@
+{% import "macros/cards.html" as cards %}
+
+{# The synergy block on its own, for the island to swap in after a filter change.
+
+   It is one template for both the page and the fragment: the markup for a matrix exists in one
+   place, so a filtered matrix cannot drift from a freshly loaded one.
+
+   The root carries the data the island needs and nothing it does not: `data-synergy` marks it,
+   and every column and row already knows its own title ids. #}
+{# The franchise filter and the cameo switch.
+
+   Both are links, so the page works before any script arrives — the island intercepts them and
+   swaps this whole region, which is why they live inside the fragment: a filter change is a
+   change to the matrix, and the two cannot be allowed to disagree. #}
+<div id="synergy" data-synergy>
+{% if !synergy.chips.is_empty() || synergy.cameo_hidden %}
+<div class="mt-4 flex flex-wrap items-center gap-1.5">
+  {% for chip in synergy.chips %}
+  <a
+    href="{{ chip.href }}"
+    data-chip
+    aria-pressed="{% if chip.shown %}true{% else %}false{% endif %}"
+    class="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] transition-colors{% if chip.shown %}{% else %} opacity-45 hover:opacity-80{% endif %}"
+    style="--tint: {{ chip.colour }}; border-color: color-mix(in oklab, {{ chip.colour }} 40%, var(--color-line)); color: {{ chip.colour }}"
+    title="{% if chip.shown %}Hide{% else %}Show{% endif %} {{ chip.name }}"
+  >
+    <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: {{ chip.colour }}"></span>
+    {{ chip.name }}
+  </a>
+  {% endfor %}
+
+  <a
+    href="{{ synergy.cameo_href }}"
+    data-chip
+    aria-pressed="{% if synergy.cameo_hidden %}true{% else %}false{% endif %}"
+    class="inline-flex items-center gap-1.5 rounded-full border border-line px-2.5 py-1 text-[11px] text-dim transition-colors hover:border-dim hover:text-paper{% if synergy.cameo_hidden %} text-paper{% endif %}"
+    title="Drop appearances billed below the cutoff"
+  >
+    Hide cameos{% if synergy.cameo_hidden %} <span class="text-accent">on</span>{% endif %}
+  </a>
+</div>
+{% endif %}
+
+<section class="mt-6" aria-labelledby="matrix">
+    <h2 id="matrix" class="label mb-3 flex items-center gap-2">
+      <span aria-hidden="true" class="h-1.5 w-1.5 rounded-full" style="background: var(--tint)"></span>
+      Cast matrix
+    </h2>
+
+    {% if !synergy.empty.is_empty() %}
+    <p class="rounded-md border border-line bg-raise px-3 py-3 text-sm text-dim">
+      {{ synergy.empty }}
+      <a href="{{ synergy.reset }}" class="text-accent hover:underline">Reset the filters</a>
+    </p>
+    {% else %}
+    <div class="grid gap-5{% if synergy.panel.show %} xl:grid-cols-[fit-content(44rem)_16rem] xl:justify-start{% endif %}">
+      {# Wide by nature: twenty titles at 40px a column. It scrolls inside its own box rather than
+         making the page scroll, which would take the header with it. #}
+      <div class="overflow-x-auto">
+        <div class="inline-block align-top">
+          {% if !synergy.groups.is_empty() %}
+          <div
+            class="grid items-end"
+            style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+          >
+            <span></span>
+            {% for group in synergy.groups %}
+            <span
+              class="truncate px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.1em]"
+              style="grid-column: span {{ group.span }}; color: {{ group.colour }}"
+              title="{{ group.name }}"
+            >{{ group.name }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <div
+            class="grid items-end"
+            style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+          >
+            <span></span>
+            {% for column in synergy.columns %}
+            <a
+              href="{{ column.href }}"
+              target="_blank"
+              rel="noreferrer noopener"
+              style="grid-column: {{ column.position }}"
+              data-col="{{ column.id }}"
+              class="sync-col block px-0.5{% if column.pinned %} ring-1 ring-accent{% endif %}"
+              title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
+            >
+              {% call cards::poster_bg(column.poster) %}{% endcall %}
+            </a>
+            {% endfor %}
+          </div>
+
+          {% for row in synergy.rows %}
+          <div
+            class="sync-row grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"
+            style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3.5rem)"
+            data-titles="{{ row.data }}"
+            data-actor="{{ row.id }}"
+          >
+            <a
+              href="{{ row.href }}"
+              target="_blank"
+              rel="noreferrer noopener"
+              class="flex min-w-0 items-center gap-2 pr-2 text-[11px] leading-snug {% if row.pinned %}text-paper{% else %}text-dim hover:text-paper{% endif %}"
+            >
+              <span class="shrink-0" aria-hidden="true">{% call cards::art(row.image, "h-5 w-5 rounded-full", 10, true) %}{% endcall %}</span>
+              <span class="truncate">{{ row.name }}</span>
+            </a>
+
+            {# The run: a line from this actor's first title to their last, which is what makes a
+               cluster read as a staircase rather than as scattered dots. #}
+            {% if row.has_run %}
+            <span
+              aria-hidden="true"
+              class="h-px self-center"
+              style="grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
+            ></span>
+            {% endif %}
+
+            {% for at in row.at %}
+            <span class="flex justify-center" style="grid-column: {{ at }}">
+              <span class="sync-dot h-2.5 w-2.5 rounded-full ring-2 ring-ink/40" style="background: {{ row.colour }}"></span>
+            </span>
+            {% endfor %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      {% if synergy.panel.show %}
+      <aside class="self-start rounded-md border border-line bg-raise/40 p-3" aria-labelledby="panel">
+        <h2 id="panel" class="label mb-1 truncate">{{ synergy.panel.heading }}</h2>
+        <p class="mb-2.5 text-[11px] leading-snug text-dim">{{ synergy.panel.note }}</p>
+
+        {% if !synergy.panel.entries.is_empty() %}
+        <ul class="space-y-1.5">
+          {% for entry in synergy.panel.entries %}
+          <li class="flex items-center gap-2">
+            <span aria-hidden="true" class="h-1.5 w-1.5 shrink-0 rounded-full" style="background: {{ entry.colour }}"></span>
+            <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+            <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ entry.detail }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% else %}
+        <p class="text-[11px] text-dim">Nothing crosses a franchise in this list.</p>
+        {% endif %}
+
+        {% if !synergy.panel.related.is_empty() %}
+        <h3 class="label mt-4 mb-1.5">{{ synergy.panel.related_heading }}</h3>
+        <ul class="space-y-1.5">
+          {% for entry in synergy.panel.related %}
+          <li class="flex items-center gap-2">
+            <a href="{{ entry.href }}" target="_blank" rel="noreferrer noopener" class="min-w-0 flex-1 truncate text-[11px] text-paper hover:text-accent">{{ entry.name }}</a>
+            <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ entry.detail }}</span>
+          </li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </aside>
+      {% endif %}
+    </div>
+
+    <p class="mt-3 text-[11px] text-dim">
+      A dot is one credit; the line is that actor's run from their first title here to their last.
+      Poster columns are grouped by franchise, in the order the franchises were curated.
+    </p>
+
+    {% if synergy.hidden_actors > 0 %}
+    <p class="label mt-3">{{ synergy.hidden_actors }} more actors not shown</p>
+    {% endif %}
+    {% endif %}
+  </section>
+</div>
