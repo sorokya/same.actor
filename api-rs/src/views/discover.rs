@@ -740,8 +740,16 @@ mod tests {
     #[test]
     fn a_column_links_to_tmdb_with_the_lists_own_kind() {
         let page = build(
-            &[item(603, "The Matrix", Some(1999), None)],
-            &[row(6384, "Keanu Reeves", &[(603, "The Matrix")], 2)],
+            &[
+                item(603, "The Matrix", Some(1999), None),
+                item(604, "Reloaded", None, None),
+            ],
+            &[row(
+                6384,
+                "Keanu Reeves",
+                &[(603, "The Matrix"), (604, "Reloaded")],
+                2,
+            )],
         );
 
         assert_eq!(
@@ -757,7 +765,15 @@ mod tests {
         let mut dated = item(603, "The Matrix", Some(1999), None);
         dated.date = Some("2026-12-01".to_owned());
 
-        let page = build(&[dated], &[]);
+        let page = build(
+            &[dated, item(604, "Reloaded", None, None)],
+            &[row(
+                6384,
+                "Keanu",
+                &[(603, "The Matrix"), (604, "Reloaded")],
+                2,
+            )],
+        );
         assert_eq!(page.synergy.columns[0].meta, "1 Dec 2026");
     }
 
@@ -775,12 +791,12 @@ mod tests {
 
         assert_eq!(
             drawn.at,
-            vec![2, 4],
-            "name column is first, then one per title"
+            vec![2, 3],
+            "the unused middle title is not a column, so the grid closes up"
         );
         assert_eq!(
             (drawn.run_start, drawn.run_end),
-            (2, 5),
+            (2, 4),
             "the run spans first to last"
         );
         assert!(drawn.has_run);
@@ -867,7 +883,11 @@ mod tests {
             !page.synergy.empty.is_empty(),
             "an empty state, not a blank grid"
         );
-        assert_eq!(page.synergy.columns.len(), 1);
+        assert_eq!(
+            page.synergy.columns.len(),
+            0,
+            "the remaining title has no repeat cast, so it is not a column either"
+        );
     }
 
     /// A pinned actor is the panel's subject, and the row says so for the reader and the island.

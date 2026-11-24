@@ -299,10 +299,71 @@ pub fn build(
     let hidden_actors = actors.len().saturating_sub(MAX_ROWS);
     actors.truncate(MAX_ROWS);
 
+    // A title nobody appears in twice is a column with nothing to say: it widens the matrix and
+    // adds no story. The list can afford to be a hundred long because these are dropped here,
+    // where the answer is known, rather than guessed at fetch time.
+    let used: HashSet<usize> = actors
+        .iter()
+        .flat_map(|actor| actor.titles.iter().copied())
+        .collect();
+
+    if used.len() == columns.len() {
+        return Matrix {
+            groups,
+            franchises,
+            columns,
+            actors,
+            hidden_actors,
+        };
+    }
+
+    let mut kept: Vec<usize> = (0..columns.len())
+        .filter(|index| used.contains(index))
+        .collect();
+    kept.sort_unstable();
+
+    // Old column index → new column index, so the dots and the runs move with their titles.
+    let moved: HashMap<usize, usize> = kept
+        .iter()
+        .enumerate()
+        .map(|(new, old)| (*old, new))
+        .collect();
+
+    let mut compacted_groups: Vec<Group> = Vec::new();
+    let mut group_moved: HashMap<usize, usize> = HashMap::new();
+    let mut compacted_columns: Vec<Column> = Vec::with_capacity(kept.len());
+
+    for (new_index, old_index) in kept.iter().enumerate() {
+        let column = &columns[*old_index];
+
+        // Columns keep their group order, so a group's new id is just the order it appears in.
+        let group = *group_moved.entry(column.group).or_insert_with(|| {
+            let mut group = groups[column.group].clone();
+            group.span = 0;
+            compacted_groups.push(group);
+            compacted_groups.len() - 1
+        });
+
+        compacted_groups[group].span += 1;
+        compacted_columns.push(Column {
+            group,
+            position: new_index + 2,
+            ..column.clone()
+        });
+    }
+
+    for actor in &mut actors {
+        actor.titles = actor
+            .titles
+            .iter()
+            .filter_map(|index| moved.get(index).copied())
+            .collect();
+    }
+
     Matrix {
-        groups,
+        groups: compacted_groups,
         franchises,
-        columns,
+        columns: compacted_columns,
         actors,
         hidden_actors,
     }
@@ -495,9 +556,12 @@ mod tests {
             &filter,
         );
 
-        assert_eq!(matrix.columns.len(), 1, "only the ungrouped title is left");
         assert_eq!(matrix.actors.len(), 0, "nobody appears twice any more");
-        assert_eq!(matrix.groups.len(), 1);
+        assert_eq!(
+            matrix.columns.len(),
+            0,
+            "and a column with no repeat cast goes with them"
+        );
     }
 
     /// Switching a chip off must leave the chip: a control that vanishes cannot be undone.
@@ -529,8 +593,8 @@ mod tests {
             &filter,
         );
 
-        assert_eq!(matrix.columns.len(), 1, "the Marvel columns are gone");
         assert!(matrix.groups.iter().all(|group| group.slug != "marvel"));
+        assert_eq!(matrix.columns.len(), 0, "what is left has nothing to show");
         assert_eq!(
             matrix.franchises.len(),
             1,
@@ -677,6 +741,33 @@ mod tests {
         assert_eq!(colour(0), PALETTE[0]);
         assert_eq!(colour(8), PALETTE[0]);
         assert_eq!(colour(-3), PALETTE[5]);
+    }
+
+    /// A title nobody appears in twice is dropped: the list can be long precisely because the
+    /// matrix is not.
+    #[test]
+    fn a_title_with_no_repeat_cast_is_not_a_column() {
+        let items = vec![
+            item(1, "Shared"),
+            item(2, "Shared too"),
+            item(3, "Nobody twice"),
+        ];
+        let rows = vec![row(10, "Someone", &[(1, None), (2, None)])];
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        let names: Vec<&str> = matrix.columns.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["Shared", "Shared too"],
+            "the third title has no story here"
+        );
+        assert_eq!(
+            matrix.actors[0].titles,
+            vec![0, 1],
+            "and the dots moved with their titles"
+        );
+        assert!(matrix.columns.iter().all(|c| c.position >= 2));
     }
 
     #[test]

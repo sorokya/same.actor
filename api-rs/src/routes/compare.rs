@@ -115,17 +115,7 @@ async fn response(
 
     let mut head = head_for(&state, mode, &picks, &selections, &matches, &share_url);
 
-    // Every comparison page carries the picker, including the empty one — that is the page you
-    // pick from. The browse pages carry no script at all.
-    if let Some(css) = state.assets.css.as_deref() {
-        head = head.with_css(css);
-    }
-    if let Some(island) = state.assets.island.as_deref() {
-        head = head.with_island(island);
-    }
-    if let Some(boost) = state.assets.boost.as_deref() {
-        head = head.with_boost(boost);
-    }
+    head = head.with_scripts(&state.assets);
 
     let mut page = ComparePage::new(head, mode, &selections, &matches, views, share_url);
 

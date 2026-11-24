@@ -83,6 +83,28 @@ impl Head {
         }
     }
 
+    /// Everything a public page loads: stylesheet, the two islands and the link booster.
+    ///
+    /// All of them, on every public page, because a boosted navigation does not re-run scripts:
+    /// arriving at a comparison page from a browse page used to leave the picker unmounted, with
+    /// no search box and no buttons, until a full reload. Each script no-ops when its markup is
+    /// absent, so the cost is bytes, and they are small and cached.
+    pub fn with_scripts(mut self, assets: &crate::assets::Assets) -> Self {
+        if let Some(css) = assets.css.as_deref() {
+            self = self.with_css(css);
+        }
+        if let Some(boost) = assets.boost.as_deref() {
+            self = self.with_boost(boost);
+        }
+        if let Some(island) = assets.island.as_deref() {
+            self = self.with_island(island);
+        }
+        if let Some(synergy) = assets.synergy.as_deref() {
+            self = self.with_synergy(synergy);
+        }
+        self
+    }
+
     /// Ask for the wide shell, header included.
     pub fn wide(mut self) -> Self {
         self.wide = true;

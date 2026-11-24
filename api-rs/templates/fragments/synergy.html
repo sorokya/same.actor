@@ -117,12 +117,12 @@
             <span
               aria-hidden="true"
               class="h-px self-center"
-              style="grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
+              style="grid-row: 1; grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
             ></span>
             {% endif %}
 
             {% for at in row.at %}
-            <span class="flex justify-center" style="grid-column: {{ at }}">
+            <span class="flex justify-center" style="grid-row: 1; grid-column: {{ at }}">
               <span class="sync-dot h-2.5 w-2.5 rounded-full ring-2 ring-ink/40" style="background: {{ row.colour }}"></span>
             </span>
             {% endfor %}

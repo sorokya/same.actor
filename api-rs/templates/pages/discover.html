@@ -41,7 +41,9 @@
   </div>
 
   <p class="label mt-4">
-    {{ item_count }} titles · refreshed
+    {# The list is longer than the matrix: a hundred titles are read so that the twenty with a
+       shared cast can be found. Saying both numbers is what makes that honest. #}
+    {% if synergy.columns.len() == item_count %}{{ item_count }} titles{% else %}{{ synergy.columns.len() }} of {{ item_count }} titles{% endif %} · refreshed
     <span title="{{ refreshed_absolute }}">{{ refreshed_relative }}</span>
   </p>
 

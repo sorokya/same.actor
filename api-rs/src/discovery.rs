@@ -161,6 +161,10 @@ pub struct Source {
     pub params: &'static [(&'static str, &'static str)],
     /// Whether the endpoint wants a `region` (the ones keyed on release dates do).
     pub regional: bool,
+    /// TMDB pages of twenty titles to read. Five is a hundred: enough that two titles out of a
+    /// list usually share a face or two, which is the entire point of the matrix. One page was
+    /// twenty, and twenty mostly shares nothing.
+    pub pages: u8,
 }
 
 /// One list: a section, a kind, and what the section means for that kind.
@@ -191,6 +195,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "discover/movie",
             params: &[("sort_by", "vote_count.desc"), ("vote_count.gte", "5000")],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -203,6 +208,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "trending/movie/day",
             params: &[],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -215,6 +221,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "discover/tv",
             params: &[("sort_by", "vote_count.desc"), ("vote_count.gte", "2000")],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -227,6 +234,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "trending/tv/day",
             params: &[],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -239,6 +247,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "movie/now_playing",
             params: &[],
             regional: true,
+            pages: 5,
         },
     },
     Variant {
@@ -258,6 +267,7 @@ pub const VARIANTS: &[Variant] = &[
                 ("vote_count.gte", "10"),
             ],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -270,6 +280,7 @@ pub const VARIANTS: &[Variant] = &[
             path: "tv/on_the_air",
             params: &[],
             regional: false,
+            pages: 5,
         },
     },
     Variant {
@@ -289,6 +300,8 @@ pub const VARIANTS: &[Variant] = &[
                 ("primary_release_date.lte", "{in:120}"),
             ],
             regional: false,
+            // Three pages: the pool of "not out yet, and soon" is smaller than a ranked list.
+            pages: 3,
         },
     },
     Variant {
@@ -307,6 +320,7 @@ pub const VARIANTS: &[Variant] = &[
                 ("first_air_date.lte", "{in:120}"),
             ],
             regional: false,
+            pages: 3,
         },
     },
 ];
@@ -390,6 +404,12 @@ pub struct SynergyRow {
     #[serde(default)]
     pub titles: Vec<TitleRef>,
 }
+
+/// How many title-detail calls are in flight at once during a refresh.
+///
+/// TMDB tolerates roughly fifty requests a second; twenty concurrent is comfortably inside that
+/// and still finishes a hundred-title list in a few seconds.
+const CREDITS_CONCURRENCY: usize = 20;
 
 /// Keep the synergy table to something a person can scan. The tail is people in exactly two
 /// titles, which at twenty titles is a long list and not a discovery.
@@ -552,7 +572,9 @@ pub async fn refresh_one(
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
 
-    let raw = tmdb.list(variant.source.path, &params, region).await?;
+    let raw = tmdb
+        .list(variant.source.path, &params, region, variant.source.pages)
+        .await?;
 
     if raw.is_empty() {
         return Err(AppError::Upstream(format!(
@@ -572,38 +594,44 @@ pub async fn refresh_one(
             .collect()
     };
 
-    // Facts for every title, concurrently: the cast the table is built from, plus the
+    // Facts for every title, in bounded batches: the cast the table is built from, plus the
     // collection, directors and keywords the admin's suggestions are made of. One call per
     // title, the same call a comparison of that title makes, so they share a cache entry.
-    let mut tasks = JoinSet::new();
-    for entry in &raw {
-        let tmdb = Arc::clone(tmdb);
-        let kind = variant.kind;
-        let id = entry.id;
-
-        tasks.spawn(async move {
-            // A zero id is not a title; `?` inside the task returns None, which the collector
-            // below treats as "no facts for this one".
-            let selection = Selection {
-                id: NonZeroU32::new(id)?,
-                kind,
-            };
-
-            match tmdb.title_facts(selection).await {
-                Ok(facts) => Some((id, facts)),
-                Err(error) => {
-                    // One title without facts is a gap in the table, not a failed list.
-                    tracing::debug!(%id, %error, "no facts for a discovery title");
-                    None
-                }
-            }
-        });
-    }
-
+    //
+    // A hundred titles is a hundred upstream calls. They used to be twenty and all at once;
+    // twenty at a time is what TMDB tolerates, so that is the batch.
     let mut facts: HashMap<u32, crate::tmdb::TitleFacts> = HashMap::new();
-    while let Some(joined) = tasks.join_next().await {
-        if let Ok(Some((id, found))) = joined {
-            facts.insert(id, found);
+
+    for batch in raw.chunks(CREDITS_CONCURRENCY) {
+        let mut tasks = JoinSet::new();
+        for entry in batch {
+            let tmdb = Arc::clone(tmdb);
+            let kind = variant.kind;
+            let id = entry.id;
+
+            tasks.spawn(async move {
+                // A zero id is not a title; `?` inside the task returns None, which the collector
+                // below treats as "no facts for this one".
+                let selection = Selection {
+                    id: NonZeroU32::new(id)?,
+                    kind,
+                };
+
+                match tmdb.title_facts(selection).await {
+                    Ok(facts) => Some((id, facts)),
+                    Err(error) => {
+                        // One title without facts is a gap in the table, not a failed list.
+                        tracing::debug!(%id, %error, "no facts for a discovery title");
+                        None
+                    }
+                }
+            });
+        }
+
+        while let Some(joined) = tasks.join_next().await {
+            if let Ok(Some((id, found))) = joined {
+                facts.insert(id, found);
+            }
         }
     }
 

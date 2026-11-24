@@ -19,6 +19,9 @@
 /** The region this island owns and the header the server answers it with. */
 const FRAGMENT = 'synergy';
 
+/** Announced by the link booster after it swaps a page in. */
+const SWAPPED = 'sameactor:swapped';
+
 interface Matrix {
   readonly root: HTMLElement;
   readonly rows: HTMLElement[];
@@ -46,7 +49,7 @@ function titles(row: HTMLElement): string[] {
 
 /** Drop every highlight. Called on leave, on blur, and before applying a new one. */
 function clear(matrix: Matrix): void {
-  for (const row of matrix.rows) row.classList.remove('off');
+  for (const row of matrix.rows) row.classList.remove('off', 'on');
   for (const dot of matrix.dots) dot.classList.remove('off');
   for (const column of matrix.columns) column.classList.remove('on');
 }
@@ -212,11 +215,10 @@ document.addEventListener('click', (event) => {
 });
 
 /**
- * The boost script swaps whole pages on Back and Forward. When it does, the matrix underneath is
- * a new element, and this island's cached references would point at dead nodes.
+ * Any page swap replaces the matrix, and cached references to it would point at dead nodes: the
+ * delegation below asks `current`, which is rebuilt here. Back and forward count too.
  */
-window.addEventListener('popstate', () => {
-  window.setTimeout(mount, 100);
-});
+document.addEventListener(SWAPPED, () => window.setTimeout(mount, 0));
+window.addEventListener('popstate', () => window.setTimeout(mount, 100));
 
 mount();

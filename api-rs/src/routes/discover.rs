@@ -242,15 +242,7 @@ pub async fn page(
     // the page, which is the one thing a wide table should not do.
     .wide();
 
-    if let Some(css) = state.assets.css.as_deref() {
-        head = head.with_css(css);
-    }
-    if let Some(boost) = state.assets.boost.as_deref() {
-        head = head.with_boost(boost);
-    }
-    if let Some(synergy) = state.assets.synergy.as_deref() {
-        head = head.with_synergy(synergy);
-    }
+    head = head.with_scripts(&state.assets);
 
     head = head.with_canonical(format!(
         "{}{}",

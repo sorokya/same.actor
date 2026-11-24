@@ -22,6 +22,9 @@ use crate::intersect::{PersonClaim, TitleClaim};
 
 const LANGUAGE: &str = "en-US";
 
+/// TMDB's page size for list endpoints. A short page means the end of the list.
+const PAGE_SIZE: usize = 20;
+
 /// What one title contributes to a discovery refresh.
 ///
 /// The cast is what the synergy table is built from; the other three fields exist only to make
@@ -306,24 +309,51 @@ impl Tmdb {
     /// to the caller because "top" and "new" are different questions to the same endpoint, and
     /// spelling them at the call site keeps the query visible in the code rather than assembled
     /// somewhere else.
+    /// Several pages of one list, concatenated and deduplicated.
+    ///
+    /// A page is twenty titles, and twenty is not enough for a matrix: two titles out of twenty
+    /// usually share nothing, so the interesting rows never appear. Five pages gives the synergy
+    /// table something to find, at the cost of five list calls per list per refresh.
+    ///
+    /// Stops early when a page comes back short, which is how TMDB says there is no more.
     pub async fn list(
         &self,
         path: &str,
         params: &[(&str, &str)],
         region: Option<&str>,
+        pages: u8,
     ) -> Result<Vec<types::ListItem>, AppError> {
-        let mut query = vec![("language", LANGUAGE), ("page", "1")];
-        query.extend(params.iter().copied());
-        if let Some(region) = region {
-            query.push(("region", region));
-        }
-
         // Split into segments: `get` percent-encodes each one, so passing "movie/popular" as a
         // single segment sends `/3/movie%2Fpopular` — a 404 that looks like a permissions
         // problem in the log.
         let segments: Vec<&str> = path.split('/').filter(|part| !part.is_empty()).collect();
-        let response: types::ListResponse = self.get(&segments, &query).await?;
-        Ok(response.results)
+        let mut out: Vec<types::ListItem> = Vec::new();
+        let mut seen: std::collections::HashSet<u32> = std::collections::HashSet::new();
+
+        for page in 1..=pages.max(1) {
+            let number = page.to_string();
+            let mut query = vec![("language", LANGUAGE), ("page", number.as_str())];
+            query.extend(params.iter().copied());
+            if let Some(region) = region {
+                query.push(("region", region));
+            }
+
+            let response: types::ListResponse = self.get(&segments, &query).await?;
+            let short = response.results.len() < PAGE_SIZE;
+
+            for item in response.results {
+                // The same title can sit on two pages when a list shifts between requests.
+                if seen.insert(item.id) {
+                    out.push(item);
+                }
+            }
+
+            if short {
+                break;
+            }
+        }
+
+        Ok(out)
     }
 
     /// Cast of one selected title. Used when comparing titles.
