@@ -149,16 +149,6 @@ impl Variant {
             (Section::New, _) | (Section::Upcoming, _) => entry.release_date.as_deref(),
         }
     }
-
-    /// What the date means, for the card that shows it. Empty for lists that show a year.
-    pub fn date_label(&self) -> &'static str {
-        match (self.section, self.kind) {
-            (Section::Upcoming, Kind::Movie) => "Releases",
-            (Section::Upcoming, Kind::Tv) => "Premieres",
-            (Section::New, Kind::Tv) => "Aired",
-            _ => "",
-        }
-    }
 }
 
 /// How one list is fetched.
@@ -536,6 +526,24 @@ pub async fn refresh_one(
 
     let raw = tmdb.list(variant.source.path, &params, region).await?;
 
+    if raw.is_empty() {
+        return Err(AppError::Upstream(format!(
+            "list {} came back empty",
+            variant.id
+        )));
+    }
+
+    // A day-trending list is what people are watching, and nobody is watching a film that has
+    // not come out: TMDB's trending feed carries titles with a trailer and a release date still
+    // ahead of them. They belong in Upcoming, which is the one section that asks for them.
+    let raw: Vec<_> = if variant.section == Section::Upcoming {
+        raw
+    } else {
+        raw.into_iter()
+            .filter(|entry| released(variant.kind, entry, &today))
+            .collect()
+    };
+
     let items: Vec<Item> = raw
         .into_iter()
         .map(|entry| Item {
@@ -552,12 +560,9 @@ pub async fn refresh_one(
         })
         .collect();
 
-    if items.is_empty() {
-        return Err(AppError::Upstream(format!(
-            "list {} came back empty",
-            variant.id
-        )));
-    }
+    // An empty list *after* the release filter is a fact, not a fault: everything the feed
+    // offered has not come out yet. Storing it means the page can say "nothing yet" instead of
+    // claiming the list does not exist.
 
     // Cast for every title, concurrently. Twenty calls per list, nine lists, every few hours —
     // and they all land in the existing TMDB cache, so a comparison of the same titles is free
@@ -639,6 +644,24 @@ pub async fn refresh_one(
     );
 
     Ok((per_title.len(), rows.len()))
+}
+
+/// Whether a list entry is out yet, judged by the date its kind uses.
+///
+/// ISO dates compare as text, which is the whole reason they are stored that way: `2026-12-01` is
+/// greater than `2026-11-24` and nothing has to be parsed to know it. A title with no date is
+/// kept — a missing date is not evidence of an unreleased film, and dropping it would quietly
+/// shrink the list.
+fn released(kind: Kind, entry: &crate::tmdb::types::ListItem, today: &str) -> bool {
+    let date = match kind {
+        Kind::Movie => entry.release_date.as_deref(),
+        _ => entry.first_air_date.as_deref(),
+    };
+
+    match date {
+        None => true,
+        Some(date) => date <= today,
+    }
 }
 
 /// Refresh every list. Sequential across lists, concurrent within one: nine lists of twenty

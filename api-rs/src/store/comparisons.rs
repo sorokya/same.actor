@@ -32,22 +32,41 @@ pub struct NewView {
     pub mode: String,
     /// What to show a human: the selections' names.
     pub label: String,
-    /// `[{id,kind,name}]`, so the admin can show what the set was.
+    /// `[{id,kind,name,year,image}]`, so the admin can show what the set was — and so the home
+    /// page can draw a card for it without asking TMDB anything.
     pub picks_json: String,
+    /// How many answers the comparison had. Zero is a real result ("nothing in common") and is
+    /// the reason this column exists: the home page only offers sets that produced something.
+    pub matches: usize,
+}
+
+/// A comparison that produced answers, as the home page needs it.
+#[derive(Debug, Clone)]
+pub struct Recent {
+    pub picks_json: String,
+    pub matches: i64,
 }
 
 pub(super) fn record_view(conn: &Connection, view: &NewView) -> rusqlite::Result<()> {
     let now = crate::clock::now_unix();
 
     conn.execute(
-        "INSERT INTO comparisons (key, mode, picks_json, label, views, first_seen, last_seen)
-         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?5)
+        "INSERT INTO comparisons (key, mode, picks_json, label, views, matches, first_seen, last_seen)
+         VALUES (?1, ?2, ?3, ?4, 1, ?5, ?6, ?6)
          ON CONFLICT(key) DO UPDATE SET
              views     = views + 1,
              last_seen = excluded.last_seen,
              label     = excluded.label,
+             matches   = excluded.matches,
              picks_json = excluded.picks_json",
-        params![view.key, view.mode, view.picks_json, view.label, now],
+        params![
+            view.key,
+            view.mode,
+            view.picks_json,
+            view.label,
+            view.matches as i64,
+            now
+        ],
     )?;
 
     // The daily row is what makes a trend possible; the cumulative count above cannot say
@@ -83,6 +102,34 @@ impl Store {
     /// Offer a view. Fire and forget: a page render must not wait on a counter.
     pub fn note_view(&self, view: NewView) -> bool {
         self.offer_view(view)
+    }
+
+    /// The most recently compared sets that had an answer, newest first.
+    ///
+    /// A "recent search" is a comparison somebody actually ran — not a query typed into a box
+    /// that matched nothing. `matches > 0` is the whole difference between the home page
+    /// offering a worked example and offering a dead end.
+    pub async fn recent_results(
+        &self,
+        mode: String,
+        limit: usize,
+    ) -> Result<Vec<Recent>, AppError> {
+        self.read(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT picks_json, matches FROM comparisons
+                 WHERE mode = ?1 AND matches > 0
+                 ORDER BY last_seen DESC
+                 LIMIT ?2",
+            )?;
+            let rows = stmt.query_map(params![mode, limit as i64], |row| {
+                Ok(Recent {
+                    picks_json: row.get(0)?,
+                    matches: row.get(1)?,
+                })
+            })?;
+            rows.collect()
+        })
+        .await
     }
 
     pub async fn view_count(&self, key: String) -> Result<i64, AppError> {
@@ -138,6 +185,7 @@ mod tests {
             mode: "title".into(),
             label: "The Matrix + The Matrix Reloaded".into(),
             picks_json: "[]".into(),
+            matches: 6,
         }
     }
 

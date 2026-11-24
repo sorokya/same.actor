@@ -33,6 +33,18 @@ pub enum Kind {
 }
 
 impl Mode {
+    /// How many answers a match set holds.
+    ///
+    /// The count is asked for by the page route, the JSON route and the home page's cards. It
+    /// lives here so that adding a third shape to [`Matches`] is one compile error, not three
+    /// silent zeroes.
+    pub fn count(self, matches: &Matches) -> usize {
+        match matches {
+            Matches::People(people) => people.len(),
+            Matches::Titles(titles) => titles.len(),
+        }
+    }
+
     /// The wire name, matching the serde representation. Used wherever a mode is stored rather
     /// than serialised, so the two cannot drift.
     pub const fn as_str(self) -> &'static str {

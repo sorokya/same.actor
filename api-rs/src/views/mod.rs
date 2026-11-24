@@ -10,8 +10,8 @@
 pub mod admin;
 pub mod compare;
 pub mod discover;
-pub mod examples;
 pub mod not_found;
+pub mod start_here;
 
 use askama::Template;
 use axum::response::Html;

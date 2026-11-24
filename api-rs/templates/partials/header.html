@@ -15,7 +15,7 @@
     {% include "partials/admin_nav.html" %}
     {% else %}
     <nav aria-label="Sections" class="flex max-w-full flex-wrap items-center gap-0.5 sm:flex-nowrap">
-      {% call nav::tab("/", "Titles", head.nav == "title", "film", "title") %}{% endcall %}
+      {% call nav::tab("/", "Films & TV", head.nav == "title", "reel", "title") %}{% endcall %}
       {% call nav::tab("/person", "People", head.nav == "person", "person", "person") %}{% endcall %}
 
       <span aria-hidden="true" class="mx-1.5 h-4 w-px shrink-0 bg-line"></span>

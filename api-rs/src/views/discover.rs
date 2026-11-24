@@ -25,6 +25,9 @@ pub struct Poster {
     pub name: String,
     /// Pre-formatted: a template should not be deciding how to round a rating.
     pub meta: String,
+    /// The date this list is about ("24 Nov 2026"), for the lists where a year is too coarse.
+    /// Empty on the ranked lists, which fall back to `meta`.
+    pub date: String,
     pub rank: usize,
 }
 
@@ -99,16 +102,20 @@ pub fn title_href(kind: Kind, id: u32) -> String {
     format!("https://www.themoviedb.org/{}/{id}", kind_key(kind))
 }
 
-fn poster(item: &Item, kind: Kind, rank: usize, date_label: &str) -> Poster {
-    // A date beats a year wherever the list is about one: "Aired 23 Nov 2026" answers the
-    // question a year cannot, and the year is inside it anyway.
-    let mut meta = match item.date.as_deref().and_then(crate::views::format_date) {
-        Some(date) if date_label.is_empty() => date,
-        Some(date) => format!("{date_label} {date}"),
-        None => match item.year {
-            Some(year) => year.to_string(),
-            None => "—".to_owned(),
-        },
+fn poster(item: &Item, kind: Kind, rank: usize) -> Poster {
+    // A date beats a year wherever the list is about one: "24 Nov 2026" answers the question a
+    // year cannot, and the year is inside it anyway. It carries a calendar glyph in the template,
+    // so the word that used to sit in front of it ("Releases", "Aired") was saying the same
+    // thing twice at a smaller size.
+    let date = item
+        .date
+        .as_deref()
+        .and_then(crate::views::format_date)
+        .unwrap_or_default();
+
+    let mut meta = match item.year {
+        Some(year) => year.to_string(),
+        None => "—".to_owned(),
     };
 
     if let Some(rating) = item.rating {
@@ -120,6 +127,7 @@ fn poster(item: &Item, kind: Kind, rank: usize, date_label: &str) -> Poster {
         image: item.poster.clone().unwrap_or_default(),
         name: item.name.clone(),
         meta,
+        date,
         rank,
     }
 }
@@ -161,13 +169,29 @@ impl DiscoverPage {
             url
         };
 
+        // The list a kind shows when no filter is asked for, which is the page the bare href
+        // already means.
+        let default_filter = |kind: Kind| {
+            crate::discovery::resolve(section, kind, None).map(|variant| variant.filter)
+        };
+
         let kinds = [Kind::Movie, Kind::Tv]
             .into_iter()
             .map(|value| Choice {
                 value: kind_key(value).to_owned(),
                 label: kind_label(value).to_owned(),
-                // Switching the kind resets the filter: "At home" means nothing for shows.
-                href: href(value, ""),
+                // Carry the filter across when the other kind has one by that name: "Trending
+                // shows" is the same question as "Trending films", and dropping back to All time
+                // made the control look like it had a mind of its own. A filter that does not
+                // exist for that kind ("In cinemas" for shows), or one that is that kind's
+                // default anyway, falls back to the bare path — the same page, without a query
+                // string saying it twice.
+                href: match crate::discovery::resolve(section, value, Some(variant.filter)) {
+                    Some(found) if Some(found.filter) != default_filter(value) => {
+                        href(value, found.filter)
+                    }
+                    _ => href(value, ""),
+                },
                 active: value == kind,
             })
             .collect();
@@ -210,7 +234,7 @@ impl DiscoverPage {
             items: items
                 .iter()
                 .enumerate()
-                .map(|(index, item)| poster(item, kind, index + 1, variant.date_label()))
+                .map(|(index, item)| poster(item, kind, index + 1))
                 .collect(),
             rows,
             more_count: synergy.len(),
@@ -295,11 +319,63 @@ mod tests {
             );
         }
 
-        assert_eq!(page.kinds[1].href, "/discover/top?kind=tv");
+        assert_eq!(
+            page.kinds[1].href, "/discover/top?kind=tv",
+            "all time is what shows show by default, so the bare path is the same page"
+        );
         assert_eq!(
             page.filters[1].href,
             "/discover/top?kind=movie&filter=trending"
         );
+    }
+
+    /// Switching kind keeps the filter: "Trending films" and "Trending shows" are one question
+    /// asked of two libraries, and landing on All time felt like the control resetting itself.
+    #[test]
+    fn switching_kind_keeps_the_filter_it_can_keep() {
+        let trending = DiscoverPage::new(
+            Head::new("t", "d", "title"),
+            &Snapshot {
+                section: Section::Top,
+                kind: Kind::Movie,
+                variant: crate::discovery::resolve(Section::Top, Kind::Movie, Some("trending"))
+                    .expect("trending"),
+                refreshed_ts: 0,
+                items: &[],
+                synergy: &[],
+            },
+            0,
+        );
+
+        let shows = trending
+            .kinds
+            .iter()
+            .find(|choice| choice.value == "tv")
+            .expect("a shows choice");
+        assert_eq!(shows.href, "/discover/top?kind=tv&filter=trending");
+
+        // A filter that means nothing for the other kind falls back to that kind's default
+        // rather than offering a page that does not exist.
+        let cinemas = DiscoverPage::new(
+            Head::new("t", "d", "new"),
+            &Snapshot {
+                section: Section::New,
+                kind: Kind::Movie,
+                variant: crate::discovery::resolve(Section::New, Kind::Movie, Some("cinema"))
+                    .expect("cinema"),
+                refreshed_ts: 0,
+                items: &[],
+                synergy: &[],
+            },
+            0,
+        );
+
+        let shows = cinemas
+            .kinds
+            .iter()
+            .find(|choice| choice.value == "tv")
+            .expect("a shows choice");
+        assert_eq!(shows.href, "/discover/new?kind=tv");
     }
 
     #[test]

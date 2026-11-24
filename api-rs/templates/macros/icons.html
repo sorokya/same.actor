@@ -11,6 +11,20 @@
 </svg>
 {% endmacro %}
 
+{# A film reel: an outer rim, a hub and four holes, which is what the word means. The old
+   `film()` glyph was a rectangle with two vertical lines — readable as "film" only once you
+   already knew. #}
+{% macro reel() %}
+<svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
+  <circle cx="8" cy="8" r="6.25" />
+  <circle cx="8" cy="8" r="1.6" />
+  <circle cx="8" cy="3.6" r="1.5" />
+  <circle cx="12.4" cy="8" r="1.5" />
+  <circle cx="8" cy="12.4" r="1.5" />
+  <circle cx="3.6" cy="8" r="1.5" />
+</svg>
+{% endmacro %}
+
 {% macro person() %}
 <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true">
   <circle cx="8" cy="5.5" r="2.75" />

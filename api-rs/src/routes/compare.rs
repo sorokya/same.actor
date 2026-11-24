@@ -76,7 +76,8 @@ async fn response(
     let (selections, matches, views) = if picks.len() >= 2 {
         match compare(&state.tmdb, mode, &picks).await {
             Ok((selections, matches)) => {
-                let view = super::findout::view_of(mode, &picks, &selections);
+                let found = mode.count(&matches);
+                let view = super::findout::view_of(mode, &picks, &selections, found);
                 let views = super::findout::note_view(&state, session.as_deref(), view).await;
                 (selections, matches, Some(views as u64))
             }
@@ -130,10 +131,7 @@ async fn response(
 
     // The strip is only worth the query when the page has nothing to show yet, and it is the
     // same cached list the JSON endpoint serves.
-    let matched = match &matches {
-        Matches::People(people) => people.len(),
-        Matches::Titles(titles) => titles.len(),
-    };
+    let matched = mode.count(&matches);
 
     if matched == 0 {
         if let Ok(terms) = super::trending::terms(&state).await {
@@ -141,10 +139,9 @@ async fn response(
             page = page.with_trending(crate::views::compare::trend_links(&words, mode));
         }
 
-        // Worked examples, for the page that has nothing selected. Derived from a stored
-        // snapshot, so this costs one SQLite read and no upstream call — and it degrades to
-        // the curated chips when no refresh has run yet.
-        page.pairs = crate::views::examples::for_mode(&state, mode).await;
+        // Things to click, for the page that has nothing selected: what has been compared
+        // lately and worked, or a curated pair when nothing has been compared at all.
+        page.pairs = crate::views::start_here::for_mode(&state, mode).await;
     }
 
     if fragment_requested(&headers) {

@@ -172,27 +172,29 @@ without changing the content because the island had no `popstate` listener — t
 
 ### The empty page
 
-A page with nothing selected is the site's most-visited state and its weakest: a search box asks
-a first-time visitor to remember one film, and then a second. It now opens with `Start here` —
-two **pairs**, each one click from a finished comparison, with the actor who connects them named
-underneath.
+A page with nothing selected is the site's most-visited state and its weakest: a search box asks a
+first-time visitor to remember one film, and then a second. It opens with `Start here` — up to four
+cards, each one click from a finished comparison.
 
-The pairs are derived, not written down. `views/examples.rs` reads a stored discovery snapshot
-and looks for the two facts that make a good example:
+Two sources, in this order (`views/start_here.rs`):
 
-- for titles, an actor the list credits in two of its films — their two films, linked
-- for people, two actors the list credits in one shared title — those two, linked, with the film
-  that connects them
+1. **Comparisons that worked.** Every comparison is already recorded in `comparisons`, with how
+   many answers it produced (`matches`). The newest few with `matches > 0` are the best possible
+   suggestion: real sets, real counts, artwork already in the row, and no upstream call. It starts
+   working the moment the first comparison happens.
+2. **Curated pairs**, when nothing has been compared yet — four hand-written pairs per mode, each
+   naming what connects them ("Keanu Reeves in both").
 
-That avoids the maintenance trap of a hand-written list: ids move, pairings stop making sense, and
-nothing tests them. A snapshot already knows who appears in what, because the synergy table needed
-the same fact. It costs one SQLite read and no upstream call, returns nothing when no refresh has
-run yet (the curated chips carry the page), and deduplicates: two actors in the same two films is
-a real case, and two identical cards side by side reads as a rendering bug.
+The curated half names a **search term**, never an id: `resolve()` searches and accepts the result
+only when its name equals the term, so a hard-coded id cannot rot into pointing at the wrong film,
+and "Sigourney Weaver in both" is only printed for a card whose second side really is *Aliens*.
 
-Below that sit the colour-coded search chips and a three-line "how it works" strip, and the whole
-block is centred in the viewport rather than pinned under the header, so a short page reads as a
-landing page instead of a form with a void beneath it.
+The section used to derive its cards from a stored discovery snapshot, which meant it was empty
+until a refresh had run. Recent traffic is both better material and earlier available.
+
+Both sections that used to sit under it — a row of search chips and a three-line "how it works"
+strip — are gone: the heading and subheading already say what the page does, and the chips asked
+for the same effort as the search box they sat under.
 
 ### Classes and templates
 
@@ -220,7 +222,7 @@ api-rs/
     og.rs          Open Graph card: SVG in, PNG out (resvg, vendored fonts)
     tmdb/          upstream client: URL construction, auth, cache
     routes/        pages (compare, discover, admin), search, findout, health, og
-    views/examples.rs  worked example pairs, derived from a stored list
+    views/start_here.rs  the home page's cards: recent comparisons, then curated pairs
     error.rs       one error type, one place that maps it to a response
     ratelimit.rs   per-IP fixed window
   templates/       askama: layouts, pages, macros — compiled in, so a typo is a build error

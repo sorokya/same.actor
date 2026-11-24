@@ -1,5 +1,6 @@
 {% extends "layouts/base.html" %}
 {% import "macros/cards.html" as cards %}
+{% import "macros/icons.html" as icons %}
 
 {% block content %}
 {# Each section owns a hue (index.css), so Top, New and Upcoming are told apart by more than a
@@ -59,8 +60,12 @@
             <span class="tnum absolute left-1 top-1 rounded bg-ink/85 px-1.5 py-0.5 font-mono text-[10px] backdrop-blur" style="color: var(--tint)">{{ item.rank }}</span>
           </div>
 
-          <p class="mt-1.5 line-clamp-2 text-xs leading-snug text-paper group-hover:text-accent">{{ item.name }}</p>
-          <p class="tnum mt-0.5 font-mono text-[10px] text-dim">{{ item.meta }}</p>
+          {# Two lines of room whether the title needs them or not, so the dates under a row of
+             cards sit on one line instead of following each title's wrapping. #}
+          <p class="mt-1.5 line-clamp-2 min-h-[2.1em] text-xs leading-snug text-paper group-hover:text-accent">{{ item.name }}</p>
+          <p class="tnum mt-0.5 flex items-center gap-1 font-mono text-[10px] text-dim">
+            {% if !item.date.is_empty() %}<span class="shrink-0" aria-hidden="true">{% call icons::calendar() %}{% endcall %}</span><span>{{ item.date }}</span>{% else %}{{ item.meta }}{% endif %}
+          </p>
         </a>
       </li>
       {% endfor %}

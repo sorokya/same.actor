@@ -17,7 +17,8 @@
     class="shrink-0 transition-opacity{% if active %}{% else %} opacity-70 group-hover:opacity-100{% endif %}"
     style="--tint: var(--color-tint-{{ tint }}); color: var(--tint)"
   >
-    {% if icon == "film" %}{% call icons::film() %}{% endcall %}
+    {% if icon == "reel" %}{% call icons::reel() %}{% endcall %}
+    {% elif icon == "film" %}{% call icons::film() %}{% endcall %}
     {% elif icon == "person" %}{% call icons::person() %}{% endcall %}
     {% elif icon == "flame" %}{% call icons::flame() %}{% endcall %}
     {% elif icon == "clock" %}{% call icons::clock() %}{% endcall %}

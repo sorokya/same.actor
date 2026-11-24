@@ -21,6 +21,7 @@ pub(crate) fn view_of(
     mode: Mode,
     selection: &[crate::domain::Selection],
     selections: &[crate::domain::SelectionMeta],
+    matches: usize,
 ) -> NewView {
     let picks: Vec<String> = selection
         .iter()
@@ -41,9 +42,14 @@ pub(crate) fn view_of(
                 "id": meta.id,
                 "kind": meta.kind.as_str(),
                 "name": meta.name,
+                "year": meta.year,
+                // Stored, not fetched: the home page draws a card from this row, and a card
+                // that has to ask TMDB for artwork before it can render is not cheap.
+                "image": meta.image,
             }))
             .collect::<Vec<_>>())
         .to_string(),
+        matches,
     }
 }
 
@@ -84,7 +90,8 @@ pub async fn findout(
 
     let (selections, matches) = compare(&state.tmdb, body.mode, &body.selection).await?;
 
-    let view = view_of(body.mode, &body.selection, &selections);
+    let found = body.mode.count(&matches);
+    let view = view_of(body.mode, &body.selection, &selections, found);
     let views = note_view(&state, session.as_deref(), view).await;
 
     Ok(cacheable(

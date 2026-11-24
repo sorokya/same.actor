@@ -11,7 +11,7 @@ use askama::Template;
 
 use crate::domain::{Kind, Matches, Mode, PersonMatch, SelectionMeta, TitleMatch};
 
-use super::examples::Example;
+use super::start_here::Example;
 use super::Head;
 
 /// The palette, mirrored from `src/lib/palette.ts`. A column is identifiable by colour, which
@@ -86,11 +86,9 @@ pub struct ComparePage {
     pub results: Results,
     /// What people have been searching for today. Empty until a term is searched three times.
     pub trending: Vec<TrendLink>,
-    /// Pairs worth clicking, for a page with nothing selected yet. Empty when no snapshot has
-    /// been refreshed, or when the list they come from has no pair in it.
+    /// Pairs worth clicking, for a page with nothing selected yet: what has been compared
+    /// lately and worked, or curated pairs when nothing has been compared at all.
     pub pairs: Vec<Example>,
-    /// Starting points for a search, when a whole pair is too much to choose.
-    pub examples: Vec<TrendLink>,
 }
 
 /// One term in a chip strip, linked back into the search box.
@@ -119,38 +117,6 @@ fn trend(term: &str, index: usize, path: &str) -> TrendLink {
         href: format!("{path}?q={}", encode_query(term)),
         tint: TINT_NAMES[index % TINT_NAMES.len()],
     }
-}
-
-/// What to offer somebody who has not typed anything yet.
-///
-/// An empty search box asks the reader to remember a title unaided, and the honest answer is
-/// "I cannot think of one". These are titles and people with large, well-documented casts, so
-/// any two of them produce an answer rather than an apology — which is what an example is for.
-fn examples_for(mode: Mode) -> Vec<TrendLink> {
-    let path = search_path(mode);
-    let terms: &[&str] = match mode {
-        Mode::Title => &[
-            "The Matrix",
-            "Alien",
-            "Pulp Fiction",
-            "The Wire",
-            "Breaking Bad",
-            "Dune",
-        ],
-        Mode::Person => &[
-            "Willem Dafoe",
-            "Cate Blanchett",
-            "Samuel L. Jackson",
-            "Tilda Swinton",
-            "Brad Pitt",
-        ],
-    };
-
-    terms
-        .iter()
-        .enumerate()
-        .map(|(index, term)| trend(term, index, path))
-        .collect()
 }
 
 /// Turn trending terms into chips for the given mode.
@@ -373,7 +339,6 @@ impl ComparePage {
             share_url,
             trending: Vec::new(),
             pairs: Vec::new(),
-            examples: examples_for(mode),
             results: Results {
                 selections: columns,
                 rows,

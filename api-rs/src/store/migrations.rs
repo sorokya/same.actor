@@ -10,7 +10,17 @@ use rusqlite::Connection;
 use crate::error::AppError;
 
 /// Index 0 becomes `user_version = 1`, and so on.
-const MIGRATIONS: &[&str] = &[V1, V2];
+const MIGRATIONS: &[&str] = &[V1, V2, V3];
+
+/// How many answers a comparison produced.
+///
+/// The `comparisons` table could already say a set was looked at; it could not say whether
+/// looking at it was worth anything. The home page wants the sets that *worked* — two films with
+/// nothing in common is a page that tells you so, not an example worth offering.
+const V3: &str = r#"
+ALTER TABLE comparisons ADD COLUMN matches INTEGER NOT NULL DEFAULT 0;
+CREATE INDEX comparisons_recent ON comparisons(last_seen DESC);
+"#;
 
 /// True per-day totals.
 ///

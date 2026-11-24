@@ -30,6 +30,11 @@ function mount(): void {
     // still a working page rather than a blank one.
   }
 
+  // The server rendered a fallback here: the selection as links, for the page with no script.
+  // `render` mounts into an empty container, so without this the fallback stays underneath the
+  // island for the life of the page — still naming the selection the *document* was built with,
+  // after the island has changed it. That is why Clear looked like it did nothing.
+  target.replaceChildren();
   render(<Picker bootstrap={bootstrap} />, target);
 }
 
