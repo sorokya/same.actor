@@ -1740,6 +1740,114 @@ async fn one_visitor_looking_twice_is_counted_once() {
 }
 
 // ---------------------------------------------------------------------------------------------
+// The dashboard, as pages
+// ---------------------------------------------------------------------------------------------
+
+/// Without a credential, the dashboard is a sign-in form — and a page request that needs one is
+/// a redirect, not a 401 body, because a browser asked for a page.
+#[tokio::test]
+async fn the_dashboard_asks_for_the_token_before_showing_anything() {
+    let h = with_admin().await;
+
+    let (status, _, body) = call_raw(&h.app, get_path_raw("/admin")).await;
+    assert_eq!(status, StatusCode::OK);
+    let html = String::from_utf8(body).expect("utf-8");
+    assert!(html.contains(r#"name="token""#), "the form is there");
+    assert!(!html.contains("Most viewed comparisons"), "no data yet");
+
+    let (status, headers, _) = call_raw(&h.app, get_path_raw("/admin/overview")).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(headers["location"], "/admin");
+}
+
+/// The form posts the token, gets a cookie, and the cookie opens the pages.
+#[tokio::test]
+async fn the_login_form_sets_a_cookie_that_opens_the_pages() {
+    let h = with_admin().await;
+
+    let (status, headers, _) = call_raw(
+        &h.app,
+        with_client(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/session")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from(format!("token={ADMIN_TOKEN}")))
+                .unwrap(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    assert_eq!(headers["location"], "/admin/overview");
+
+    let cookie = headers["set-cookie"]
+        .to_str()
+        .expect("cookie")
+        .split(';')
+        .next()
+        .expect("pair")
+        .to_owned();
+    assert!(cookie.starts_with("sa_admin="), "got {cookie}");
+
+    for page in ["/admin/overview", "/admin/logs", "/admin/health"] {
+        let (status, _, body) = call_raw(
+            &h.app,
+            with_client(
+                Request::builder()
+                    .uri(page)
+                    .header(header::COOKIE, cookie.clone())
+                    .body(Body::empty())
+                    .unwrap(),
+            ),
+        )
+        .await;
+
+        assert_eq!(status, StatusCode::OK, "{page}");
+
+        let html = String::from_utf8(body).expect("utf-8");
+        assert!(html.contains("same.actor"), "{page} is a page");
+        assert!(!html.contains("<script"), "{page} must not need JavaScript");
+    }
+}
+
+/// A wrong token re-renders the form with an error rather than setting a cookie.
+#[tokio::test]
+async fn a_wrong_token_does_not_open_the_dashboard() {
+    let h = with_admin().await;
+
+    let (status, headers, body) = call_raw(
+        &h.app,
+        with_client(
+            Request::builder()
+                .method("POST")
+                .uri("/admin/session")
+                .header(header::CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(Body::from("token=wrong"))
+                .unwrap(),
+        ),
+    )
+    .await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // Every request gets a visitor session cookie; what must not appear is the admin one.
+    let cookies = headers
+        .get_all("set-cookie")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        !cookies.contains("sa_admin="),
+        "a wrong token must not open an admin session: {cookies}"
+    );
+
+    let html = String::from_utf8(body).expect("utf-8");
+    assert!(html.contains("not valid"), "the form explains itself");
+}
+
+// ---------------------------------------------------------------------------------------------
 // Discovery
 // ---------------------------------------------------------------------------------------------
 

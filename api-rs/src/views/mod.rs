@@ -7,6 +7,7 @@
 //! The alternative — rendering JSON on the client — is what this replaced. A share link now
 //! paints its content before a byte of JavaScript runs.
 
+pub mod admin;
 pub mod compare;
 pub mod discover;
 
@@ -42,6 +43,8 @@ pub struct Head {
     pub island: String,
     pub nav: &'static str,
     pub noindex: bool,
+    /// Which admin tab is current. Empty on every public page.
+    pub active: &'static str,
     /// Copyright year, resolved once at render time instead of in every footer.
     pub year: i32,
 }
@@ -60,6 +63,7 @@ impl Head {
             css: String::new(),
             island: String::new(),
             nav,
+            active: "",
             noindex: false,
             year: current_year(),
         }
@@ -82,6 +86,11 @@ impl Head {
 
     pub fn with_image(mut self, image: impl Into<String>) -> Self {
         self.image = image.into();
+        self
+    }
+
+    pub fn with_active(mut self, active: &'static str) -> Self {
+        self.active = active;
         self
     }
 

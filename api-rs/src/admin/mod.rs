@@ -9,6 +9,7 @@
 //! process signs everyone out, which is the correct default for a single-operator service.
 
 pub mod api;
+pub mod pages;
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -112,6 +113,23 @@ fn bearer(request: &Request) -> Option<&str> {
         .ok()?
         .strip_prefix("Bearer ")
         .map(str::trim)
+}
+
+/// The session id from a request's cookies, for the page guard as well as the API.
+pub fn cookie_session(headers: &axum::http::HeaderMap) -> Option<String> {
+    let header = headers.get(header::COOKIE)?.to_str().ok()?;
+
+    for cookie in header.split(';') {
+        let Some((name, value)) = cookie.trim().split_once('=') else {
+            continue;
+        };
+        if name.trim() == COOKIE {
+            let value = value.trim();
+            return crate::session::is_valid(value).then(|| value.to_owned());
+        }
+    }
+
+    None
 }
 
 fn admin_cookie(request: &Request) -> Option<String> {

@@ -4,13 +4,16 @@
    apart in the first place. #}
 <header class="sticky top-0 z-20 border-b border-line bg-ink/85 backdrop-blur">
   <div
-    class="mx-auto flex w-full max-w-3xl flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
+    class="mx-auto flex w-full {% if head.nav == "admin" %}max-w-5xl{% else %}max-w-3xl{% endif %} flex-col gap-2 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:py-3"
   >
     <a
       href="/"
       class="shrink-0 font-mono text-[13px] uppercase tracking-[0.2em] text-paper transition-colors hover:text-accent"
     >same<span class="text-accent">.</span>actor</a>
 
+    {% if head.nav == "admin" %}
+    {% include "partials/admin_nav.html" %}
+    {% else %}
     <nav aria-label="Sections" class="flex max-w-full flex-wrap items-center gap-0.5 sm:flex-nowrap">
       {% call nav::tab("/", "Titles", head.nav == "title") %}{% endcall %}
       {% call nav::tab("/person", "People", head.nav == "person") %}{% endcall %}
@@ -21,5 +24,6 @@
       {% call nav::tab("/discover/new", "New", head.nav == "new") %}{% endcall %}
       {% call nav::tab("/discover/upcoming", "Upcoming", head.nav == "upcoming") %}{% endcall %}
     </nav>
+    {% endif %}
   </div>
 </header>

@@ -1,0 +1,110 @@
+{% extends "layouts/base.html" %}
+{% import "macros/charts.html" as charts %}
+
+{% macro stat(label, value, note) %}
+<div class="rounded-md border border-line bg-raise/40 p-3">
+  <p class="label">{{ label }}</p>
+  <p class="tnum mt-1 text-2xl tracking-tight text-paper">{{ value }}</p>
+  {% if !note.is_empty() %}<p class="label mt-0.5">{{ note }}</p>{% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+  <div class="mb-5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+    <h1 class="text-xl tracking-tight text-paper">Overview</h1>
+    <div class="flex items-center gap-1">
+      {% for option in windows %}
+      <a
+        href="{{ option.href }}"
+        {% if option.active %}aria-current="true"{% endif %}
+        title="{{ option.label }}"
+        class="rounded-full border px-2 py-0.5 font-mono text-[11px]{% if option.active %} border-accent/60 text-accent{% else %} border-line text-dim hover:text-paper{% endif %}"
+      >{{ option.value }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    {% call stat("Requests", requests, "") %}{% endcall %}
+    {% call stat("Visitors", visitors, "distinct sessions") %}{% endcall %}
+    {% call stat("Searches", searches, "") %}{% endcall %}
+    {% call stat("Errors", errors, error_share) %}{% endcall %}
+  </div>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-2">
+    <section class="rounded-md border border-line bg-raise/40 p-3">
+      <div class="mb-2 flex items-baseline justify-between">
+        <h2 class="label">Requests per day</h2>
+        <span class="label">{{ p95 }}</span>
+      </div>
+      {% call charts::line(chart, 90) %}{% endcall %}
+      {% call charts::chart_labels(chart) %}{% endcall %}
+
+      <div class="mt-4 flex items-baseline justify-between">
+        <h2 class="label">Errors over the same window</h2>
+        <span class="label">{{ error_chart.last }} total</span>
+      </div>
+      {% call charts::line(error_chart, 26) %}{% endcall %}
+    </section>
+
+    <section class="rounded-md border border-line bg-raise/40 p-3">
+      <h2 class="label mb-2">Top paths</h2>
+      {% call charts::bars(paths, "No requests recorded yet.") %}{% endcall %}
+
+      <h2 class="label mb-2 mt-4">Countries</h2>
+      {% call charts::bars(countries, "No country data yet — the geo database may still be downloading.") %}{% endcall %}
+    </section>
+  </div>
+
+  <div class="mt-4 grid gap-4 lg:grid-cols-3">
+    <section class="rounded-md border border-line bg-raise/40 p-3">
+      <h2 class="label mb-2">Searches</h2>
+      {% if terms.is_empty() %}
+      <p class="text-xs text-dim">Nothing searched yet.</p>
+      {% else %}
+      <ul class="space-y-1">
+        {% for term in terms %}
+        <li class="flex items-baseline justify-between gap-2 text-xs">
+          <span class="min-w-0 truncate text-paper">{{ term.term }}</span>
+          <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ term.count }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+
+      <h2 class="label mb-2 mt-4">Searched and not found</h2>
+      {% if zero_terms.is_empty() %}
+      <p class="text-xs text-dim">Nothing came up empty — either good coverage or nobody looking.</p>
+      {% else %}
+      <ul class="space-y-1">
+        {% for term in zero_terms %}
+        <li class="flex items-baseline justify-between gap-2 text-xs">
+          <span class="min-w-0 truncate text-paper">{{ term.term }}</span>
+          <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ term.count }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+
+    <section class="rounded-md border border-line bg-raise/40 p-3 lg:col-span-2">
+      <h2 class="label mb-2">Most viewed comparisons</h2>
+      {% if comparisons.is_empty() %}
+      <p class="text-xs text-dim">No comparisons viewed yet.</p>
+      {% else %}
+      <ul class="space-y-1">
+        {% for row in comparisons %}
+        <li class="flex items-baseline justify-between gap-2 text-xs">
+          <a href="{{ row.href }}" class="min-w-0 truncate text-paper hover:text-accent">{{ row.label }}</a>
+          <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ row.views }} · {{ row.last_seen }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </section>
+  </div>
+
+  <p class="label mt-5">{{ footer }}</p>
+</main>
+{% endblock %}

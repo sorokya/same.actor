@@ -1,0 +1,67 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+    <h1 class="text-xl tracking-tight text-paper">Logs</h1>
+    <div class="flex items-center gap-1">
+      {% for option in windows %}
+      <a
+        href="{{ option.href }}"
+        {% if option.active %}aria-current="true"{% endif %}
+        class="rounded-full border px-2 py-0.5 font-mono text-[11px]{% if option.active %} border-accent/60 text-accent{% else %} border-line text-dim hover:text-paper{% endif %}"
+      >{{ option.value }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  <p class="label mb-3">
+    {{ subtitle }}{% if !filter.is_empty() %} · filtered{% endif %}
+    {% if !filter.is_empty() %} · <a href="/admin/logs?window={{ window }}" class="text-accent hover:underline">clear filter</a>{% endif %}
+  </p>
+
+  {% if rows.is_empty() %}
+  <p class="text-sm text-dim">Nothing in this window.</p>
+  {% else %}
+  <div class="overflow-x-auto rounded-md border border-line">
+    <table class="w-full border-collapse text-xs">
+      <thead>
+        <tr class="border-b border-line bg-raise text-left">
+          <th class="label px-2.5 py-2 font-normal">When</th>
+          <th class="label px-2.5 py-2 font-normal">Status</th>
+          <th class="label px-2.5 py-2 font-normal">Method</th>
+          <th class="label px-2.5 py-2 font-normal">Path</th>
+          <th class="label px-2.5 py-2 font-normal">ms</th>
+          <th class="label px-2.5 py-2 font-normal">Client</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="border-b border-line-soft last:border-0 hover:bg-raise/60">
+          <td class="whitespace-nowrap px-2.5 py-1.5">
+            <a href="/admin/logs/{{ row.id }}" class="text-dim hover:text-paper" title="{{ row.when }}">{{ row.relative }}</a>
+          </td>
+          <td class="px-2.5 py-1.5"><span class="tnum font-mono {{ row.status_tone }}">{{ row.status }}</span></td>
+          <td class="px-2.5 py-1.5 font-mono text-dim">{{ row.method }}</td>
+          <td class="max-w-[22rem] truncate px-2.5 py-1.5 text-paper">{{ row.path }}</td>
+          <td class="tnum px-2.5 py-1.5 text-dim">{{ row.duration }}</td>
+          <td class="whitespace-nowrap px-2.5 py-1.5">
+            {% if row.ip.is_empty() %}
+            <span class="text-dim/60">—</span>
+            {% else %}
+            <a href="/admin/logs?window={{ window }}&ip={{ row.ip }}" class="font-mono text-dim hover:text-paper">{{ row.ip }}</a>
+            {% endif %}
+            {% if !row.country.is_empty() %}<span class="ml-1.5 font-mono text-[10px] text-dim/70">{{ row.country }}</span>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if !next.is_empty() %}
+  <p class="mt-3"><a href="{{ next }}" class="text-xs text-dim hover:text-paper">Older →</a></p>
+  {% endif %}
+  {% endif %}
+</main>
+{% endblock %}

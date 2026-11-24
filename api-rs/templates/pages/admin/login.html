@@ -1,0 +1,34 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-md flex-1 px-4 py-16">
+  <h1 class="text-xl tracking-tight text-paper">Admin</h1>
+  <p class="mt-1 text-sm text-dim">
+    This dashboard is behind the token in <code class="font-mono text-xs">ADMIN_TOKEN</code>.
+  </p>
+
+  {% if !error.is_empty() %}
+  <p role="alert" class="mt-4 rounded-md border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-paper">
+    {{ error }}
+  </p>
+  {% endif %}
+
+  {# A real form: it works with the keyboard, with a password manager, and with no script. #}
+  <form method="post" action="/admin/session" class="mt-5 space-y-3">
+    <label for="token" class="label block">Token</label>
+    <input
+      id="token"
+      name="token"
+      type="password"
+      required
+      autocomplete="current-password"
+      autofocus
+      class="w-full rounded-md border border-line bg-raise px-3 py-2 text-sm text-paper focus:border-dim focus:outline-none"
+    />
+    <button
+      type="submit"
+      class="w-full rounded-md bg-paper px-3 py-2 text-sm font-medium text-ink hover:bg-paper/90"
+    >Sign in</button>
+  </form>
+</main>
+{% endblock %}

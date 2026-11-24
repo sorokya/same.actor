@@ -1,0 +1,50 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-5xl flex-1 px-4 py-6">
+  <div class="mb-4 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-2">
+    <h1 class="text-xl tracking-tight text-paper">Suspicious</h1>
+    <div class="flex items-center gap-1">
+      {% for option in windows %}
+      <a
+        href="{{ option.href }}"
+        {% if option.active %}aria-current="true"{% endif %}
+        class="rounded-full border px-2 py-0.5 font-mono text-[11px]{% if option.active %} border-accent/60 text-accent{% else %} border-line text-dim hover:text-paper{% endif %}"
+      >{{ option.value }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if rows.is_empty() %}
+  <p class="text-sm text-dim">Nothing looks odd in this window.</p>
+  {% else %}
+  <div class="overflow-x-auto rounded-md border border-line">
+    <table class="w-full border-collapse text-xs">
+      <thead>
+        <tr class="border-b border-line bg-raise text-left">
+          <th class="label px-2.5 py-2 font-normal">Client</th>
+          <th class="label px-2.5 py-2 font-normal">Why</th>
+          <th class="label px-2.5 py-2 font-normal">Requests</th>
+          <th class="label px-2.5 py-2 font-normal">Errors</th>
+          <th class="label px-2.5 py-2 font-normal"></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="border-b border-line-soft last:border-0 hover:bg-raise/60">
+          <td class="whitespace-nowrap px-2.5 py-1.5 font-mono text-paper">{{ row.ip }}</td>
+          <td class="px-2.5 py-1.5 text-dim">{{ row.reason }}</td>
+          <td class="tnum px-2.5 py-1.5 text-dim">{{ row.requests }}</td>
+          <td class="tnum px-2.5 py-1.5 text-dim">{{ row.errors }}</td>
+          <td class="whitespace-nowrap px-2.5 py-1.5 text-right">
+            <a href="/admin/logs?window={{ window }}&ip={{ row.ip }}" class="text-dim hover:text-accent">inspect</a>
+            <a href="/admin/bans?target={{ row.ip }}" class="ml-2 text-dim hover:text-danger">ban</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</main>
+{% endblock %}

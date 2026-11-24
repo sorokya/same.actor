@@ -1,0 +1,20 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+  <p class="label mb-2"><a href="/admin/logs?window={{ window }}" class="hover:text-paper">← Logs</a></p>
+  <h1 class="text-xl tracking-tight text-paper">Request {{ row.id }}</h1>
+  <p class="mt-1 text-sm text-dim">{{ row.method }} {{ row.path }} · {{ row.relative }}</p>
+
+  <dl class="mt-5 grid gap-1.5">
+    {% for pair in fields %}
+    <div class="flex gap-3 rounded border border-line-soft bg-raise/30 px-2.5 py-1.5 text-xs">
+      <dt class="w-24 shrink-0 text-dim">{{ pair.0 }}</dt>
+      <dd class="min-w-0 break-all font-mono text-paper">
+        {% if pair.1.is_empty() %}<span class="text-dim/60">—</span>{% else %}{{ pair.1 }}{% endif %}
+      </dd>
+    </div>
+    {% endfor %}
+  </dl>
+</main>
+{% endblock %}

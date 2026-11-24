@@ -115,8 +115,14 @@ pub fn build_app(state: AppState) -> Router {
         )
         .with_state(state.clone());
 
+    // The dashboard, as pages. The login form is unguarded; everything else redirects to it.
+    let admin_pages = admin::pages::open_router()
+        .merge(admin::pages::page_router(state.clone()))
+        .with_state(state.clone());
+
     let mut app = Router::new()
         .route("/healthz", get(routes::healthz))
+        .nest("/admin", admin_pages)
         .nest("/api/admin", admin)
         .nest("/api", api)
         .nest("/api", public_api)

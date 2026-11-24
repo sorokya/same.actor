@@ -1,0 +1,17 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<main class="mx-auto w-full max-w-3xl flex-1 px-4 py-6">
+  <h1 class="text-xl tracking-tight text-paper">Health</h1>
+  <p class="mt-1 text-sm text-dim">What the writer and the store are doing right now.</p>
+
+  <dl class="mt-5 grid gap-1.5">
+    {% for pair in facts %}
+    <div class="flex gap-3 rounded border border-line-soft bg-raise/30 px-2.5 py-2 text-xs">
+      <dt class="w-32 shrink-0 text-dim">{{ pair.0 }}</dt>
+      <dd class="min-w-0 break-words font-mono text-paper">{{ pair.1 }}</dd>
+    </div>
+    {% endfor %}
+  </dl>
+</main>
+{% endblock %}

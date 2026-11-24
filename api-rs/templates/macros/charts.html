@@ -1,0 +1,50 @@
+{# Charts as SVG: a path the server drew. No chart library, no script, and the numbers are in
+   the markup next to them. #}
+
+{% macro line(chart, height) %}
+<svg
+  viewBox="0 0 360 {{ height }}"
+  width="100%"
+  height="{{ height }}"
+  preserveAspectRatio="none"
+  role="img"
+  aria-label="line from {{ chart.first_label }} to {{ chart.last_label }}, peak {{ chart.max }}"
+>
+  {% if !chart.points.is_empty() %}
+  <path d="{{ chart.area }}" fill="var(--color-accent)" opacity="0.12"></path>
+  <path d="{{ chart.points }}" fill="none" stroke="var(--color-accent)" stroke-width="1.5" vector-effect="non-scaling-stroke"></path>
+  {% endif %}
+</svg>
+{% endmacro %}
+
+{% macro chart_labels(chart) %}
+<div class="mt-1 flex justify-between font-mono text-[10px] text-dim">
+  <span>{{ chart.first_label }}</span>
+  <span>{{ chart.last_label }}</span>
+</div>
+{% endmacro %}
+
+{# A bar list: the value, the bar, the label. The bar is decoration for the number beside it. #}
+{% macro bars(rows, empty) %}
+{% if rows.is_empty() %}
+<p class="text-xs text-dim">{{ empty }}</p>
+{% else %}
+<ul class="space-y-2">
+  {% for bar in rows %}
+  <li>
+    <div class="flex items-baseline justify-between gap-2 text-xs">
+      {% if bar.href.is_empty() %}
+      <span class="min-w-0 truncate text-paper">{{ bar.label }}</span>
+      {% else %}
+      <a href="{{ bar.href }}" class="min-w-0 truncate text-paper hover:text-accent">{{ bar.label }}</a>
+      {% endif %}
+      <span class="tnum shrink-0 font-mono text-[10px] text-dim">{{ bar.value }}</span>
+    </div>
+    <div class="mt-1 h-1 overflow-hidden rounded-full bg-raise-2">
+      <div class="h-1 rounded-full bg-accent/50" style="width: {{ bar.width }}"></div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}
+{% endmacro %}

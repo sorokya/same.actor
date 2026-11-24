@@ -1,0 +1,20 @@
+{% import "macros/nav.html" as nav %}
+{# The dashboard's tabs. The header shows these instead of the public ones when the page is an
+   admin page, so an operator is never one click from the public site's navigation by accident —
+   and Sign out is a form, not a link, because it changes state. #}
+<div class="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+  <nav aria-label="Admin sections" class="flex flex-wrap items-center gap-0.5">
+    {% call nav::tab("/admin/overview", "Overview", head.active == "overview") %}{% endcall %}
+    {% call nav::tab("/admin/logs", "Logs", head.active == "logs") %}{% endcall %}
+    {% call nav::tab("/admin/suspicious", "Suspicious", head.active == "suspicious") %}{% endcall %}
+    {% call nav::tab("/admin/bans", "Bans", head.active == "bans") %}{% endcall %}
+    {% call nav::tab("/admin/health", "Health", head.active == "health") %}{% endcall %}
+  </nav>
+
+  <form method="post" action="/admin/logout">
+    <button
+      type="submit"
+      class="rounded-full px-2 py-1 font-mono text-[11px] uppercase tracking-[0.12em] text-dim hover:text-danger"
+    >Sign out</button>
+  </form>
+</div>
