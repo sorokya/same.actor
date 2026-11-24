@@ -121,7 +121,7 @@ impl Config {
                 "GEO_URL",
                 "https://download.db-ip.com/free/dbip-country-lite-{month}.mmdb.gz",
             ),
-            cache_ttl: env_secs("CACHE_TTL_SECS", 600),
+            cache_ttl: env_secs("CACHE_TTL_SECS", 86_400),
             cache_capacity: env_num("CACHE_CAPACITY", 10_000),
             rate_limit: env_num("RATE_LIMIT", 10) as u32,
             rate_window: env_secs("RATE_WINDOW_SECS", 1),

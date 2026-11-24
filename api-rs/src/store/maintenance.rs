@@ -13,6 +13,14 @@ use std::collections::{HashMap, HashSet};
 use rusqlite::{params, Connection};
 
 use crate::error::AppError;
+
+/// The longest TMDB content may be kept.
+///
+/// From the API Terms of Use: "Cache, for longer than 6 months, any information obtained through
+/// or from TMDB or the TMDB APIs." It is a ceiling on retention, not a target — the response cache
+/// lives a day and the snapshots six hours — but a ceiling nobody enforces is a rule that quietly
+/// stops being true the first time a job is disabled or a build is left running.
+const TMDB_RETENTION: i64 = 183 * 86_400;
 use crate::store::Store;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -21,11 +29,17 @@ pub struct Report {
     pub days: Vec<(String, u64)>,
     pub rows_deleted: u64,
     pub bans_purged: usize,
+    /// Cached upstream responses swept, and discovery snapshots dropped, at the six-month mark.
+    pub cache_purged: usize,
+    pub snapshots_purged: usize,
 }
 
 impl Report {
     pub fn is_empty(&self) -> bool {
-        self.days.is_empty() && self.bans_purged == 0
+        self.days.is_empty()
+            && self.bans_purged == 0
+            && self.cache_purged == 0
+            && self.snapshots_purged == 0
     }
 }
 
@@ -104,6 +118,19 @@ pub(super) fn run(
     }
 
     report.bans_purged = crate::store::bans::purge_expired(conn, now)?;
+    report.cache_purged = crate::store::tmdb_cache::purge(conn, now - TMDB_RETENTION)?;
+
+    // Discovery snapshots are TMDB content too. They are rewritten every six hours, so this
+    // normally deletes nothing — which is the point: it is a ceiling, not a schedule. If the job
+    // has been off for seven months, that is exactly when it has to hold.
+    report.snapshots_purged = conn.execute(
+        "DELETE FROM lists WHERE fetched_ts < ?1",
+        params![now - TMDB_RETENTION],
+    )?;
+    conn.execute(
+        "DELETE FROM list_synergy WHERE computed_ts < ?1",
+        params![now - TMDB_RETENTION],
+    )?;
 
     Ok(report)
 }
@@ -338,6 +365,50 @@ mod tests {
         let (requests, errors, _) = daily(&store, &day, 5).await;
         assert_eq!(requests, 1);
         assert_eq!(errors, 1, "the 502 counts as an error in its own class");
+
+        store.close().await.expect("close");
+    }
+
+    /// TMDB's terms cap how long their content may be kept. Nothing here is normally that old —
+    /// snapshots are rewritten every six hours — so this is the test of the ceiling holding when
+    /// the refreshing stops for a reason, which is exactly when it matters.
+    #[tokio::test]
+    async fn tmdb_content_older_than_six_months_is_swept() {
+        let db = TempDb::new("tmdb-retention");
+        let store = db.open();
+
+        let now = crate::clock::now_unix();
+        let stale = now - TMDB_RETENTION - 60;
+        let fresh = now - 60;
+
+        store
+            .read(move |conn| {
+                crate::store::tmdb_cache::put(conn, "stale", "{}", stale)?;
+                crate::store::tmdb_cache::put(conn, "fresh", "{}", fresh)?;
+                crate::store::lists::put(conn, "old:list", "[]", "[]", stale)?;
+                crate::store::lists::put(conn, "new:list", "[]", "[]", fresh)
+            })
+            .await
+            .expect("seed");
+
+        let report = store.maintain(1).await.expect("maintain");
+
+        assert_eq!(report.cache_purged, 1, "the old response went");
+        assert_eq!(report.snapshots_purged, 1, "and the old snapshot");
+
+        let (cached, snapshots) = store
+            .read(|conn| {
+                let cached: i64 =
+                    conn.query_row("SELECT count(*) FROM tmdb_cache", [], |row| row.get(0))?;
+                let snapshots: i64 =
+                    conn.query_row("SELECT count(*) FROM lists", [], |row| row.get(0))?;
+                Ok((cached, snapshots))
+            })
+            .await
+            .expect("count");
+
+        assert_eq!(cached, 1, "the fresh response is untouched");
+        assert_eq!(snapshots, 1, "and so is the fresh snapshot");
 
         store.close().await.expect("close");
     }

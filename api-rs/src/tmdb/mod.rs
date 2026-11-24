@@ -165,6 +165,21 @@ pub struct Tmdb {
     image_cache: Cache<String, Arc<Vec<u8>>>,
     /// One floor shared by every request this process makes, refreshes included.
     pace: Pace,
+    /// How long a response may be reused, in memory and on disk.
+    ttl: Duration,
+    /// Where responses survive a restart. Absent in unit tests, which have no database and no
+    /// business reaching the network.
+    persist: Option<Arc<crate::store::Store>>,
+}
+
+/// Whether a call may answer from cache.
+///
+/// Not every caller may. A discovery refresh has to see the list as it is now; reading back the
+/// list it stored six hours ago would make the six-hourly job a very careful way of doing nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Freshness {
+    Reuse,
+    Upstream,
 }
 
 /// Largest image worth keeping in memory. TMDB's `w185` thumbnails are tens of kilobytes;
@@ -202,7 +217,15 @@ impl Tmdb {
             cache,
             image_cache,
             pace: Pace::new(MIN_REQUEST_INTERVAL),
+            ttl: config.cache_ttl,
+            persist: None,
         })
+    }
+
+    /// Keep responses on disk as well as in memory, so a restart does not empty the cache.
+    pub fn with_store(mut self, store: Arc<crate::store::Store>) -> Self {
+        self.persist = Some(store);
+        self
     }
 
     /// Fetch an image from the CDN.
@@ -299,27 +322,82 @@ impl Tmdb {
         segments: &[&str],
         query: &[(&str, &str)],
     ) -> Result<T, AppError> {
+        self.get_with(segments, query, Freshness::Reuse).await
+    }
+
+    /// Memory first, then disk, then upstream.
+    ///
+    /// The disk tier exists for restarts: a deployment used to empty the cache, and the next
+    /// refresh rebuilt every list from a hundred upstream calls apiece. A body that no longer
+    /// deserialises is dropped and refetched rather than turned into an error — that is what makes
+    /// it safe to change the response shapes this code reads.
+    async fn get_with<T: DeserializeOwned>(
+        &self,
+        segments: &[&str],
+        query: &[(&str, &str)],
+        freshness: Freshness,
+    ) -> Result<T, AppError> {
         let (url, key) = self.build(segments, query)?;
 
-        let value = if let Some(hit) = self.cache.get(&key).await {
-            tracing::debug!(key = %key, "cache hit");
-            (*hit).clone()
-        } else {
-            let response = self.send(&url, &key).await?;
-
-            let value: Value = response
-                .json()
-                .await
-                .map_err(|e| AppError::Upstream(format!("{key}: malformed JSON: {e}")))?;
-
-            self.cache
-                .insert(key.clone(), Arc::new(value.clone()))
-                .await;
-            value
+        let unusable = |error: serde_json::Error| {
+            AppError::Upstream(format!("{key}: unexpected schema: {error}"))
         };
 
-        serde_json::from_value(value)
-            .map_err(|e| AppError::Upstream(format!("{key}: unexpected schema: {e}")))
+        if freshness == Freshness::Reuse {
+            if let Some(hit) = self.cache.get(&key).await {
+                tracing::debug!(key = %key, "cache hit");
+                return serde_json::from_value((*hit).clone()).map_err(unusable);
+            }
+
+            if let Some(body) = self.cached_on_disk(&key).await {
+                match serde_json::from_str::<Value>(&body) {
+                    Ok(value) => {
+                        tracing::debug!(key = %key, "response cache hit");
+                        self.cache
+                            .insert(key.clone(), Arc::new(value.clone()))
+                            .await;
+                        return serde_json::from_value(value).map_err(unusable);
+                    }
+                    Err(error) => {
+                        tracing::debug!(key = %key, %error, "a cached body no longer parses");
+                        if let Some(store) = &self.persist {
+                            store.forget_response(key.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        let response = self.send(&url, &key).await?;
+
+        let value: Value = response
+            .json()
+            .await
+            .map_err(|e| AppError::Upstream(format!("{key}: malformed JSON: {e}")))?;
+
+        self.cache
+            .insert(key.clone(), Arc::new(value.clone()))
+            .await;
+
+        if let Some(store) = &self.persist {
+            store.keep_response(key.clone(), value.to_string(), crate::clock::now_unix());
+        }
+
+        serde_json::from_value(value).map_err(unusable)
+    }
+
+    /// The response cache, when this process has a database and the body is young enough.
+    async fn cached_on_disk(&self, key: &str) -> Option<String> {
+        let store = self.persist.as_ref()?;
+        let oldest = crate::clock::now_unix() - self.ttl.as_secs() as i64;
+
+        match store.cached_response(key, oldest).await {
+            Ok(hit) => hit,
+            Err(error) => {
+                tracing::debug!(%error, "could not read the response cache");
+                None
+            }
+        }
     }
 
     /// One upstream request, paced and retried.
@@ -477,6 +555,7 @@ impl Tmdb {
         params: &[(&str, &str)],
         region: Option<&str>,
         pages: u8,
+        freshness: Freshness,
     ) -> Result<Vec<types::ListItem>, AppError> {
         // Split into segments: `get` percent-encodes each one, so passing "movie/popular" as a
         // single segment sends `/3/movie%2Fpopular` — a 404 that looks like a permissions
@@ -495,7 +574,10 @@ impl Tmdb {
 
             // A page that fails after the first keeps what came before it: a list of eighty
             // titles with a gap beats no list at all, and the refresh runs again later.
-            let response: types::ListResponse = match self.get(&segments, &query).await {
+            let response: types::ListResponse = match self
+                .get_with(&segments, &query, freshness)
+                .await
+            {
                 Ok(response) => response,
                 Err(error) => {
                     if out.is_empty() {

@@ -105,8 +105,8 @@ TMDB_TOKEN=... TMDB_AUTH=query    # v3 api key, sent as ?api_key=
 | `AUTOBAN_BAN_SECS` | `3600` | How long an automatic ban lasts. Automatic bans always expire. |
 | `GEO_URL` | DB-IP Lite, current month | `{month}` is substituted. Override only to use a mirror. |
 | `TMDB_LOGO_URL` | TMDB's approved `blue_short` SVG | Override only if TMDB rotates the asset. The card renders without the logo if the fetch fails. |
-| `CACHE_TTL_SECS` | `600` | Upstream response cache lifetime. |
-| `CACHE_CAPACITY` | `10000` | Cache entry ceiling. |
+| `CACHE_TTL_SECS` | `86400` | How long a TMDB response may be reused, in memory and on disk. |
+| `CACHE_CAPACITY` | `10000` | In-memory cache entry ceiling. |
 | `RATE_LIMIT` | `10` | Requests per window per client IP. |
 | `RATE_WINDOW_SECS` | `1` | Window length. |
 | `TRUST_FORWARDED_FOR` | `false` | Honour `X-Forwarded-For`. **Only enable behind a proxy you control** — otherwise any client picks its own rate-limit bucket. |
@@ -422,6 +422,29 @@ otherwise every change to the section model leaves a row behind for ever.
 A list is five TMDB pages — a hundred titles — because twenty mostly shares nothing, and a cast
 matrix over twenty titles is a grid with one dot per row. Titles that no actor appears in twice
 are then dropped: they are stored, they are simply not columns. The page says both numbers.
+
+### Response cache and retention
+
+Every TMDB response is kept twice: in memory, and in a `tmdb_cache` table keyed by the request
+URL with the instant it was fetched. The disk tier is not there to serve ordinary traffic — memory
+does that — it is there for restarts. A deployment used to empty the cache, and the next refresh
+rebuilt nine lists from a hundred upstream calls apiece. Measured against a stub: a cold start
+cost 169 requests, and the same database in a new process cost 49, because every title detail was
+already on disk.
+
+The list endpoints are the exception: a refresh reads them **upstream, always**. Reading back the
+list the job itself stored six hours ago would turn a six-hourly refresh into a six-hourly no-op.
+Title details are the opposite — a cast does not change hourly, so they are allowed the full TTL.
+
+TMDB's API Terms of Use say: *"Cache, for longer than 6 months, any information obtained through
+or from TMDB or the TMDB APIs."* That is a ceiling on retention, and one that has to be enforced
+rather than assumed — a job that has been off for seven months is exactly when it would be
+violated. So the scheduled maintenance sweeps `tmdb_cache`, `lists` and `list_synergy` at the
+six-month mark. In normal operation it deletes nothing: snapshots are rewritten every six hours
+and cached responses live a day.
+
+A cached body that no longer parses is dropped and refetched, which is what makes it safe to
+change the shapes this code reads without a cache migration.
 
 ### Upstream rate
 

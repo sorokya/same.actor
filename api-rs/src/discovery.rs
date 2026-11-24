@@ -572,8 +572,16 @@ pub async fn refresh_one(
         .map(|(key, value)| (key.as_str(), value.as_str()))
         .collect();
 
+    // Upstream, never the cache: the whole job exists to notice that a list has changed, and a
+    // cached list would hand back the one this job stored six hours ago.
     let raw = tmdb
-        .list(variant.source.path, &params, region, variant.source.pages)
+        .list(
+            variant.source.path,
+            &params,
+            region,
+            variant.source.pages,
+            crate::tmdb::Freshness::Upstream,
+        )
         .await?;
 
     if raw.is_empty() {

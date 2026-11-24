@@ -10,7 +10,7 @@ use rusqlite::Connection;
 use crate::error::AppError;
 
 /// Index 0 becomes `user_version = 1`, and so on.
-const MIGRATIONS: &[&str] = &[V1, V2, V3, V4];
+const MIGRATIONS: &[&str] = &[V1, V2, V3, V4, V5];
 
 /// How many answers a comparison produced.
 ///
@@ -190,6 +190,24 @@ CREATE TABLE list_synergy (
   computed_ts INTEGER NOT NULL,
   payload     TEXT NOT NULL
 );
+"#;
+
+/// Responses as TMDB sent them, so a restart does not empty the cache.
+///
+/// The in-memory cache lasts until the process does; deployments and crashes are exactly when it
+/// would be most useful, because the next refresh has to rebuild every list from scratch. The body
+/// is stored verbatim: it is a response, and the only reason to look inside is to hand it to the
+/// same deserialiser that would have read it off the wire.
+///
+/// `fetched_ts` is what makes the retention rule enforceable — TMDB's terms forbid caching their
+/// content for longer than six months, and a row with a timestamp is a row that can be swept.
+const V5: &str = r#"
+CREATE TABLE tmdb_cache (
+    key        TEXT PRIMARY KEY,
+    body       TEXT NOT NULL,
+    fetched_ts INTEGER NOT NULL
+);
+CREATE INDEX tmdb_cache_fetched ON tmdb_cache(fetched_ts);
 "#;
 
 pub fn migrate(conn: &mut Connection) -> Result<(), AppError> {

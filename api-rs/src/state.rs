@@ -57,11 +57,15 @@ impl AppState {
             config.geo_enabled,
         );
 
-        let store = Store::open(StoreConfig {
+        let store = Arc::new(Store::open(StoreConfig {
             path: std::path::PathBuf::from(&config.db_path),
             geo: Some(Arc::clone(&geo)),
             ..StoreConfig::default()
-        })?;
+        })?);
+
+        // Responses now outlive the process. The order matters: the cache lives in the store, so
+        // the client is only attached once there is one.
+        let tmdb = tmdb.with_store(Arc::clone(&store));
 
         // Hashed filenames for the stylesheet and the island, read once. A missing manifest is
         // a warning, not a startup failure: an API-only deployment has no assets and must run.
@@ -86,7 +90,7 @@ impl AppState {
                 .time_to_live(std::time::Duration::from_secs(3600))
                 .build(),
             assets,
-            store: Arc::new(store),
+            store,
             geo,
             bans,
             autoban_rate,

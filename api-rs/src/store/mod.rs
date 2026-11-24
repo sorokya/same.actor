@@ -32,6 +32,7 @@ pub mod migrations;
 pub mod report;
 pub mod request;
 pub mod searches;
+pub(crate) mod tmdb_cache;
 
 pub use request::{Kind, RequestLog, RequestRow};
 
@@ -96,6 +97,11 @@ pub(crate) enum WriteOp {
         i64,
         tokio::sync::oneshot::Sender<Result<(), String>>,
     ),
+    /// A TMDB response to keep: `(key, body, fetched_ts)`. Fire and forget — a cache write that
+    /// loses a race with shutdown costs one upstream call, and must never cost a request.
+    PutCached(String, String, i64),
+    /// A cached body this build can no longer deserialise.
+    ForgetCached(String),
     Flush(tokio::sync::oneshot::Sender<()>),
     Shutdown(tokio::sync::oneshot::Sender<()>),
 }
@@ -308,6 +314,28 @@ impl Store {
 
     /// Wait until every record offered so far is committed. Used by tests, by the shutdown
     /// path, and by anything that needs read-after-write.
+    /// A cached upstream response, if one was fetched no earlier than `oldest`.
+    pub(crate) async fn cached_response(
+        &self,
+        key: &str,
+        oldest: i64,
+    ) -> Result<Option<String>, AppError> {
+        let key = key.to_owned();
+
+        self.read(move |conn| tmdb_cache::get(conn, &key, oldest))
+            .await
+    }
+
+    /// Keep an upstream response. Unacknowledged on purpose: the caller already has the body.
+    pub(crate) fn keep_response(&self, key: String, body: String, now: i64) {
+        let _ = self.offer(WriteOp::PutCached(key, body, now));
+    }
+
+    /// Drop a cached response this build could not read. Unacknowledged for the same reason.
+    pub(crate) fn forget_response(&self, key: String) {
+        let _ = self.offer(WriteOp::ForgetCached(key));
+    }
+
     pub async fn flush(&self) -> Result<(), AppError> {
         let (ack_tx, ack_rx) = tokio::sync::oneshot::channel();
         let tx = self.tx.clone();
@@ -559,6 +587,16 @@ fn accept(
             let _ = ack.send(
                 lists::put(conn, &id, &payload, &synergy, now).map_err(|error| error.to_string()),
             );
+        }
+        WriteOp::PutCached(key, body, now) => {
+            if let Err(error) = tmdb_cache::put(conn, &key, &body, now) {
+                tracing::debug!(%error, "could not keep a cached response");
+            }
+        }
+        WriteOp::ForgetCached(key) => {
+            if let Err(error) = tmdb_cache::forget(conn, &key) {
+                tracing::debug!(%error, "could not forget a cached response");
+            }
         }
         WriteOp::Shutdown(ack) => {
             commit(conn, counters, pending, geo);
