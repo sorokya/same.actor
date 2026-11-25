@@ -43,7 +43,7 @@ jobs:
 
       # The pnpm version comes from `packageManager` in package.json, so CI, Docker and
       # scripts/node.sh cannot drift apart. `cache: pnpm` keys off pnpm-lock.yaml.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       - uses: actions/setup-node@v7
         with:
