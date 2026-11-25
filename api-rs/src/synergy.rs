@@ -16,6 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
+use crate::discovery::SynergyRow;
 use crate::domain::Kind;
 use crate::store::franchises::Placement;
 
@@ -57,6 +58,11 @@ pub struct Filter {
     /// Whether to drop billed-late appearances, which is what makes a walk-on look like a
     /// collaboration.
     pub hide_cameos: bool,
+    /// Whether to show every actor instead of the first `MAX_ROWS`.
+    ///
+    /// The cap is a reading decision, not a filter — it hides nothing about the data — but it is
+    /// reached the same way, from the URL, so it travels with the rest of the switches.
+    pub all: bool,
 }
 
 impl Filter {
@@ -94,6 +100,9 @@ pub struct Column {
     pub group: usize,
     /// 1-based grid column for the template: the actor names take the first one.
     pub position: usize,
+    /// Whether this column opens a cast cluster outside the curated franchises, which draws a
+    /// rule before it: those clusters have no name to label them with.
+    pub starts_cluster: bool,
 }
 
 /// An actor, as a row.
@@ -119,6 +128,8 @@ pub struct Matrix {
     pub actors: Vec<Actor>,
     /// How many actors the cap left out.
     pub hidden_actors: usize,
+    /// Grid columns where a cast cluster starts, so a rule can be drawn before it.
+    pub breaks: Vec<usize>,
 }
 
 impl Matrix {
@@ -181,21 +192,56 @@ pub fn build(
         visible.push((index, placement));
     }
 
-    // Sort by franchise (ungrouped last), then by the position the list already had.
-    visible.sort_by_key(|(index, placement)| {
+    // Curated titles first, grouped by franchise in the order the franchises were curated.
+    let mut curated: Vec<(usize, Option<&Placement>)> = visible
+        .iter()
+        .copied()
+        .filter(|(_, placement)| placement.is_some())
+        .collect();
+    curated.sort_by_key(|(index, placement)| {
         (
-            placement
-                .map(|placement| placement.sort_order)
-                .unwrap_or(i64::MAX),
+            placement.map(|placement| placement.sort_order).unwrap_or(0),
             *index,
         )
     });
 
-    let mut groups: Vec<Group> = Vec::new();
-    let mut columns: Vec<Column> = Vec::with_capacity(visible.len());
+    // Everything no franchise claims: ordered by who shares a cast with whom. The list's own
+    // ranking scatters an actor's two credits to opposite ends of the grid, which turns a
+    // connection into a line across twenty empty cells.
+    let rank: HashMap<u32, usize> = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| (item.id, index))
+        .collect();
+    let unclaimed: Vec<u32> = visible
+        .iter()
+        .filter(|(_, placement)| placement.is_none())
+        .map(|(index, _)| items[*index].id)
+        .collect();
+    let index_of_id: HashMap<u32, usize> = items
+        .iter()
+        .enumerate()
+        .map(|(index, item)| (item.id, index))
+        .collect();
 
-    for (visible_index, (item_index, placement)) in visible.iter().enumerate() {
+    let mut ordered: Vec<(usize, Option<&Placement>, bool)> = curated
+        .iter()
+        .map(|(index, placement)| (*index, *placement, false))
+        .collect();
+
+    for (id, starts_cluster) in order_by_shared_cast(&unclaimed, rows, &rank) {
+        let Some(index) = index_of_id.get(&id).copied() else {
+            continue;
+        };
+        ordered.push((index, None, starts_cluster));
+    }
+
+    let mut groups: Vec<Group> = Vec::new();
+    let mut columns: Vec<Column> = Vec::with_capacity(ordered.len());
+
+    for (visible_index, (item_index, placement, starts_cluster)) in ordered.iter().enumerate() {
         let item = &items[*item_index];
+        let placement = *placement;
 
         let group = match placement {
             Some(placement) => match groups.iter().position(|group| group.slug == placement.slug) {
@@ -238,6 +284,7 @@ pub fn build(
             rating: item.rating,
             group,
             position: visible_index + 2,
+            starts_cluster: *starts_cluster,
         });
     }
 
@@ -301,8 +348,32 @@ pub fn build(
             .then(a.name.cmp(&b.name))
     });
 
-    let hidden_actors = actors.len().saturating_sub(MAX_ROWS);
-    actors.truncate(MAX_ROWS);
+    // Twenty people is what a page can read, and the twenty are chosen by credits: on a
+    // seventy-nine-actor list, someone in three titles is a better row than someone in two, and
+    // the rest are one link away. The cap selects; it does not reorder — the survivors go back
+    // into reading order, which the selection sort has just scrambled.
+    let hidden_actors = if filter.all {
+        0
+    } else {
+        let total = actors.len();
+
+        actors.sort_by(|a, b| {
+            b.titles
+                .len()
+                .cmp(&a.titles.len())
+                .then(a.name.cmp(&b.name))
+        });
+        actors.truncate(MAX_ROWS);
+        actors.sort_by(|a, b| {
+            a.titles
+                .first()
+                .cmp(&b.titles.first())
+                .then(b.titles.len().cmp(&a.titles.len()))
+                .then(a.name.cmp(&b.name))
+        });
+
+        total.saturating_sub(MAX_ROWS)
+    };
 
     // The columns are whatever these actors appear in: nothing is dropped for having a crowd,
     // because a crowd is a franchise and a franchise is the answer to "who keeps turning up".
@@ -315,6 +386,7 @@ pub fn build(
         return Matrix {
             groups,
             franchises,
+            breaks: cluster_breaks(&columns),
             columns,
             actors,
             hidden_actors,
@@ -367,10 +439,230 @@ pub fn build(
     Matrix {
         groups: compacted_groups,
         franchises,
+        breaks: cluster_breaks(&compacted_columns),
         columns: compacted_columns,
         actors,
         hidden_actors,
     }
+}
+
+/// The grid columns where an unlabelled cast cluster starts.
+fn cluster_breaks(columns: &[Column]) -> Vec<usize> {
+    columns
+        .iter()
+        .filter(|column| column.starts_cluster)
+        .map(|column| column.position)
+        .collect()
+}
+
+/// Order the titles no franchise claims so that titles sharing a cast sit side by side.
+///
+/// A trending list has no franchises, so curated order says nothing about it, and the ranking
+/// puts an actor's two credits wherever it likes — a dot at each end of the grid and a line
+/// across twenty empty cells, which reads as noise rather than as a connection.
+///
+/// Titles are nodes; an edge joins two titles that share a repeat actor, weighted by how many.
+/// Connected clusters are ordered largest first — most repeat actors — and inside a cluster the
+/// walk starts at the least connected title and always takes its strongest unvisited neighbour.
+/// The start matters: it keeps the loose end of a chain on the left, which is where the eye
+/// starts, and it stops two clusters from being traversed from the middle outwards.
+///
+/// Deterministic throughout, ties broken by the list's own rank and then by id: an order that
+/// changes between two renders of the same data is a bug you only ever see in a screenshot.
+///
+/// Returns each title with whether it opens a cluster, so the template can draw the rule between
+/// them.
+fn order_by_shared_cast(
+    titles: &[u32],
+    rows: &[SynergyRow],
+    rank: &HashMap<u32, usize>,
+) -> Vec<(u32, bool)> {
+    if titles.is_empty() {
+        return Vec::new();
+    }
+
+    let allowed: HashSet<u32> = titles.iter().copied().collect();
+    let mut weight: HashMap<(u32, u32), usize> = HashMap::new();
+    // Each person's titles inside this set, so a cluster can be counted in people, not edges.
+    let mut people: Vec<Vec<u32>> = Vec::new();
+
+    for row in rows {
+        let mut mine: Vec<u32> = row
+            .titles
+            .iter()
+            .map(|title| title.id)
+            .filter(|id| allowed.contains(id))
+            .collect();
+        mine.sort_unstable();
+        mine.dedup();
+
+        if mine.len() < 2 {
+            continue;
+        }
+
+        for first in 0..mine.len() {
+            for second in first + 1..mine.len() {
+                *weight.entry((mine[first], mine[second])).or_default() += 1;
+            }
+        }
+
+        people.push(mine);
+    }
+
+    // Connected clusters, by union-find over the edges.
+    let mut parent: HashMap<u32, u32> = titles.iter().map(|id| (*id, *id)).collect();
+
+    for (left, right) in weight.keys() {
+        let (a, b) = (root(&mut parent, *left), root(&mut parent, *right));
+        if a != b {
+            // The smaller id wins, so the parent table does not depend on insertion order.
+            let (low, high) = if a < b { (a, b) } else { (b, a) };
+            parent.insert(high, low);
+        }
+    }
+
+    let mut clusters: HashMap<u32, Vec<u32>> = HashMap::new();
+    for id in titles {
+        clusters
+            .entry(root(&mut parent, *id))
+            .or_default()
+            .push(*id);
+    }
+
+    // How many repeat actors each cluster holds, which is what orders it against the others.
+    let mut in_cluster: HashMap<u32, usize> = HashMap::new();
+    for mine in &people {
+        if let Some(first) = mine.first() {
+            *in_cluster.entry(root(&mut parent, *first)).or_default() += 1;
+        }
+    }
+
+    let mut order: Vec<(u32, Vec<u32>)> = clusters.into_iter().collect();
+    order.sort_by_key(|(id, members)| {
+        (
+            std::cmp::Reverse(in_cluster.get(id).copied().unwrap_or(0)),
+            members
+                .iter()
+                .map(|id| at(rank, *id))
+                .min()
+                .unwrap_or(usize::MAX),
+            *id,
+        )
+    });
+
+    let mut neighbours: HashMap<u32, HashMap<u32, usize>> = HashMap::new();
+    for ((left, right), count) in &weight {
+        neighbours.entry(*left).or_default().insert(*right, *count);
+        neighbours.entry(*right).or_default().insert(*left, *count);
+    }
+
+    let mut out: Vec<(u32, bool)> = Vec::with_capacity(titles.len());
+
+    for (_, members) in order {
+        let mut left: HashSet<u32> = members.iter().copied().collect();
+        let mut walked: HashSet<u32> = HashSet::new();
+        // The loose end first: fewest connections, then whichever the list ranks higher.
+        let mut current = *left
+            .iter()
+            .min_by_key(|id| {
+                (
+                    neighbours.get(id).map(HashMap::len).unwrap_or(0),
+                    at(rank, **id),
+                    **id,
+                )
+            })
+            .expect("a cluster has at least one member");
+
+        let mut first = true;
+
+        loop {
+            left.remove(&current);
+            walked.insert(current);
+            out.push((current, first));
+            first = false;
+
+            if left.is_empty() {
+                break;
+            }
+
+            let next = best_next(&neighbours, &left, current, rank).or_else(|| {
+                // A walk can run out of unvisited neighbours — a cycle closes on itself — and has
+                // to rejoin the rest of the cluster at whatever links back most strongly.
+                left.iter()
+                    .min_by_key(|id| {
+                        (
+                            std::cmp::Reverse(links_into(&neighbours, &walked, **id)),
+                            at(rank, **id),
+                            **id,
+                        )
+                    })
+                    .copied()
+            });
+
+            match next {
+                Some(id) => current = id,
+                None => break,
+            }
+        }
+    }
+
+    out
+}
+
+/// The unvisited title most strongly linked to the one being walked from.
+fn best_next(
+    neighbours: &HashMap<u32, HashMap<u32, usize>>,
+    left: &HashSet<u32>,
+    from: u32,
+    rank: &HashMap<u32, usize>,
+) -> Option<u32> {
+    neighbours.get(&from).and_then(|links| {
+        links
+            .iter()
+            .filter(|(id, _)| left.contains(id))
+            .min_by_key(|(id, count)| (std::cmp::Reverse(**count), at(rank, **id), **id))
+            .map(|(id, _)| *id)
+    })
+}
+
+/// How strongly a title is linked into the part of its cluster already walked.
+fn links_into(
+    neighbours: &HashMap<u32, HashMap<u32, usize>>,
+    walked: &HashSet<u32>,
+    id: u32,
+) -> usize {
+    neighbours
+        .get(&id)
+        .map(|links| {
+            links
+                .iter()
+                .filter(|(other, _)| walked.contains(other))
+                .map(|(_, count)| *count)
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+/// A title's position in the list, for tie-breaking only.
+fn at(rank: &HashMap<u32, usize>, id: u32) -> usize {
+    rank.get(&id).copied().unwrap_or(usize::MAX)
+}
+
+/// The root of a union-find node, compressing the path as it goes.
+fn root(parent: &mut HashMap<u32, u32>, id: u32) -> u32 {
+    let mut current = id;
+    while parent.get(&current).copied().unwrap_or(current) != current {
+        current = parent[&current];
+    }
+
+    let mut walk = id;
+    while parent.get(&walk).copied().unwrap_or(walk) != walk {
+        let next = parent[&walk];
+        parent.insert(walk, current);
+        walk = next;
+    }
+
+    current
 }
 
 /// The cutoff's verdict: anyone billed at or beyond it looks like a walk-on.
@@ -575,6 +867,166 @@ mod tests {
         )
     }
 
+    /// A list with no franchises — a trending list — used to keep its own ranking, which scatters
+    /// an actor's two credits to opposite ends of the grid. Sorting by shared cast is what turns
+    /// those two dots into a run you can read.
+    #[test]
+    fn titles_that_share_a_cast_sit_together() {
+        // Ranked 1..6, but the casts pair 1 with 4, 2 with 5, 3 with 6.
+        let items = (1..=6).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        let rows = vec![
+            row(10, "First", &[(1, None), (4, None)]),
+            row(11, "Second", &[(2, None), (5, None)]),
+            row(12, "Third", &[(3, None), (6, None)]),
+        ];
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        let kept: Vec<u32> = matrix.columns.iter().map(|column| column.id).collect();
+        assert_eq!(
+            kept,
+            [1, 4, 2, 5, 3, 6],
+            "each actor's two titles are neighbours, in the order the list ranked the pairs"
+        );
+        assert!(
+            matrix.actors.iter().all(|actor| {
+                let gap = actor.titles[1] - actor.titles[0];
+                gap == 1
+            }),
+            "and every run is one column wide"
+        );
+    }
+
+    /// The biggest cluster comes first: it holds the most repeat actors, so it is what the page
+    /// is about.
+    #[test]
+    fn the_cluster_holding_the_most_people_comes_first() {
+        let items = (1..=4).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        let rows = vec![
+            row(10, "A", &[(3, None), (4, None)]),
+            row(11, "B", &[(3, None), (4, None)]),
+            row(12, "C", &[(1, None), (2, None)]),
+        ];
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        let kept: Vec<u32> = matrix.columns.iter().map(|column| column.id).collect();
+        assert_eq!(kept, [3, 4, 1, 2], "two people beat one");
+    }
+
+    /// A chain is walked from its loose end, not from wherever the list happens to rank it.
+    ///
+    /// Every column has at least one link — a title only becomes a column because somebody
+    /// appears in it twice — so the walk never starts on a stray. What it must not do is start
+    /// in the middle of a chain, which would put both ends on the right and read backwards.
+    #[test]
+    fn a_chain_is_walked_from_its_loose_end() {
+        // Ranked B, A, C, D; the cast runs A-B, B-C, C-D.
+        let items = vec![item(2, "B"), item(1, "A"), item(3, "C"), item(4, "D")];
+        let rows = vec![
+            row(10, "AB", &[(1, None), (2, None)]),
+            row(11, "BC", &[(2, None), (3, None)]),
+            row(12, "CD", &[(3, None), (4, None)]),
+        ];
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        let kept: Vec<u32> = matrix.columns.iter().map(|column| column.id).collect();
+        assert_eq!(kept, [1, 2, 3, 4], "A to D, not from the middle outwards");
+    }
+
+    /// The rules between clusters are drawn where a cluster starts, not before everything.
+    #[test]
+    fn cluster_breaks_mark_where_a_new_cluster_starts() {
+        let items = (1..=4).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        let rows = vec![
+            row(10, "A", &[(1, None), (2, None)]),
+            row(11, "B", &[(3, None), (4, None)]),
+        ];
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        assert_eq!(
+            matrix.breaks,
+            vec![2, 4],
+            "one before the first cluster and one before the second, past the name column"
+        );
+    }
+
+    /// The cap keeps the people who turn up most, not whoever the staircase listed first: on a
+    /// long list those are different twenty, and the three-credit actor is the better row.
+    #[test]
+    fn the_cap_keeps_the_actors_with_the_most_credits() {
+        let items = (1..=6).map(|id| item(id, "A title")).collect::<Vec<_>>();
+
+        let mut rows: Vec<SynergyRow> = (0..MAX_ROWS as u32)
+            .map(|index| {
+                row(
+                    100 + index,
+                    &format!("Passing {index:02}"),
+                    &[(1, None), (2, None)],
+                )
+            })
+            .collect();
+        // Four actors in three titles each, ranked last by every other measure.
+        rows.extend((0..4).map(|index| {
+            row(
+                900 + index,
+                &format!("Recurring {index}"),
+                &[(3, None), (4, None), (5, None)],
+            )
+        }));
+
+        let matrix = build_default(&items, &rows, &HashMap::new());
+
+        assert_eq!(matrix.actors.len(), MAX_ROWS);
+        let kept: Vec<&str> = matrix
+            .actors
+            .iter()
+            .map(|actor| actor.name.as_str())
+            .collect();
+        for index in 0..4 {
+            assert!(
+                kept.contains(&format!("Recurring {index}").as_str()),
+                "three titles beats two: kept {kept:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_actor_cap_lifts_when_the_reader_asks() {
+        let items = (1..=40).map(|id| item(id, "A title")).collect::<Vec<_>>();
+        let rows = (0..MAX_ROWS as u32 + 3)
+            .map(|index| {
+                let start = index % 20 + 1;
+                row(
+                    index,
+                    &format!("Actor {index:02}"),
+                    &[(start, None), (start + 10, None), (start + 20, None)],
+                )
+            })
+            .collect::<Vec<_>>();
+
+        let capped = build_default(&items, &rows, &HashMap::new());
+        assert_eq!(capped.actors.len(), MAX_ROWS);
+        assert_eq!(capped.hidden_actors, 3);
+
+        let all = build(
+            Kind::Movie,
+            &items,
+            &rows,
+            &HashMap::new(),
+            &HashMap::new(),
+            &Filter {
+                all: true,
+                ..Filter::default()
+            },
+        );
+
+        assert_eq!(all.actors.len(), MAX_ROWS + 3, "everyone, when asked");
+        assert_eq!(all.hidden_actors, 0, "and nothing left to announce");
+    }
+
     #[test]
     fn titles_group_by_franchise_and_actors_order_by_where_their_run_starts() {
         let items = vec![
@@ -638,6 +1090,7 @@ mod tests {
         let filter = Filter {
             hide: ["marvel".to_owned()].into_iter().collect(),
             hide_cameos: false,
+            all: false,
         };
 
         let matrix = build(
@@ -675,6 +1128,7 @@ mod tests {
         let filter = Filter {
             hide: ["marvel".to_owned()].into_iter().collect(),
             hide_cameos: false,
+            all: false,
         };
 
         let matrix = build(
@@ -711,6 +1165,7 @@ mod tests {
         let filter = Filter {
             hide: HashSet::new(),
             hide_cameos: true,
+            all: false,
         };
 
         let filtered = build(
@@ -737,6 +1192,7 @@ mod tests {
         let filter = Filter {
             hide: HashSet::new(),
             hide_cameos: true,
+            all: false,
         };
 
         let without = build(

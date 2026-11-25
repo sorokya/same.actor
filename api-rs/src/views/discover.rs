@@ -68,6 +68,8 @@ pub struct RowView {
     pub run_start: usize,
     pub run_end: usize,
     pub has_run: bool,
+    /// How many titles of this list the actor appears in, for the count column.
+    pub credits: usize,
     pub colour: &'static str,
     /// Ticks: "603,604", so the island can light up a row without a payload.
     pub data: String,
@@ -194,6 +196,14 @@ pub struct SynergyView {
     pub cameo_href: String,
     /// Actors the row cap left out.
     pub hidden_actors: usize,
+    /// How many actors the list holds in total, cap or no cap.
+    pub actor_total: usize,
+    /// Whether the cap is already lifted.
+    pub all: bool,
+    /// The link that lifts it, or puts it back.
+    pub show_all_href: String,
+    /// Grid columns where an unlabelled cast cluster starts, for the rules between clusters.
+    pub breaks: Vec<usize>,
     pub panel: PanelView,
     pub empty: String,
     /// The page with every synergy filter dropped, for the empty state's reset link.
@@ -320,6 +330,12 @@ fn with_filters(base: &str, filter: &Filter, cameos: bool, view: View) -> String
     // reader back to the matrix they were not looking at.
     if view != View::Matrix {
         add(&mut url, format!("view={}", view.key()));
+    }
+
+    // And the row cap: lifting it is a reading choice, so pinning an actor or hiding a franchise
+    // must not quietly put the reader back on the short list.
+    if filter.all {
+        add(&mut url, "all=1".to_owned());
     }
 
     url
@@ -464,6 +480,7 @@ fn synergy_view(
                 run_start: first + 2,
                 run_end: last + 3,
                 has_run: actor.titles.len() > 1,
+                credits: actor.titles.len(),
                 colour,
                 data,
                 pinned: derived.focus == Focus::Actor(actor.person_id),
@@ -496,6 +513,12 @@ fn synergy_view(
         !derived.filter.hide_cameos,
         derived.view,
     );
+
+    // The cap is a reading decision, so the way out of it is a link with a count in it — "show all
+    // 79 actors" says what you get, where "more" says nothing.
+    let mut lifted = derived.filter.clone();
+    lifted.all = !derived.filter.all;
+    let show_all_href = with_filters(base, &lifted, derived.filter.hide_cameos, derived.view);
 
     let panel = panel_view(kind, matrix, derived, base);
 
@@ -543,6 +566,10 @@ fn synergy_view(
         cameo_hidden: derived.filter.hide_cameos,
         cameo_href,
         hidden_actors: matrix.hidden_actors,
+        actor_total: matrix.actors.len() + matrix.hidden_actors,
+        all: derived.filter.all,
+        show_all_href,
+        breaks: matrix.breaks.clone(),
         panel,
         empty,
         reset: with_filters(base, &Filter::default(), false, derived.view),

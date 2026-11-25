@@ -97,6 +97,28 @@ html {
     font-variant-numeric: tabular-nums;
   }
 
+  /* The matrix scroller fades at its right edge, because nothing else says the grid continues
+     past it — a clipped column and a column that ends there look identical. When the content
+     fits, the fade falls on empty space and disappears. */
+  .sync-scroll {
+    mask-image: linear-gradient(to right, #000 calc(100% - 2rem), transparent);
+  }
+
+  /* The actor names stay put while the titles scroll under them, so a reader twelve columns to
+     the right still knows whose row they are on. Opaque, or the dots show through the names. */
+  .sync-sticky {
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    background: var(--color-ink);
+  }
+
+  /* A pinned row is drawn on a lighter surface, and the sticky name has to sit on it, or the
+     highlight stops at the name column and the row looks cut in half. */
+  .sync-row[data-pinned="true"] .sync-sticky {
+    background: var(--color-raise);
+  }
+
   /* The matrix, when the island is answering a hover or a focus.
      Dimming is the operation, not highlighting: with twenty columns the eye cannot find a run
      until everything else recedes. Only the island sets these classes, so with no script the
@@ -115,6 +137,12 @@ html {
 
   .sync-dot.off {
     opacity: 0.15;
+  }
+
+  /* The row highlight covers the sticky name too, which is a sibling cell rather than a child of
+     the row's background. */
+  .sync-row.on .sync-sticky {
+    background: color-mix(in oklab, var(--color-raise) 60%, var(--color-ink));
   }
 
   .sync-row.on {

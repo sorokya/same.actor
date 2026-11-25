@@ -1,15 +1,20 @@
-{# The matrix: rows are actors, columns are titles grouped by franchise.
+{# The matrix: rows are actors, columns are titles.
 
-   Wide by nature — a hundred columns of 3.5rem — so it scrolls inside its own box rather than
-   making the page scroll, which would take the header with it. #}
-<div class="overflow-x-auto">
+   Wide by nature — twenty-six columns on a trending list and more on a franchise-heavy one — so it
+   scrolls inside its own box rather than making the page scroll, which would take the header with
+   it. The actor names are sticky, so a reader far to the right still knows whose row they are on,
+   and the right edge fades to say there is more.
+
+   Grid columns come in one place: 12rem for the name, then one per title. Every row repeats the
+   same template, which is what lines the dots up under their posters without measuring anything. #}
+<div class="sync-scroll overflow-x-auto">
   <div class="inline-block align-top">
     {% if !synergy.groups.is_empty() %}
     <div
       class="grid items-end"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3rem)"
     >
-      <span></span>
+      <span class="sync-sticky"></span>
       {% for group in synergy.groups %}
       <span
         class="truncate px-0.5 pb-1 font-mono text-[10px] uppercase tracking-[0.1em]"
@@ -20,62 +25,53 @@
     </div>
     {% endif %}
 
-    {# Title names run above the posters, rotated: a poster says nothing about which film it is
-       until you recognise the artwork, and the columns are the evidence, not the subject. #}
+    {# Each column is named, rotated, with a small thumb above it.
+
+       A poster alone is not a label: "The Odyssey" and "Primetime" are indistinguishable until you
+       already know the artwork, and a full-size poster costs 100px of header before the first row.
+       A thumb keeps recognition; the rotated name keeps the column identifiable; the count row
+       below keeps it actionable. #}
     <div
       class="grid items-end"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3rem)"
     >
-      <span></span>
+      <span class="sync-sticky"></span>
       {% for column in synergy.columns %}
-      <span
-        class="flex justify-center pb-1"
-        style="grid-column: {{ column.position }}"
-      >
+      <span class="flex flex-col items-center gap-1 pb-1" style="grid-column: {{ column.position }}">
         <a
           href="{{ column.href }}"
           target="_blank"
           rel="noreferrer noopener"
-          class="truncate text-[10px] leading-none text-dim hover:text-paper"
-          style="writing-mode: vertical-rl; transform: rotate(180deg); max-height: 9rem"
+          class="sync-col block w-9 overflow-hidden rounded-sm{% if column.pinned %} ring-1 ring-accent{% endif %}"
+          data-col="{{ column.id }}"
+          title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
+        >
+          {% call cards::poster_bg(column.poster) %}{% endcall %}
+        </a>
+        <a
+          href="{{ column.href }}"
+          target="_blank"
+          rel="noreferrer noopener"
+          class="truncate text-[11px] leading-none text-dim hover:text-paper"
+          style="writing-mode: vertical-rl; transform: rotate(180deg); max-height: 6rem"
           title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
         >{{ column.name }}</a>
       </span>
       {% endfor %}
     </div>
 
-    <div
-      class="grid items-end"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
-    >
-      <span></span>
-      {% for column in synergy.columns %}
-      <a
-        href="{{ column.href }}"
-        target="_blank"
-        rel="noreferrer noopener"
-        style="grid-column: {{ column.position }}"
-        data-col="{{ column.id }}"
-        class="sync-col block px-0.5{% if column.pinned %} ring-1 ring-accent{% endif %}"
-        title="{{ column.name }} · {{ column.meta }} · {{ column.group_name }}"
-      >
-        {% call cards::poster_bg(column.poster) %}{% endcall %}
-      </a>
-      {% endfor %}
-    </div>
+    {# The column's own control, under its name.
 
-    {# The column's own control, under the poster.
-
-       A poster is the whole 3.5rem cell and it already has a job — it opens TMDB — so the pin
-       needs a surface of its own. It gets a labelled row, not a repeated chip: eighteen bordered
-       badges under eighteen posters read as an axis of statistics, and the label is what turns a
-       number into an offer. The label names the row; each number is that column's repeat cast and
-       a link to it. It works with no script; the island turns the click into a swap. #}
+       A poster already has a job — it opens TMDB — so the pin needs a surface of its own. It gets a
+       labelled row, not a repeated chip: eighteen bordered badges under eighteen posters read as
+       an axis of statistics, and the label is what turns a number into an offer. The label names
+       the row; each number is that column's repeat cast and a link to it. It works with no script;
+       the island turns the click into a swap. #}
     <div
       class="grid items-center"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3rem)"
     >
-      <span class="label pr-2">Repeat cast</span>
+      <span class="label sync-sticky pr-2">Repeat cast</span>
       {% for column in synergy.columns %}
       <a
         href="{{ column.show_href }}"
@@ -91,33 +87,51 @@
     {% for row in synergy.rows %}
     <div
       class="sync-row grid items-center rounded-sm{% if row.pinned %} bg-raise/60{% endif %}"
-      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 4.5rem)"
+      style="grid-template-columns: 12rem repeat({{ synergy.columns.len() }}, 3rem)"
       data-titles="{{ row.data }}"
       data-actor="{{ row.id }}"
+      data-pinned="{% if row.pinned %}true{% else %}false{% endif %}"
     >
       <a
         href="{{ row.href }}"
         target="_blank"
         rel="noreferrer noopener"
-        class="flex min-w-0 items-center gap-2 pr-2 text-[11px] leading-snug {% if row.pinned %}text-paper{% else %}text-dim hover:text-paper{% endif %}"
+        class="sync-sticky flex min-w-0 items-center gap-2 pr-2 text-[11px] leading-snug {% if row.pinned %}text-paper{% else %}text-dim hover:text-paper{% endif %}"
       >
         <span class="shrink-0" aria-hidden="true">{% call cards::art(row.image, "h-5 w-5 rounded-full", 10, true) %}{% endcall %}</span>
-        <span class="truncate">{{ row.name }}</span>
+        <span class="min-w-0 flex-1 truncate">{{ row.name }}</span>
+        {# The count sits with the name rather than at the far right: a column pinned to the right
+           edge would be the one thing the scroll fade is allowed to eat, and this stays put. #}
+        <span class="shrink-0 text-[10px] tabular-nums text-dim" aria-label="{{ row.credits }} titles">{{ row.credits }}</span>
       </a>
 
-      {# The run: a line from this actor's first title to their last, which is what makes a
-         cluster read as a staircase rather than as scattered dots. #}
+      {# The rule between two cast clusters. Drawn per row because each row is its own grid, which
+         is what lets the dots line up with the posters without a second layout. #}
+      {% for at in synergy.breaks %}
+      <span
+        aria-hidden="true"
+        class="w-px justify-self-start self-stretch bg-line"
+        style="grid-row: 1; grid-column: {{ at }}"
+      ></span>
+      {% endfor %}
+
+      {# The run: from this actor's first title to their last.
+
+         Inset by half a column at each end so it begins and ends at the dot centres. The span
+         covers whole grid cells, so a line drawn cell edge to cell edge starts half a column
+         before the first dot and stops half a column past the last, which reads as a smudge
+         rather than as a connection. Thin, and dimmer than the dots: the dots are the facts. #}
       {% if row.has_run %}
       <span
         aria-hidden="true"
         class="h-px self-center"
-        style="grid-row: 1; grid-column: {{ row.run_start }} / {{ row.run_end }}; background: color-mix(in oklab, {{ row.colour }} 70%, transparent)"
+        style="grid-row: 1; grid-column: {{ row.run_start }} / {{ row.run_end }}; margin-inline: 1.5rem; background: color-mix(in oklab, {{ row.colour }} 45%, transparent)"
       ></span>
       {% endif %}
 
       {% for at in row.at %}
       <span class="flex justify-center" style="grid-row: 1; grid-column: {{ at }}">
-        <span class="sync-dot h-2.5 w-2.5 rounded-full ring-2 ring-ink/40" style="background: {{ row.colour }}"></span>
+        <span class="sync-dot h-2.5 w-2.5 rounded-full" style="background: color-mix(in oklab, {{ row.colour }} 82%, white)"></span>
       </span>
       {% endfor %}
     </div>

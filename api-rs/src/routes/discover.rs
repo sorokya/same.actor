@@ -43,6 +43,8 @@ pub struct PageQuery {
     pub view: Option<String>,
     /// A pinned pair, `a,b`, for the co-star grid's panel.
     pub pair: Option<String>,
+    /// `1` when the reader lifted the actor cap.
+    pub all: Option<String>,
 }
 
 fn kind_key(kind: Kind) -> &'static str {
@@ -270,7 +272,11 @@ pub async fn page(
     let derived = crate::views::discover::Derived {
         placements: state.store.placements().await?,
         overrides: state.store.all_cameos().await?,
-        filter: synergy_filter(query.hide.as_deref(), query.cameos.as_deref()),
+        filter: synergy_filter(
+            query.hide.as_deref(),
+            query.cameos.as_deref(),
+            query.all.as_deref(),
+        ),
         focus: match (
             query.pair.as_deref().and_then(parse_pair),
             query.actor,
@@ -330,7 +336,11 @@ fn fragment_requested(headers: axum::http::HeaderMap, region: &str) -> bool {
 ///
 /// `cameos=0` means "hidden", because a switch whose default is off reads better as a parameter
 /// that only appears when it is on.
-fn synergy_filter(hide: Option<&str>, cameos: Option<&str>) -> crate::synergy::Filter {
+fn synergy_filter(
+    hide: Option<&str>,
+    cameos: Option<&str>,
+    all: Option<&str>,
+) -> crate::synergy::Filter {
     crate::synergy::Filter {
         hide: hide
             .unwrap_or_default()
@@ -340,6 +350,7 @@ fn synergy_filter(hide: Option<&str>, cameos: Option<&str>) -> crate::synergy::F
             .map(str::to_owned)
             .collect(),
         hide_cameos: cameos == Some("0"),
+        all: all == Some("1"),
     }
 }
 

@@ -61,6 +61,20 @@
     <a href="{{ synergy.reset }}" class="text-accent hover:underline">Reset the filters</a>
   </p>
   {% else %}
+  {# The legend is read before the grid, not after it: it explains what a dot and a line mean, and
+     a reader who needs that explanation has already stopped reading by the time they reach the
+     bottom of a twenty-row matrix. #}
+  <p class="mb-3 max-w-2xl text-[11px] text-dim">
+    {% if synergy.view == "pairs" %}
+      Each square is a pair of actors and how many titles of this list they share, brighter for
+      more. The diagonal is that actor's own count; the empty squares are pairs with nothing in
+      common, and the triangle stops where it would only repeat itself.
+    {% else %}
+      A dot is one credit; the line joins an actor's first and last title here. Titles that share
+      cast sit side by side.
+    {% endif %}
+  </p>
+
   <div class="grid gap-5{% if synergy.panel.show %} xl:grid-cols-[fit-content(44rem)_16rem] xl:justify-start{% endif %}">
     {% if synergy.view == "pairs" %}
       {% include "fragments/synergy_pairs.html" %}
@@ -73,19 +87,19 @@
     {% endif %}
   </div>
 
-  <p class="mt-3 text-[11px] text-dim">
-    {% if synergy.view == "pairs" %}
-      Each square is a pair of actors and how many titles of this list they share, brighter for
-      more. The diagonal is that actor's own count; the empty squares are pairs with nothing in
-      common, and the triangle stops where it would only repeat itself.
-    {% else %}
-      A dot is one credit; the line is that actor's run from their first title here to their last.
-      Poster columns are grouped by franchise, in the order the franchises were curated.
+  {# The cap is a reading decision, so the way out of it says what it opens. An actor count is
+     also the honest answer to "is that all of them": a label reading "N more not shown" is a
+     dead end, and the number was already the only thing it said. #}
+  {% if synergy.view == "matrix" && (synergy.hidden_actors > 0 || synergy.all) %}
+  <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-[11px] text-dim">
+    <a
+      href="{{ synergy.show_all_href }}"
+      class="rounded-full border border-line px-3 py-1.5 font-mono text-[10px] uppercase tracking-[0.1em] transition-colors hover:border-accent/60 hover:text-paper"
+    >{% if synergy.all %}Show the top 20{% else %}Show all {{ synergy.actor_total }} actors{% endif %}</a>
+    {% if synergy.hidden_actors > 0 %}
+    <span>{{ synergy.rows.len() }} of {{ synergy.actor_total }} shown, most credits first</span>
     {% endif %}
   </p>
-
-  {% if synergy.hidden_actors > 0 %}
-  <p class="label mt-3">{{ synergy.hidden_actors }} more actors not shown</p>
   {% endif %}
   {% endif %}
 </section>

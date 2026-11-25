@@ -436,10 +436,14 @@ the cast, not on the titles, because the page is about who keeps turning up — 
 recurring faces is the most interesting thing a list has, and thinning titles for having a crowd
 in them deleted exactly that.
 
-So the header says what you are looking at: "20 of 33 actors · 47 titles". Titles nobody appears
-in twice are still dropped — a column with no dots has no story.
+The cap selects by credits and then returns the survivors to reading order: on a seventy-nine-actor
+list, someone in three titles is a better row than someone in two. `?all=1` lifts it and renders
+everyone, server-side, behind a link that names the count ("Show all 79 actors"). Titles nobody
+appears in twice are still dropped — a column with no dots has no story.
 
-### Upstream rate### Upstream rate
+So the header says what you are looking at: "20 of 33 actors · 47 titles".
+
+### Upstream rate
 
 TMDB's published guidance is an upper limit "somewhere in the 40 requests per second range", with
 an explicit request to respect a 429 rather than probe for the edge. So:
@@ -557,12 +561,29 @@ say on its own.
 
 ## The cast matrix
 
-- **Titles are columns, grouped by franchise**, in the order the franchises were curated. That is
-  what makes the staircase appear: an actor in three Marvel films draws a long run, and an actor
-  who crosses from Marvel to a Tarantino film draws one that crosses a block boundary.
-- **Each column is named above its poster**, rotated, because a poster is only identifiable if you
-  already recognise the artwork. Under it sits the column's own control: the count of people in
-  that title who appear again, which is also the link that pins the column.
+- **Titles are columns: curated franchises first, then everything else ordered by shared cast.**
+  A trending list has almost no franchises, so curated order says nothing about it and the list's
+  own ranking puts an actor's two credits at opposite ends of the grid — a dot at each end and a
+  line across twenty empty cells, which reads as noise. Titles no franchise claims are ordered as
+  a graph: an edge joins two titles that share a repeat actor, connected clusters are ordered
+  largest first, and each cluster is walked from its least-connected title along its strongest
+  links. The order is deterministic — ties break by list rank, then id — because an order that
+  shifts between two renders of the same data is a bug you only ever see in a screenshot. A thin
+  rule marks the start of each unlabelled cluster; franchises keep their labelled band.
+- **Each column is a small thumb and a rotated name**, in 3rem columns. A full-size poster costs
+  a hundred pixels of header before the first row and still does not say which film it is; a
+  36×54 thumb keeps the recognition and the name keeps the column identifiable. Below them sits
+  the column's own control: the count of people in that title who appear again, which is also the
+  link that pins the column.
+- **The names are sticky, the grid scrolls, and the right edge fades.** Names stay put under the
+  scroller so a reader twelve columns over still knows whose row they are on, and the fade is the
+  only thing that says a clipped column is not a column that ends there.
+- **The run is inset by half a column at each end**, so it begins and ends at the dot centres. A
+  grid span covers whole cells: drawn cell edge to cell edge, every run started half a column
+  before its first dot and stopped half a column past its last, which reads as a smudge. Lines are
+  thin and dimmer than the dots — the dots are the facts.
+- **Each row carries its credit count** beside the actor's name, and the legend explaining dots
+  and lines sits above the grid rather than below it.
 - **Actors are rows, ordered by where their run starts**, so reading down the left edge is reading
   the list in order.
 - **Everything is server-rendered.** The filters are links (`?hide=marvel`, `?cameos=0`), pins are
